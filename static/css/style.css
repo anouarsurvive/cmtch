@@ -1,0 +1,70 @@
+/*
+ * Styles personnalisés pour le site du Club municipal de tennis Chihia.
+ * Nous utilisons Bootstrap comme base pour la mise en page et ajoutons
+ * quelques ajustements pour harmoniser les couleurs et améliorer
+ * l'ergonomie des formulaires et tableaux.
+ */
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f7f9fb;
+}
+
+.hero {
+    position: relative;
+    background-image: url('../images/hero.png');
+    background-size: cover;
+    background-position: center;
+    color: #ffffff;
+    padding: 80px 20px;
+    border-radius: 0.5rem;
+}
+
+.hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 0.5rem;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+}
+
+.form-error {
+    color: #dc3545;
+    font-size: 0.9rem;
+}
+
+/* Table des réservations */
+.reservation-table th, .reservation-table td {
+    vertical-align: middle;
+}
+
+.reservation-table td.time-slot {
+    white-space: nowrap;
+}
+
+.reservations-select-date {
+    max-width: 220px;
+}
+
+.member-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.badge-valid {
+    background-color: #198754;
+    color: white;
+}
+
+.badge-pending {
+    background-color: #fd7e14;
+    color: white;
+}

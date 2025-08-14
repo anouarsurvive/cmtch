@@ -1,0 +1,14 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Erreur lors de la réservation</h2>
+{% if errors %}
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+        {% for err in errors %}
+            <li>{{ err }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+<a href="/reservations?date={{ selected_date }}" class="btn btn-secondary">Retour à la page des réservations</a>
+{% endblock %}

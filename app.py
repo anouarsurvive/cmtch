@@ -1,0 +1,641 @@
+"""
+Application web pour le Club municipal de tennis Chihia.
+
+Ce module définit une application FastAPI simple qui fournit un site web en
+langue française pour le club de tennis de Chihia.  Le site comporte un
+espace public présentant le club, un formulaire d'inscription pour les
+nouveaux membres, un système d'authentification, un espace d'administration
+permettant de valider les inscriptions et de gérer les membres, ainsi qu'un
+module de réservation pour les trois courts du club.
+
+Pour simplifier le déploiement dans cet environnement, aucune dépendance
+externe n'est requise : FastAPI, Starlette et Jinja2 sont déjà fournis.
+La base de données utilise SQLite via le module standard `sqlite3`.  Les
+sessions sont gérées via le middleware de Starlette qui signe un cookie
+contant un identifiant d'utilisateur.
+
+Les mots de passe sont hachés avec SHA‑256.  Une entrée administrateur est
+créée automatiquement au démarrage avec le nom d'utilisateur « admin » et
+le mot de passe « admin ».  Nous invitons les responsables du club à
+changer ces identifiants lors du déploiement.
+
+Autor: ChatGPT
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import sqlite3
+from datetime import datetime, date, time
+from typing import Optional, List, Dict, Any
+
+from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import urllib.parse
+from fastapi.templating import Jinja2Templates
+import base64
+import hmac
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "database.db")
+
+app = FastAPI()
+
+# Clé secrète pour signer les cookies de session.
+SECRET_KEY = "change-me-in-production-please"
+
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+# Expose l'objet datetime dans les templates pour afficher l'année dans le pied de page
+templates.env.globals["datetime"] = datetime
+
+# Montage des fichiers statiques (CSS, images, JS)
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
+    name="static",
+)
+
+
+def create_session_token(user_id: int) -> str:
+    """Crée un jeton de session signé pour un utilisateur donné.
+
+    Le jeton est composé de l'identifiant utilisateur codé en ASCII, suivi
+    d'un séparateur et d'une signature HMAC basée sur SECRET_KEY. Le tout est
+    encodé en base64 URL‑safe afin de pouvoir être stocké dans un cookie.
+
+    Args:
+        user_id: identifiant numérique de l'utilisateur.
+
+    Returns:
+        Chaîne représentant le jeton de session.
+    """
+    data = str(user_id).encode()
+    signature = hmac.new(SECRET_KEY.encode(), data, hashlib.sha256).hexdigest().encode()
+    token_bytes = data + b":" + signature
+    return base64.urlsafe_b64encode(token_bytes).decode()
+
+
+def parse_session_token(token: Optional[str]) -> Optional[int]:
+    """Vérifie et décode un jeton de session.
+
+    Args:
+        token: Jeton encodé en base64 récupéré depuis le cookie.
+
+    Returns:
+        L'identifiant de l'utilisateur si la signature est valide, sinon None.
+    """
+    if not token:
+        return None
+    try:
+        token_bytes = base64.urlsafe_b64decode(token.encode())
+        user_id_bytes, signature = token_bytes.split(b":", 1)
+        expected_signature = hmac.new(SECRET_KEY.encode(), user_id_bytes, hashlib.sha256).hexdigest().encode()
+        if hmac.compare_digest(signature, expected_signature):
+            return int(user_id_bytes.decode())
+    except Exception:
+        return None
+    return None
+
+
+def hash_password(password: str) -> str:
+    """Retourne l'empreinte SHA‑256 d'un mot de passe en clair.
+
+    Args:
+        password: Mot de passe en clair.
+
+    Returns:
+        Chaîne hexadécimale représentant l'empreinte.
+    """
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Vérifie qu'un mot de passe correspond à une empreinte enregistrée."""
+    return hash_password(password) == password_hash
+
+
+def get_db_connection() -> sqlite3.Connection:
+    """Ouvre une connexion SQLite avec configuration de row_factory.
+
+    Returns:
+        Instance de connexion à la base de données.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    """Initialise la base de données si nécessaire.
+
+    Crée les tables et un compte administrateur par défaut si elles
+    n'existent pas déjà.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Table des utilisateurs
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            full_name TEXT,
+            email TEXT,
+            phone TEXT,
+            is_admin INTEGER DEFAULT 0,
+            validated INTEGER DEFAULT 0
+        )
+        """
+    )
+    # Table des réservations
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            court_number INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    conn.commit()
+    # Création du compte admin par défaut si besoin
+    cur.execute("SELECT id FROM users WHERE username = ?", ("admin",))
+    row = cur.fetchone()
+    if row is None:
+        admin_pwd = hash_password("admin")
+        cur.execute(
+            "INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "admin",
+                admin_pwd,
+                "Administrateur",
+                "admin@example.com",
+                "",
+                1,
+                1,
+            ),
+        )
+        conn.commit()
+    conn.close()
+
+
+def get_current_user(request: Request) -> Optional[sqlite3.Row]:
+    """Retourne l'utilisateur actuellement connecté à partir du cookie de session.
+
+    Args:
+        request: L'objet Request en cours.
+
+    Returns:
+        Une ligne représentant l'utilisateur, ou None si aucun utilisateur
+        n'est authentifié.
+    """
+    token = request.cookies.get("session_token")
+    user_id = parse_session_token(token)
+    if not user_id:
+        return None
+    conn = get_db_connection()
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return user
+
+
+def require_login(request: Request) -> sqlite3.Row:
+    """Décorateur simple pour s'assurer qu'un utilisateur est connecté.
+
+    Si aucun utilisateur n'est connecté, redirige vers la page de connexion.
+
+    Args:
+        request: L'objet Request en cours.
+
+    Returns:
+        La ligne représentant l'utilisateur connecté.
+    """
+    user = get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=302, detail="Not authenticated")
+    return user
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    """Appelé au démarrage de l'application pour préparer la base de données."""
+    init_db()
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request) -> HTMLResponse:
+    """Page d'accueil du site.
+
+    Affiche une présentation du club, les coordonnées et un lien vers les
+    différentes sections selon le rôle de l'utilisateur.
+    """
+    user = get_current_user(request)
+    # Informations publiques sur le club provenant de sources fiables.
+    adresse = "Route Teboulbi km 6, 3041 Sfax sud"
+    telephone = "+216 29 60 03 40"
+    email = "club.tennis.chihia@gmail.com"
+    description = (
+        "Club municipal de tennis Chihia est un lieu spécialement conçu pour les personnes "
+        "souhaitant pratiquer le Tennis."
+    )
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "user": user,
+            "is_admin": bool(user["is_admin"]) if user else False,
+            "validated": bool(user["validated"]) if user else False,
+            "adresse": adresse,
+            "telephone": telephone,
+            "email": email,
+            "description": description,
+        },
+    )
+
+
+@app.get("/inscription", response_class=HTMLResponse)
+async def registration_form(request: Request) -> HTMLResponse:
+    """Affiche le formulaire d'inscription pour les nouveaux membres."""
+    user = get_current_user(request)
+    # Si un utilisateur est déjà connecté, on le redirige vers l'accueil
+    if user:
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(
+        "register.html",
+        {"request": request},
+    )
+
+
+@app.post("/inscription", response_class=HTMLResponse)
+async def register(request: Request) -> HTMLResponse:
+    """Traite la soumission du formulaire d'inscription.
+
+    Si le nom d'utilisateur est déjà pris ou si les mots de passe ne
+    correspondent pas, la page renvoie un message d'erreur.
+    L'utilisateur est créé avec l'attribut `validated` à 0 et ne pourra pas se
+    connecter tant qu'un administrateur ne l'aura pas validé.
+    """
+    # Récupérer le corps de la requête et parser les champs manuellement
+    raw_body = await request.body()
+    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+    username = form.get("username", [""])[0].strip()
+    full_name = form.get("full_name", [""])[0].strip()
+    email = form.get("email", [""])[0].strip()
+    phone = form.get("phone", [""])[0].strip()
+    password = form.get("password", [""])[0]
+    confirm_password = form.get("confirm_password", [""])[0]
+    # Vérifications de base
+    errors: List[str] = []
+    if not username:
+        errors.append("Le nom d'utilisateur est obligatoire.")
+    if password != confirm_password:
+        errors.append("Les mots de passe ne correspondent pas.")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Vérifier que le nom d'utilisateur n'existe pas déjà
+    cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+    if cur.fetchone():
+        errors.append("Ce nom d'utilisateur est déjà utilisé.")
+    if errors:
+        conn.close()
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "errors": errors,
+                "username": username,
+                "full_name": full_name,
+                "email": email,
+                "phone": phone,
+            },
+        )
+    # Création de l'utilisateur
+    pwd_hash = hash_password(password)
+    cur.execute(
+        "INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated) "
+        "VALUES (?, ?, ?, ?, ?, 0, 0)",
+        (username, pwd_hash, full_name, email, phone),
+    )
+    conn.commit()
+    conn.close()
+    return templates.TemplateResponse(
+        "register_success.html",
+        {"request": request, "username": username},
+    )
+
+
+@app.get("/connexion", response_class=HTMLResponse)
+async def login_form(request: Request) -> HTMLResponse:
+    """Affiche le formulaire de connexion."""
+    user = get_current_user(request)
+    if user:
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.post("/connexion", response_class=HTMLResponse)
+async def login(request: Request) -> HTMLResponse:
+    """Valide les informations de connexion et ouvre une session."""
+    raw_body = await request.body()
+    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+    username = form.get("username", [""])[0].strip()
+    password = form.get("password", [""])[0]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+    user = cur.fetchone()
+    conn.close()
+    errors: List[str] = []
+    if user is None or not verify_password(password, user["password_hash"]):
+        errors.append("Nom d'utilisateur ou mot de passe incorrect.")
+    elif not user["validated"]:
+        errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
+    if errors:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "errors": errors, "username": username},
+        )
+    token = create_session_token(user["id"])
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(key="session_token", value=token, httponly=True, max_age=60 * 60 * 24 * 7)
+    return response
+
+
+@app.get("/deconnexion")
+async def logout(request: Request) -> RedirectResponse:
+    """Termine la session de l'utilisateur."""
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie("session_token")
+    return response
+
+
+def check_admin(user: sqlite3.Row) -> None:
+    """Lève une exception si l'utilisateur n'est pas administrateur."""
+    if not user or not user["is_admin"]:
+        raise HTTPException(status_code=403, detail="Accès réservé à l'administration.")
+
+
+@app.get("/reservations", response_class=HTMLResponse)
+async def reservations_page(request: Request) -> HTMLResponse:
+    """Affiche la page de réservation pour les membres validés.
+
+    Montre les réservations existantes pour le jour sélectionné et permet
+    d'effectuer une nouvelle réservation si l'horaire est libre.
+    """
+    user = get_current_user(request)
+    if not user:
+        # Redirection vers la connexion si l'utilisateur n'est pas connecté
+        return RedirectResponse(url="/connexion", status_code=303)
+    if not user["validated"]:
+        return templates.TemplateResponse(
+            "not_validated.html",
+            {"request": request, "message": "Votre inscription doit être validée pour accéder aux réservations."},
+        )
+    # Date sélectionnée (par défaut la date du jour)
+    today_str = date.today().isoformat()
+    selected_date = request.query_params.get("date", today_str)
+    # Récupérer les réservations pour cette date
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT r.*, u.full_name AS user_full_name FROM reservations r JOIN users u ON r.user_id = u.id "
+        "WHERE date = ? ORDER BY start_time",
+        (selected_date,),
+    )
+    reservations = cur.fetchall()
+    # Récupérer les réservations de l'utilisateur connecté
+    cur.execute(
+        "SELECT * FROM reservations WHERE user_id = ? ORDER BY date, start_time",
+        (user["id"],),
+    )
+    user_reservations = cur.fetchall()
+    conn.close()
+    return templates.TemplateResponse(
+        "reservations.html",
+        {
+            "request": request,
+            "user": user,
+            "is_admin": bool(user["is_admin"]),
+            "reservations": reservations,
+            "user_reservations": user_reservations,
+            "selected_date": selected_date,
+        },
+    )
+
+
+@app.post("/reservations", response_class=HTMLResponse)
+async def create_reservation(request: Request) -> HTMLResponse:
+    """Crée une réservation si l'horaire est disponible.
+
+    Vérifie les conflits avec les réservations existantes sur le même court
+    avant d'insérer une nouvelle ligne.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    if not user["validated"]:
+        return templates.TemplateResponse(
+            "not_validated.html",
+            {"request": request, "message": "Votre inscription doit être validée pour accéder aux réservations."},
+        )
+    raw_body = await request.body()
+    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+    date_field = form.get("date", [""])[0]
+    court_number_raw = form.get("court_number", [""])[0]
+    start_time = form.get("start_time", [""])[0]
+    end_time = form.get("end_time", [""])[0]
+    # Conversion de court_number
+    try:
+        court_number = int(court_number_raw)
+    except (ValueError, TypeError):
+        court_number = None
+    errors: List[str] = []
+    try:
+        _date = datetime.strptime(date_field, "%Y-%m-%d").date()
+        _start = datetime.strptime(start_time, "%H:%M").time()
+        _end = datetime.strptime(end_time, "%H:%M").time()
+        if _start >= _end:
+            errors.append("L'heure de fin doit être postérieure à l'heure de début.")
+    except ValueError:
+        errors.append("Format de date ou d'heure invalide.")
+    if court_number not in (1, 2, 3):
+        errors.append("Numéro de court invalide.")
+    if errors:
+        return templates.TemplateResponse(
+            "reservation_error.html",
+            {
+                "request": request,
+                "user": user,
+                "errors": errors,
+                "selected_date": date_field,
+            },
+        )
+    # Vérifier les conflits
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM reservations WHERE court_number = ? AND date = ? AND "
+        "((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))",
+        (
+            court_number,
+            _date.isoformat(),
+            end_time,
+            end_time,
+            start_time,
+            start_time,
+            start_time,
+            end_time,
+        ),
+    )
+    conflict = cur.fetchone()
+    if conflict:
+        conn.close()
+        return templates.TemplateResponse(
+            "reservation_error.html",
+            {
+                "request": request,
+                "user": user,
+                "errors": [
+                    "Ce créneau n'est pas disponible pour le court choisi. Veuillez sélectionner un autre horaire."
+                ],
+                "selected_date": date_field,
+            },
+        )
+    # Insertion de la réservation
+    cur.execute(
+        "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (user["id"], court_number, _date.isoformat(), start_time, end_time),
+    )
+    conn.commit()
+    conn.close()
+    redirect_url = f"/reservations?date={_date.isoformat()}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@app.get("/admin/membres", response_class=HTMLResponse)
+async def admin_members(request: Request) -> HTMLResponse:
+    """Page d'administration des membres.
+
+    Permet de voir tous les utilisateurs inscrits et de valider ou
+    d'invalider leur statut.  Accessible uniquement aux administrateurs.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, username, full_name, email, phone, is_admin, validated FROM users ORDER BY id"
+    )
+    members = cur.fetchall()
+    conn.close()
+    return templates.TemplateResponse(
+        "admin_members.html",
+        {
+            "request": request,
+            "user": user,
+            "members": members,
+        },
+    )
+
+
+@app.post("/admin/membres/valider", response_class=HTMLResponse)
+async def validate_member(request: Request) -> HTMLResponse:
+    """Action pour valider ou invalider un membre depuis l'interface admin."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    raw_body = await request.body()
+    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+    try:
+        user_id = int(form.get("user_id", ["0"])[0])
+    except ValueError:
+        return RedirectResponse(url="/admin/membres", status_code=303)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT validated FROM users WHERE id = ?", (user_id,))
+    row = cur.fetchone()
+    if row is None:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    new_state = 0 if row["validated"] else 1
+    cur.execute("UPDATE users SET validated = ? WHERE id = ?", (new_state, user_id))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin/membres", status_code=303)
+
+
+@app.get("/admin/reservations", response_class=HTMLResponse)
+async def admin_reservations(request: Request) -> HTMLResponse:
+    """Affiche toutes les réservations pour les administrateurs."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT r.id, r.court_number, r.date, r.start_time, r.end_time, u.full_name AS user_full_name, u.username "
+        "FROM reservations r JOIN users u ON r.user_id = u.id ORDER BY r.date, r.start_time"
+    )
+    bookings = cur.fetchall()
+    conn.close()
+    return templates.TemplateResponse(
+        "admin_reservations.html",
+        {
+            "request": request,
+            "user": user,
+            "bookings": bookings,
+        },
+    )
+
+
+@app.post("/admin/reservations/supprimer", response_class=HTMLResponse)
+async def admin_delete_reservation(request: Request) -> HTMLResponse:
+    """Permet à un administrateur de supprimer une réservation."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    raw_body = await request.body()
+    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+    try:
+        booking_id = int(form.get("booking_id", ["0"])[0])
+    except ValueError:
+        return RedirectResponse(url="/admin/reservations", status_code=303)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM reservations WHERE id = ?", (booking_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin/reservations", status_code=303)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLResponse:
+    """Gestion personnalisée des exceptions HTTP pour les redirections.
+
+    Permet de renvoyer des redirections à partir d'une HTTPException avec le
+    code 302 et un champ `detail` indiquant l'URL cible.
+    """
+    # Si le code est 302, on redirige plutôt que d'afficher l'erreur
+    if exc.status_code == 302 and exc.detail:
+        return RedirectResponse(url=exc.detail, status_code=exc.status_code)
+    # Sinon, on renvoie une page d'erreur générique
+    return templates.TemplateResponse(
+        "error.html",
+        {"request": request, "status_code": exc.status_code, "detail": exc.detail},
+        status_code=exc.status_code,
+    )

@@ -1,0 +1,39 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="hero mb-4">
+    <div class="hero-overlay"></div>
+    <div class="hero-content text-center">
+        <h1 class="display-4 fw-bold">Bienvenue au Club municipal de tennis Chihia</h1>
+        <p class="lead">Un lieu dédié aux passionnés de la petite balle jaune.</p>
+        {% if not user %}
+            <a href="/inscription" class="btn btn-primary btn-lg mt-3">Rejoignez‑nous</a>
+        {% elif user.validated %}
+            <a href="/reservations" class="btn btn-primary btn-lg mt-3">Réservez un court</a>
+        {% else %}
+            <p class="mt-3">Votre inscription est en attente de validation.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <h2>À propos du club</h2>
+        <p>{{ description }}</p>
+        <h3 class="mt-4">Contact</h3>
+        <ul class="list-unstyled">
+            <li><i class="fa-solid fa-location-dot me-2"></i>{{ adresse }}</li>
+            <li><i class="fa-solid fa-phone me-2"></i>{{ telephone }}</li>
+            <li><i class="fa-solid fa-envelope me-2"></i><a href="mailto:{{ email }}">{{ email }}</a></li>
+        </ul>
+    </div>
+    <div class="col-md-4">
+        <h2>Informations</h2>
+        <p>Suivez‑nous sur les réseaux sociaux et restez informé de nos événements, compétitions et stages.</p>
+        <ul class="list-inline">
+            <li class="list-inline-item"><a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="text-decoration-none"><i class="fa-brands fa-facebook fa-2x"></i></a></li>
+            <!-- Ajoutez d'autres réseaux sociaux si nécessaire -->
+        </ul>
+    </div>
+</div>
+{% endblock %}

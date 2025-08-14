@@ -1,0 +1,50 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Gestion des membres</h2>
+<p>Cliquez sur « Valider » pour activer un compte ou « Invalider » pour le désactiver. Les administrateurs ne peuvent pas être désactivés.</p>
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Nom d'utilisateur</th>
+        <th>Nom complet</th>
+        <th>Email</th>
+        <th>Téléphone</th>
+        <th>Rôle</th>
+        <th>Statut</th>
+        <th>Action</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for m in members %}
+        <tr>
+            <td>{{ m.id }}</td>
+            <td>{{ m.username }}</td>
+            <td>{{ m.full_name }}</td>
+            <td>{{ m.email }}</td>
+            <td>{{ m.phone }}</td>
+            <td>{% if m.is_admin %}Administrateur{% else %}Membre{% endif %}</td>
+            <td>
+                {% if m.validated %}
+                    <span class="member-badge badge-valid">Validé</span>
+                {% else %}
+                    <span class="member-badge badge-pending">En attente</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if not m.is_admin %}
+                <form method="post" action="/admin/membres/valider" style="display:inline;">
+                    <input type="hidden" name="user_id" value="{{ m.id }}">
+                    <button type="submit" class="btn btn-sm {% if m.validated %}btn-warning{% else %}btn-success{% endif %}">
+                        {% if m.validated %}Invalider{% else %}Valider{% endif %}
+                    </button>
+                </form>
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

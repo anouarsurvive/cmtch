@@ -1,0 +1,92 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Réservations des courts</h2>
+
+<form method="get" class="mb-4">
+    <div class="input-group reservations-select-date">
+        <span class="input-group-text">Date</span>
+        <input type="date" class="form-control" name="date" value="{{ selected_date }}" onchange="this.form.submit()">
+    </div>
+</form>
+
+<div class="row">
+    <div class="col-md-8">
+        <h3 class="mb-3">Réservations pour le {{ selected_date }}</h3>
+        {% if reservations %}
+        <table class="table table-striped reservation-table">
+            <thead>
+            <tr>
+                <th scope="col">Court</th>
+                <th scope="col">Début</th>
+                <th scope="col">Fin</th>
+                <th scope="col">Membre</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for r in reservations %}
+                <tr>
+                    <td>{{ r.court_number }}</td>
+                    <td class="time-slot">{{ r.start_time }}</td>
+                    <td class="time-slot">{{ r.end_time }}</td>
+                    <td>{{ r.user_full_name }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p>Aucune réservation pour cette date.</p>
+        {% endif %}
+
+        <h3 class="mt-4">Nouvelle réservation</h3>
+        <form method="post">
+            <input type="hidden" name="date" value="{{ selected_date }}">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="court_number" class="form-label">Court</label>
+                    <select class="form-select" id="court_number" name="court_number" required>
+                        <option value="1">Court 1</option>
+                        <option value="2">Court 2</option>
+                        <option value="3">Court 3</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="start_time" class="form-label">Heure de début</label>
+                    <input type="time" class="form-control" id="start_time" name="start_time" step="1800" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="end_time" class="form-label">Heure de fin</label>
+                    <input type="time" class="form-control" id="end_time" name="end_time" step="1800" required>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Réserver</button>
+        </form>
+    </div>
+    <div class="col-md-4">
+        <h3>Mes réservations</h3>
+        {% if user_reservations %}
+        <table class="table table-bordered table-sm">
+            <thead>
+            <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Court</th>
+                <th scope="col">Début</th>
+                <th scope="col">Fin</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for r in user_reservations %}
+                <tr>
+                    <td>{{ r.date }}</td>
+                    <td>{{ r.court_number }}</td>
+                    <td class="time-slot">{{ r.start_time }}</td>
+                    <td class="time-slot">{{ r.end_time }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p>Vous n'avez pas encore de réservation.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Inscription</h2>
+<p>Remplissez le formulaire ci‑dessous pour devenir membre du club. Votre demande sera validée par un administrateur.</p>
+{% if errors %}
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+        {% for err in errors %}
+            <li>{{ err }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+<form method="post">
+    <div class="mb-3">
+        <label for="username" class="form-label">Nom d'utilisateur</label>
+        <input type="text" class="form-control" id="username" name="username" required value="{{ username|default('') }}">
+    </div>
+    <div class="mb-3">
+        <label for="full_name" class="form-label">Nom complet</label>
+        <input type="text" class="form-control" id="full_name" name="full_name" required value="{{ full_name|default('') }}">
+    </div>
+    <div class="mb-3">
+        <label for="email" class="form-label">Adresse e‑mail</label>
+        <input type="email" class="form-control" id="email" name="email" required value="{{ email|default('') }}">
+    </div>
+    <div class="mb-3">
+        <label for="phone" class="form-label">Téléphone</label>
+        <input type="text" class="form-control" id="phone" name="phone" required value="{{ phone|default('') }}">
+    </div>
+    <div class="mb-3">
+        <label for="password" class="form-label">Mot de passe</label>
+        <input type="password" class="form-control" id="password" name="password" required>
+    </div>
+    <div class="mb-3">
+        <label for="confirm_password" class="form-label">Confirmer le mot de passe</label>
+        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+    </div>
+    <button type="submit" class="btn btn-primary">S'inscrire</button>
+</form>
+{% endblock %}
