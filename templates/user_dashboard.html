@@ -1,0 +1,68 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h2 class="mb-4">Mon espace</h2>
+<p>Voici un aperçu du nombre de séances que vous avez réservées chaque mois.</p>
+{% if months %}
+  <div class="card p-4 mb-4">
+    <canvas id="sessionChart" height="200"></canvas>
+  </div>
+  <div class="card p-4">
+    <h5>Tableau des séances par mois</h5>
+    <table class="table table-striped mt-3">
+      <thead>
+        <tr>
+          <th>Mois</th>
+          <th>Nombre de séances</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m, c in data_pairs %}
+        <tr>
+          <td>{{ m }}</td>
+          <td>{{ c }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const labels = {{ months_js | safe }};
+    const data = {{ counts_js | safe }};
+    const ctx = document.getElementById('sessionChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Nombre de séances',
+                data: data,
+                backgroundColor: 'rgba(2, 46, 106, 0.6)',
+                borderColor: 'rgba(2, 46, 106, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Séances'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Mois'
+                    }
+                }
+            }
+        }
+    });
+  </script>
+{% else %}
+  <p>Vous n'avez pas encore effectué de réservation. Les statistiques apparaîtront ici lorsque vous aurez réservé des créneaux.</p>
+{% endif %}
+{% endblock %}

@@ -40,6 +40,7 @@ import hmac
 import re
 import uuid
 from io import BytesIO
+import json
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -972,3 +973,56 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin/articles", status_code=303)
+
+# -----------------------------------------------------------------------------
+#  Espace utilisateur : statistiques de séances
+# -----------------------------------------------------------------------------
+
+@app.get("/espace", response_class=HTMLResponse)
+async def user_dashboard(request: Request) -> HTMLResponse:
+    """Page personnelle affichant les statistiques de réservation par mois.
+
+    Cette page est accessible aux utilisateurs inscrits (membres et entraîneurs)
+    et affiche le nombre de séances réservées pour chaque mois. Les données sont
+    extraites de la table des réservations en regroupant par année/mois.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    if not user["validated"]:
+        return templates.TemplateResponse(
+            "not_validated.html",
+            {"request": request, "message": "Votre inscription doit être validée pour accéder à cet espace."},
+        )
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Regrouper par année-mois et compter
+    cur.execute(
+        "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
+        (user["id"],),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    # Transformer les résultats en listes pour Chart.js
+    months: List[str] = []
+    counts: List[int] = []
+    for row in rows:
+        months.append(row["month"])
+        counts.append(row["count"])
+    # Préparer les versions JSON des listes pour Chart.js
+    months_js = json.dumps(months)
+    counts_js = json.dumps(counts)
+    # Préparer les paires pour itération dans le template (mois, count)
+    data_pairs = list(zip(months, counts))
+    return templates.TemplateResponse(
+        "user_dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "months": months,
+            "counts": counts,
+            "months_js": months_js,
+            "counts_js": counts_js,
+            "data_pairs": data_pairs,
+        },
+    )
