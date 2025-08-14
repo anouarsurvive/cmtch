@@ -345,6 +345,14 @@ async def home(request: Request) -> HTMLResponse:
         "Club municipal de tennis Chihia est un lieu spécialement conçu pour les personnes "
         "souhaitant pratiquer le Tennis."
     )
+    # Récupérer les trois derniers articles pour les mettre en avant sur l'accueil
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, title, content, image_path, created_at FROM articles ORDER BY datetime(created_at) DESC LIMIT 3"
+    )
+    latest_articles = cur.fetchall()
+    conn.close()
     return templates.TemplateResponse(
         "index.html",
         {
@@ -356,6 +364,7 @@ async def home(request: Request) -> HTMLResponse:
             "telephone": telephone,
             "email": email,
             "description": description,
+            "latest_articles": latest_articles,
         },
     )
 

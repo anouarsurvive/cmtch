@@ -1,70 +1,240 @@
 /*
- * Styles personnalisés pour le site du Club municipal de tennis Chihia.
- * Nous utilisons Bootstrap comme base pour la mise en page et ajoutons
- * quelques ajustements pour harmoniser les couleurs et améliorer
- * l'ergonomie des formulaires et tableaux.
+ * Feuille de style principale pour le site du Club municipal de tennis Chihia.
+ *
+ * Cette feuille s'inspire du design moderne du Tennis Club de Boulogne‑Billancourt
+ * (TCBB) en utilisant une palette de couleurs élégante combinant un bleu
+ * profond et un orange dynamique. Les variables CSS définies en tête
+ * permettent d'ajuster facilement l'apparence du site. Bootstrap reste la
+ * base pour la mise en page responsive ; ces règles complètent et
+ * personnalisent ses composants.
  */
 
-body {
-    font-family: 'Arial', sans-serif;
-    background-color: #f7f9fb;
+/* Variables de thème */
+:root {
+    --primary-color: #0b2c55;   /* bleu profond pour barres et titres */
+    --accent-color: #e8662a;    /* orange vif pour les appels à l'action */
+    --secondary-color: #ffffff; /* blanc pour les textes sur fond sombre */
+    --light-bg: #f5f7fa;        /* gris clair pour les sections alternées */
+    --text-color: #333333;      /* couleur principale du texte */
+    --border-radius: 0.5rem;    /* rayon standard pour les cartes et boutons */
 }
 
+/* Corps de la page */
+body {
+    font-family: 'Montserrat', sans-serif;
+    background-color: var(--light-bg);
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+}
+
+/* Barre de navigation */
+.navbar {
+    background-color: var(--primary-color) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.navbar-brand span {
+    color: var(--secondary-color);
+    font-weight: 700;
+    font-size: 1.25rem;
+}
+.navbar-brand img {
+    height: 48px;
+    margin-right: 0.5rem;
+}
+.navbar-nav .nav-link {
+    color: var(--secondary-color);
+    margin-left: 1rem;
+    font-weight: 500;
+    transition: color 0.2s ease-in-out;
+}
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link:focus,
+.navbar-nav .nav-link.active {
+    color: var(--accent-color);
+}
+.dropdown-menu {
+    background-color: var(--primary-color);
+    border: none;
+    border-radius: var(--border-radius);
+}
+.dropdown-menu .dropdown-item {
+    color: var(--secondary-color);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+}
+.dropdown-menu .dropdown-item:hover {
+    background-color: var(--accent-color);
+    color: var(--secondary-color);
+}
+
+/* Boutons */
+.btn-primary {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: var(--secondary-color);
+    font-weight: 500;
+}
+.btn-primary:hover {
+    background-color: #c7531f;
+    border-color: #c7531f;
+    color: var(--secondary-color);
+}
+.btn-outline-primary {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    font-weight: 500;
+}
+.btn-outline-primary:hover {
+    background-color: var(--accent-color);
+    color: var(--secondary-color);
+}
+
+/* Section héroïque */
 .hero {
     position: relative;
     background-image: url('../images/hero.png');
     background-size: cover;
     background-position: center;
-    color: #ffffff;
-    padding: 80px 20px;
-    border-radius: 0.5rem;
+    color: var(--secondary-color);
+    padding: 120px 20px;
+    border-radius: var(--border-radius);
+    overflow: hidden;
 }
-
 .hero-overlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: var(--border-radius);
 }
-
 .hero-content {
     position: relative;
-    z-index: 2;
+    z-index: 1;
+}
+.hero-content h1 {
+    font-size: 2.75rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+.hero-content p {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
 }
 
-.form-error {
-    color: #dc3545;
-    font-size: 0.9rem;
+/* Sections générales */
+section {
+    padding: 60px 0;
+}
+.section-title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+    color: var(--primary-color);
 }
 
-/* Table des réservations */
-.reservation-table th, .reservation-table td {
-    vertical-align: middle;
+/* Cartes d'actualités */
+.news-card {
+    border: none;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out;
+    height: 100%;
+}
+.news-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+.news-card img {
+    height: 200px;
+    width: 100%;
+    object-fit: cover;
+}
+.news-card .card-body {
+    padding: 1rem 1.25rem;
+}
+.news-card .card-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+}
+.news-card .card-text {
+    font-size: 0.95rem;
+    color: #555;
+    margin-bottom: 1.25rem;
 }
 
-.reservation-table td.time-slot {
-    white-space: nowrap;
+/* Section Contact */
+.contact-section {
+    background-color: var(--primary-color);
+    color: var(--secondary-color);
+    border-radius: var(--border-radius);
+}
+.contact-section h2 {
+    color: var(--secondary-color);
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+.contact-section ul li {
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+.contact-section ul li i {
+    color: var(--accent-color);
+    margin-right: 0.5rem;
 }
 
-.reservations-select-date {
-    max-width: 220px;
-}
-
+/* Badge de rôle et validation */
 .member-badge {
     padding: 0.25rem 0.5rem;
     border-radius: 0.25rem;
     font-size: 0.8rem;
+    font-weight: 500;
 }
-
 .badge-valid {
     background-color: #198754;
-    color: white;
+    color: #fff;
 }
-
 .badge-pending {
     background-color: #fd7e14;
-    color: white;
+    color: #fff;
+}
+
+/* Table de réservation */
+.table thead th {
+    background-color: var(--primary-color);
+    color: var(--secondary-color);
+    border-color: var(--primary-color);
+}
+.table tbody td {
+    vertical-align: middle;
+}
+.slot-available {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+}
+.slot-available:hover {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: var(--secondary-color);
+}
+.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+/* Pied de page */
+footer {
+    background-color: var(--primary-color);
+    color: var(--secondary-color);
+    padding: 1rem 0;
+    text-align: center;
+    margin-top: 2rem;
 }
