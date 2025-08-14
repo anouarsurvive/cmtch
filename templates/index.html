@@ -1,37 +1,128 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-<!-- Section héroïque -->
-<div class="hero mb-5">
-    <div class="hero-overlay"></div>
+<!-- Section héroïque moderne -->
+<div class="hero">
     <div class="hero-content text-center">
-        <h1 class="fw-bold">Bienvenue au Club municipal de tennis Chihia</h1>
-        <p>Venez pratiquer votre passion dans un cadre convivial et dynamique !</p>
+        <h1 class="fw-bold text-gradient">Club Municipal de Tennis Chihia</h1>
+        <p class="lead">Venez pratiquer votre passion dans un cadre convivial et dynamique !</p>
         {% if not user %}
-            <a href="/inscription" class="btn btn-primary btn-lg">Rejoignez‑nous</a>
+            <a href="/inscription" class="btn btn-primary btn-lg">
+                <i class="fas fa-user-plus me-2"></i>Rejoignez-nous
+            </a>
         {% elif user.validated %}
-            <a href="/reservations" class="btn btn-primary btn-lg">Réservez un court</a>
+            <a href="/reservations" class="btn btn-primary btn-lg">
+                <i class="fas fa-calendar-check me-2"></i>Réservez un court
+            </a>
         {% else %}
-            <p class="mt-3">Votre inscription est en attente de validation.</p>
+            <div class="alert alert-warning d-inline-block">
+                <i class="fas fa-clock me-2"></i>Votre inscription est en attente de validation.
+            </div>
         {% endif %}
     </div>
 </div>
+
+<!-- Section Statistiques -->
+<section class="stats-section py-5">
+    <div class="container">
+        <div class="row text-center">
+            <div class="col-md-3 col-6 mb-4">
+                <div class="stat-item">
+                    <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                    <h3 class="fw-bold text-primary">150+</h3>
+                    <p class="text-muted">Membres actifs</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6 mb-4">
+                <div class="stat-item">
+                    <i class="fas fa-tennis-ball fa-3x text-accent mb-3"></i>
+                    <h3 class="fw-bold text-accent">3</h3>
+                    <p class="text-muted">Courts de tennis</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6 mb-4">
+                <div class="stat-item">
+                    <i class="fas fa-trophy fa-3x text-primary mb-3"></i>
+                    <h3 class="fw-bold text-primary">25+</h3>
+                    <p class="text-muted">Années d'expérience</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6 mb-4">
+                <div class="stat-item">
+                    <i class="fas fa-star fa-3x text-accent mb-3"></i>
+                    <h3 class="fw-bold text-accent">4.8</h3>
+                    <p class="text-muted">Note moyenne</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
 <!-- Section Notre club -->
 <section id="club" class="club-section">
     <div class="container">
         <div class="row align-items-center">
-            <div class="col-md-6 mb-4 mb-md-0">
-                <h2 class="section-title">Notre club</h2>
-                <p class="mb-3">{{ description }}</p>
-                <ul class="list-unstyled fs-5">
-                    <li><i class="fa-solid fa-location-dot me-2"></i>{{ adresse }}</li>
-                    <li><i class="fa-solid fa-phone me-2"></i>{{ telephone }}</li>
-                    <li><i class="fa-solid fa-envelope me-2"></i><a href="mailto:{{ email }}" class="text-decoration-none">{{ email }}</a></li>
-                </ul>
+            <div class="col-lg-6 mb-4 mb-lg-0">
+                <h2 class="section-title text-start">Notre Club</h2>
+                <p class="lead mb-4">{{ description }}</p>
+                <div class="features-list">
+                    <div class="feature-item d-flex align-items-center mb-3">
+                        <i class="fas fa-map-marker-alt fa-2x text-accent me-3"></i>
+                        <div>
+                            <h5 class="mb-1">Adresse</h5>
+                            <p class="mb-0 text-muted">{{ adresse }}</p>
+                        </div>
+                    </div>
+                    <div class="feature-item d-flex align-items-center mb-3">
+                        <i class="fas fa-phone fa-2x text-accent me-3"></i>
+                        <div>
+                            <h5 class="mb-1">Téléphone</h5>
+                            <p class="mb-0 text-muted">{{ telephone }}</p>
+                        </div>
+                    </div>
+                    <div class="feature-item d-flex align-items-center mb-3">
+                        <i class="fas fa-envelope fa-2x text-accent me-3"></i>
+                        <div>
+                            <h5 class="mb-1">Email</h5>
+                            <p class="mb-0 text-muted">
+                                <a href="mailto:{{ email }}" class="text-decoration-none">{{ email }}</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-6 text-center">
-                <img src="{{ url_for('static', path='images/hero.png') }}" alt="Vue du club" class="img-fluid rounded-3 shadow">
+            <div class="col-lg-6 text-center">
+                <img src="{{ url_for('static', path='images/hero.png') }}" alt="Vue du club" class="img-fluid rounded-custom shadow-custom">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Section Services -->
+<section class="services-section py-5 bg-light">
+    <div class="container">
+        <h2 class="section-title">Nos Services</h2>
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="service-card text-center p-4 h-100">
+                    <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
+                    <h4>Réservation en ligne</h4>
+                    <p class="text-muted">Réservez vos créneaux de tennis en quelques clics, 24h/24 et 7j/7.</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="service-card text-center p-4 h-100">
+                    <i class="fas fa-users fa-3x text-accent mb-3"></i>
+                    <h4>Communauté active</h4>
+                    <p class="text-muted">Rejoignez une communauté passionnée de tennis avec des événements réguliers.</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="service-card text-center p-4 h-100">
+                    <i class="fas fa-shield-alt fa-3x text-primary mb-3"></i>
+                    <h4>Installations sécurisées</h4>
+                    <p class="text-muted">Profitez de courts de tennis de qualité dans un environnement sécurisé.</p>
+                </div>
             </div>
         </div>
     </div>
@@ -44,8 +135,8 @@
         {% if latest_articles %}
         <div class="row">
             {% for article in latest_articles %}
-            <div class="col-md-4 mb-4">
-                <div class="card news-card">
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card news-card h-100">
                     {% if article.image_path %}
                         {% if article.image_path.startswith('http') %}
                             <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}">
@@ -55,41 +146,58 @@
                     {% else %}
                         <img src="{{ url_for('static', path='images/hero.png') }}" class="card-img-top" alt="Pas d'image">
                     {% endif %}
-                    <div class="card-body">
+                    <div class="card-body d-flex flex-column">
                         <h5 class="card-title">{{ article.title }}</h5>
-                        <p class="card-text">{{ article.content[:120] }}{% if article.content|length > 120 %}…{% endif %}</p>
-                        <a href="/article/{{ article.id }}" class="btn btn-outline-primary">Lire la suite</a>
+                        <p class="card-text flex-grow-1">{{ article.content[:120] }}{% if article.content|length > 120 %}…{% endif %}</p>
+                        <a href="/article/{{ article.id }}" class="btn btn-outline-primary mt-auto">
+                            <i class="fas fa-arrow-right me-2"></i>Lire la suite
+                        </a>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
-        <div class="text-end">
-            <a href="/articles" class="btn btn-primary">Voir toutes les actualités</a>
+        <div class="text-center mt-4">
+            <a href="/articles" class="btn btn-primary btn-lg">
+                <i class="fas fa-newspaper me-2"></i>Voir toutes les actualités
+            </a>
         </div>
         {% else %}
-            <p>Aucune actualité pour le moment.</p>
+            <div class="text-center">
+                <i class="fas fa-newspaper fa-3x text-muted mb-3"></i>
+                <p class="text-muted">Aucune actualité pour le moment.</p>
+            </div>
         {% endif %}
     </div>
 </section>
 
 <!-- Section Contact / Réseaux -->
-<section id="contact" class="contact-section mt-5">
+<section id="contact" class="contact-section">
     <div class="container">
         <div class="row">
-            <div class="col-md-6">
-                <h2>Contactez‑nous</h2>
+            <div class="col-lg-6 mb-4 mb-lg-0">
+                <h2><i class="fas fa-address-book me-3"></i>Contactez-nous</h2>
                 <ul class="list-unstyled">
-                    <li><i class="fa-solid fa-location-dot"></i>{{ adresse }}</li>
-                    <li><i class="fa-solid fa-phone"></i>{{ telephone }}</li>
-                    <li><i class="fa-solid fa-envelope"></i><a href="mailto:{{ email }}" class="ms-1 text-decoration-none text-white">{{ email }}</a></li>
+                    <li><i class="fas fa-map-marker-alt"></i>{{ adresse }}</li>
+                    <li><i class="fas fa-phone"></i>{{ telephone }}</li>
+                    <li><i class="fas fa-envelope"></i><a href="mailto:{{ email }}" class="ms-1 text-decoration-none text-white">{{ email }}</a></li>
                 </ul>
             </div>
-            <div class="col-md-6">
-                <h2>Suivez‑nous</h2>
-                <div class="d-flex align-items-center gap-3 fs-3">
-                    <a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="text-white"><i class="fab fa-facebook"></i></a>
-                    <!-- Ajoutez d'autres réseaux sociaux si nécessaire -->
+            <div class="col-lg-6">
+                <h2><i class="fas fa-share-alt me-3"></i>Suivez-nous</h2>
+                <div class="social-links">
+                    <a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="social-link">
+                        <i class="fab fa-facebook-f fa-2x"></i>
+                    </a>
+                    <a href="#" class="social-link">
+                        <i class="fab fa-instagram fa-2x"></i>
+                    </a>
+                    <a href="#" class="social-link">
+                        <i class="fab fa-twitter fa-2x"></i>
+                    </a>
+                    <a href="#" class="social-link">
+                        <i class="fab fa-youtube fa-2x"></i>
+                    </a>
                 </div>
             </div>
         </div>
