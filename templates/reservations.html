@@ -10,67 +10,58 @@
 </form>
 
 <div class="row">
-    <div class="col-md-8">
-        <h3 class="mb-3">Réservations pour le {{ selected_date }}</h3>
-        {% if reservations %}
-        <table class="table table-striped reservation-table">
-            <thead>
-            <tr>
-                <th scope="col">Court</th>
-                <th scope="col">Début</th>
-                <th scope="col">Fin</th>
-                <th scope="col">Membre</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for r in reservations %}
+    <div class="col-lg-8 mb-4">
+        <h3 class="mb-3">Planning du {{ selected_date }}</h3>
+        <div class="table-responsive">
+            <table class="table table-bordered text-center align-middle">
+                <thead>
                 <tr>
-                    <td>{{ r.court_number }}</td>
-                    <td class="time-slot">{{ r.start_time }}</td>
-                    <td class="time-slot">{{ r.end_time }}</td>
-                    <td>{{ r.user_full_name }}</td>
+                    <th>Heure</th>
+                    <th>Court 1</th>
+                    <th>Court 2</th>
+                    <th>Court 3</th>
                 </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-            <p>Aucune réservation pour cette date.</p>
-        {% endif %}
-
-        <h3 class="mt-4">Nouvelle réservation</h3>
-        <form method="post">
+                </thead>
+                <tbody>
+                {% for slot in time_slots %}
+                    <tr>
+                        <th scope="row" class="time-slot">{{ slot[0] }} – {{ slot[1] }}</th>
+                        {% for court in (1, 2, 3) %}
+                            {% set is_reserved = availability[court][slot] %}
+                            <td>
+                                {% if is_reserved %}
+                                    <div class="bg-danger text-white py-2 rounded">Réservé</div>
+                                {% else %}
+                                    <button type="button" class="btn btn-outline-success w-100 slot-available" data-court="{{ court }}" data-start="{{ slot[0] }}" data-end="{{ slot[1] }}">
+                                        Libre
+                                    </button>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted"><small>Cliquez sur un créneau libre pour créer une réservation d'une heure.</small></p>
+        <!-- Formulaire caché pour envoyer la réservation -->
+        <form id="reservationForm" method="post" style="display: none;">
             <input type="hidden" name="date" value="{{ selected_date }}">
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="court_number" class="form-label">Court</label>
-                    <select class="form-select" id="court_number" name="court_number" required>
-                        <option value="1">Court 1</option>
-                        <option value="2">Court 2</option>
-                        <option value="3">Court 3</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label for="start_time" class="form-label">Heure de début</label>
-                    <input type="time" class="form-control" id="start_time" name="start_time" step="1800" required>
-                </div>
-                <div class="col-md-4">
-                    <label for="end_time" class="form-label">Heure de fin</label>
-                    <input type="time" class="form-control" id="end_time" name="end_time" step="1800" required>
-                </div>
-            </div>
-            <button type="submit" class="btn btn-primary">Réserver</button>
+            <input type="hidden" name="court_number" id="form_court_number">
+            <input type="hidden" name="start_time" id="form_start_time">
+            <input type="hidden" name="end_time" id="form_end_time">
         </form>
     </div>
-    <div class="col-md-4">
+    <div class="col-lg-4">
         <h3>Mes réservations</h3>
         {% if user_reservations %}
         <table class="table table-bordered table-sm">
             <thead>
             <tr>
-                <th scope="col">Date</th>
-                <th scope="col">Court</th>
-                <th scope="col">Début</th>
-                <th scope="col">Fin</th>
+                <th>Date</th>
+                <th>Court</th>
+                <th>Début</th>
+                <th>Fin</th>
             </tr>
             </thead>
             <tbody>
@@ -78,8 +69,8 @@
                 <tr>
                     <td>{{ r.date }}</td>
                     <td>{{ r.court_number }}</td>
-                    <td class="time-slot">{{ r.start_time }}</td>
-                    <td class="time-slot">{{ r.end_time }}</td>
+                    <td>{{ r.start_time }}</td>
+                    <td>{{ r.end_time }}</td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -89,4 +80,22 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Script pour traiter le clic sur un créneau libre -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const slots = document.querySelectorAll('.slot-available');
+        slots.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const court = this.getAttribute('data-court');
+                const start = this.getAttribute('data-start');
+                const end = this.getAttribute('data-end');
+                document.getElementById('form_court_number').value = court;
+                document.getElementById('form_start_time').value = start;
+                document.getElementById('form_end_time').value = end;
+                document.getElementById('reservationForm').submit();
+            });
+        });
+    });
+</script>
 {% endblock %}

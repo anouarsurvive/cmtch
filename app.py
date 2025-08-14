@@ -28,7 +28,7 @@ import hashlib
 import os
 import sqlite3
 from datetime import datetime, date, time
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -507,6 +507,35 @@ async def reservations_page(request: Request) -> HTMLResponse:
     )
     user_reservations = cur.fetchall()
     conn.close()
+    # Générer des créneaux horaires d'une heure de 8h00 à 22h00 (dernier créneau 21h-22h)
+    time_slots: List[Tuple[str, str]] = []
+    for hour in range(8, 22):
+        start_slot = time(hour, 0)
+        end_slot = time(hour + 1, 0) if hour < 21 else time(22, 0)
+        time_slots.append((start_slot.strftime("%H:%M"), end_slot.strftime("%H:%M")))
+    # Préparer la disponibilité pour chaque court
+    availability: Dict[int, Dict[Tuple[str, str], bool]] = {1: {}, 2: {}, 3: {}}
+    # Convertir la liste de réservations en dictionnaire par court pour vérifier rapidement
+    reservations_by_court = {1: [], 2: [], 3: []}
+    for res in reservations:
+        reservations_by_court[res["court_number"]].append(res)
+    # Pour chaque court et chaque créneau, déterminer si réservé
+    for court in (1, 2, 3):
+        court_reservations = reservations_by_court.get(court, [])
+        for start_str, end_str in time_slots:
+            # On considère le créneau réservé s'il existe une réservation qui chevauche l'intervalle [start, end)
+            reserved = False
+            for res in court_reservations:
+                # res.start_time/res.end_time sont des chaînes HH:MM
+                res_start = datetime.strptime(res["start_time"], "%H:%M").time()
+                res_end = datetime.strptime(res["end_time"], "%H:%M").time()
+                slot_start = datetime.strptime(start_str, "%H:%M").time()
+                slot_end = datetime.strptime(end_str, "%H:%M").time()
+                # Si les intervalles se chevauchent
+                if (slot_start < res_end and slot_end > res_start):
+                    reserved = True
+                    break
+            availability[court][(start_str, end_str)] = reserved
     return templates.TemplateResponse(
         "reservations.html",
         {
@@ -516,6 +545,8 @@ async def reservations_page(request: Request) -> HTMLResponse:
             "reservations": reservations,
             "user_reservations": user_reservations,
             "selected_date": selected_date,
+            "time_slots": time_slots,
+            "availability": availability,
         },
     )
 
