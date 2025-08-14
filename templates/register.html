@@ -11,7 +11,7 @@
         </ul>
     </div>
 {% endif %}
-<form method="post">
+<form method="post" enctype="multipart/form-data">
     <div class="mb-3">
         <label for="username" class="form-label">Nom d'utilisateur</label>
         <input type="text" class="form-control" id="username" name="username" required value="{{ username|default('') }}">
@@ -27,6 +27,18 @@
     <div class="mb-3">
         <label for="phone" class="form-label">Téléphone</label>
         <input type="text" class="form-control" id="phone" name="phone" required value="{{ phone|default('') }}">
+    </div>
+    <div class="mb-3">
+        <label for="ijin_number" class="form-label">Numéro IJIN</label>
+        <input type="text" class="form-control" id="ijin_number" name="ijin_number" required value="{{ ijin_number|default('') }}">
+    </div>
+    <div class="mb-3">
+        <label for="birth_date" class="form-label">Date de naissance</label>
+        <input type="date" class="form-control" id="birth_date" name="birth_date" required value="{{ birth_date|default('') }}">
+    </div>
+    <div class="mb-3">
+        <label for="photo_file" class="form-label">Photo de profil (optionnel)</label>
+        <input type="file" class="form-control" id="photo_file" name="photo_file" accept="image/*">
     </div>
     <div class="mb-3">
         <label for="password" class="form-label">Mot de passe</label>

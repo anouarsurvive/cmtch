@@ -10,6 +10,9 @@
         <th>Nom complet</th>
         <th>Email</th>
         <th>Téléphone</th>
+        <th>IJIN</th>
+        <th>Date de naissance</th>
+        <th>Photo</th>
         <th>Rôle</th>
         <th>Statut</th>
         <th>Action</th>
@@ -23,6 +26,15 @@
             <td>{{ m.full_name }}</td>
             <td>{{ m.email }}</td>
             <td>{{ m.phone }}</td>
+            <td>{{ m.ijin_number }}</td>
+            <td>{{ m.birth_date }}</td>
+            <td>
+                {% if m.photo_path %}
+                    <img src="{{ m.photo_path }}" alt="Photo" class="rounded-circle" style="width:40px; height:40px; object-fit:cover;">
+                {% else %}
+                    —
+                {% endif %}
+            </td>
             <td>
                 {% if m.is_admin %}
                     Administrateur

@@ -208,6 +208,9 @@ def init_db() -> None:
             full_name TEXT,
             email TEXT,
             phone TEXT,
+            ijin_number TEXT,
+            birth_date TEXT,
+            photo_path TEXT,
             is_admin INTEGER DEFAULT 0,
             validated INTEGER DEFAULT 0
         )
@@ -247,6 +250,16 @@ def init_db() -> None:
         columns = [row[1] for row in cur.fetchall()]
         if "is_trainer" not in columns:
             cur.execute("ALTER TABLE users ADD COLUMN is_trainer INTEGER DEFAULT 0")
+            conn.commit()
+        # Ajouter les colonnes ijin_number, birth_date et photo_path si elles n'existent pas
+        if "ijin_number" not in columns:
+            cur.execute("ALTER TABLE users ADD COLUMN ijin_number TEXT")
+            conn.commit()
+        if "birth_date" not in columns:
+            cur.execute("ALTER TABLE users ADD COLUMN birth_date TEXT")
+            conn.commit()
+        if "photo_path" not in columns:
+            cur.execute("ALTER TABLE users ADD COLUMN photo_path TEXT")
             conn.commit()
     except Exception:
         # Si l'ajout de colonne échoue (par exemple, en absence de table), on ignore l'erreur
@@ -369,25 +382,56 @@ async def register(request: Request) -> HTMLResponse:
     L'utilisateur est créé avec l'attribut `validated` à 0 et ne pourra pas se
     connecter tant qu'un administrateur ne l'aura pas validé.
     """
-    # Récupérer le corps de la requête et parser les champs manuellement
-    raw_body = await request.body()
-    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
-    username = form.get("username", [""])[0].strip()
-    full_name = form.get("full_name", [""])[0].strip()
-    email = form.get("email", [""])[0].strip()
-    phone = form.get("phone", [""])[0].strip()
-    password = form.get("password", [""])[0]
-    confirm_password = form.get("confirm_password", [""])[0]
-    role = form.get("role", ["member"])[0]
-    # Vérifications de base
+    # Déterminer si le corps est multipart (upload photo) ou urlencoded
+    content_type = request.headers.get("content-type", "")
     errors: List[str] = []
+    username = full_name = email = phone = password = confirm_password = role = ""
+    ijin_number = birth_date = photo_path = ""
+    file_field = None
+    if "multipart/form-data" in content_type:
+        body = await request.body()
+        form = parse_multipart_form(body, content_type)
+        username = str(form.get("username", "")).strip()
+        full_name = str(form.get("full_name", "")).strip()
+        email = str(form.get("email", "")).strip()
+        phone = str(form.get("phone", "")).strip()
+        ijin_number = str(form.get("ijin_number", "")).strip()
+        birth_date = str(form.get("birth_date", "")).strip()
+        password = str(form.get("password", ""))
+        confirm_password = str(form.get("confirm_password", ""))
+        role = str(form.get("role", "member"))
+        file_field = form.get("photo_file") if isinstance(form.get("photo_file"), dict) else None
+    else:
+        raw_body = await request.body()
+        form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+        username = form.get("username", [""])[0].strip()
+        full_name = form.get("full_name", [""])[0].strip()
+        email = form.get("email", [""])[0].strip()
+        phone = form.get("phone", [""])[0].strip()
+        ijin_number = form.get("ijin_number", [""])[0].strip()
+        birth_date = form.get("birth_date", [""])[0].strip()
+        password = form.get("password", [""])[0]
+        confirm_password = form.get("confirm_password", [""])[0]
+        role = form.get("role", ["member"])[0]
+        # photo via urlencoded n'est pas supportée ici
+    # Vérifications de base
     if not username:
         errors.append("Le nom d'utilisateur est obligatoire.")
+    if not full_name:
+        errors.append("Le nom complet est obligatoire.")
+    if not email:
+        errors.append("L'adresse e‑mail est obligatoire.")
+    if not phone:
+        errors.append("Le téléphone est obligatoire.")
+    if not ijin_number:
+        errors.append("Le numéro IJIN est obligatoire.")
+    if not birth_date:
+        errors.append("La date de naissance est obligatoire.")
     if password != confirm_password:
         errors.append("Les mots de passe ne correspondent pas.")
+    # Vérifier que le nom d'utilisateur n'existe pas déjà
     conn = get_db_connection()
     cur = conn.cursor()
-    # Vérifier que le nom d'utilisateur n'existe pas déjà
     cur.execute("SELECT id FROM users WHERE username = ?", (username,))
     if cur.fetchone():
         errors.append("Ce nom d'utilisateur est déjà utilisé.")
@@ -403,16 +447,28 @@ async def register(request: Request) -> HTMLResponse:
                 "email": email,
                 "phone": phone,
                 "role": role,
+                "ijin_number": ijin_number,
+                "birth_date": birth_date,
             },
         )
+    # Traiter l'upload de photo si présent
+    if file_field and file_field.get("filename") and file_field.get("content"):
+        # Créer dossier pour photos de profil
+        photos_dir = os.path.join(BASE_DIR, "static", "profile_photos")
+        os.makedirs(photos_dir, exist_ok=True)
+        ext = os.path.splitext(file_field["filename"])[1] or ".bin"
+        unique_name = f"{uuid.uuid4().hex}{ext}"
+        file_path = os.path.join(photos_dir, unique_name)
+        with open(file_path, "wb") as f:
+            f.write(file_field["content"])
+        photo_path = f"/static/profile_photos/{unique_name}"
     # Création de l'utilisateur
     pwd_hash = hash_password(password)
-    # Déterminer si l'utilisateur est entraîneur
     is_trainer = 1 if role == "trainer" else 0
     cur.execute(
-        "INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated, is_trainer) "
-        "VALUES (?, ?, ?, ?, ?, 0, 0, ?)",
-        (username, pwd_hash, full_name, email, phone, is_trainer),
+        "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
+        (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_trainer),
     )
     conn.commit()
     conn.close()
@@ -656,7 +712,7 @@ async def admin_members(request: Request) -> HTMLResponse:
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, username, full_name, email, phone, is_admin, validated, is_trainer "
+        "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
         "FROM users ORDER BY id"
     )
     members = cur.fetchall()
