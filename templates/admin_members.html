@@ -23,7 +23,15 @@
             <td>{{ m.full_name }}</td>
             <td>{{ m.email }}</td>
             <td>{{ m.phone }}</td>
-            <td>{% if m.is_admin %}Administrateur{% else %}Membre{% endif %}</td>
+            <td>
+                {% if m.is_admin %}
+                    Administrateur
+                {% elif m.is_trainer %}
+                    Entraîneur
+                {% else %}
+                    Membre
+                {% endif %}
+            </td>
             <td>
                 {% if m.validated %}
                     <span class="member-badge badge-valid">Validé</span>

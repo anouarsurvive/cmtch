@@ -25,6 +25,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="/">Accueil</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/articles">Actualités</a></li>
                     {% if not user %}
                         <li class="nav-item"><a class="nav-link" href="/inscription">Inscription</a></li>
                         <li class="nav-item"><a class="nav-link" href="/connexion">Connexion</a></li>
@@ -38,6 +39,7 @@
                                 <ul class="dropdown-menu" aria-labelledby="adminDropdown">
                                     <li><a class="dropdown-item" href="/admin/membres">Gérer les membres</a></li>
                                     <li><a class="dropdown-item" href="/admin/reservations">Gérer les réservations</a></li>
+                                    <li><a class="dropdown-item" href="/admin/articles">Gérer les articles</a></li>
                                 </ul>
                             </li>
                         {% endif %}

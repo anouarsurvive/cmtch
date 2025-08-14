@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h2 class="mb-4">Administration – Articles</h2>
+<a href="/admin/articles/nouveau" class="btn btn-success mb-3">Nouvel article</a>
+{% if articles %}
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">Titre</th>
+          <th scope="col">Date de publication</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for article in articles %}
+        <tr>
+          <td>{{ article['id'] }}</td>
+          <td>{{ article['title'] }}</td>
+          <td>{{ article['created_at'][:10] }}</td>
+          <td>
+            <a href="/articles/{{ article['id'] }}" class="btn btn-sm btn-info">Voir</a>
+            <form action="/admin/articles/supprimer" method="post" class="d-inline">
+              <input type="hidden" name="article_id" value="{{ article['id'] }}">
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet article ?');">Supprimer</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>Aucun article pour le moment.</p>
+{% endif %}
+{% endblock %}

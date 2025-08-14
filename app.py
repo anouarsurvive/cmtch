@@ -37,6 +37,9 @@ import urllib.parse
 from fastapi.templating import Jinja2Templates
 import base64
 import hmac
+import re
+import uuid
+from io import BytesIO
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -117,6 +120,64 @@ def verify_password(password: str, password_hash: str) -> bool:
     return hash_password(password) == password_hash
 
 
+# Utilitaire pour analyser les formulaires multipart/form-data sans dépendance
+def parse_multipart_form(body: bytes, content_type: str) -> Dict[str, Any]:
+    """Parse un corps multipart/form-data et retourne un dict des champs.
+
+    Cette fonction analyse les données envoyées dans le corps d'une requête
+    multipart/form-data. Les champs simples (texte) sont retournés comme des
+    chaînes de caractères. Les champs de fichier sont retournés sous la forme
+    d'un dictionnaire avec les clés 'filename' et 'content' (contenu binaire).
+
+    Args:
+        body: corps brut de la requête en bytes.
+        content_type: valeur de l'en-tête Content-Type (avec le boundary).
+
+    Returns:
+        Un dictionnaire où les clés sont les noms de champs.
+    """
+    result: Dict[str, Any] = {}
+    # Extraire le boundary depuis le header
+    m = re.search(r"boundary=([^;]+)", content_type)
+    if not m:
+        return result
+    boundary = m.group(1)
+    # Les guillemets autour du boundary sont supprimés le cas échéant
+    if boundary.startswith('"') and boundary.endswith('"'):
+        boundary = boundary[1:-1]
+    boundary_bytes = ('--' + boundary).encode()
+    parts = body.split(boundary_bytes)
+    # On ignore la première et la dernière partie (avant le premier boundary et après le boundary de fermeture)
+    for part in parts[1:-1]:
+        part = part.strip(b"\r\n")
+        if not part:
+            continue
+        # Séparer les entêtes du contenu
+        header_block, _, data = part.partition(b"\r\n\r\n")
+        headers: Dict[str, str] = {}
+        for header_line in header_block.split(b"\r\n"):
+            try:
+                key, _, value = header_line.decode(errors="replace").partition(":")
+                headers[key.strip().lower()] = value.strip()
+            except Exception:
+                continue
+        content_disp = headers.get('content-disposition', '')
+        # Extraire les paramètres du Content-Disposition
+        disp_params = dict(re.findall(r'([^;=\s]+)="?([^";]*)"?', content_disp))
+        field_name = disp_params.get('name')
+        filename = disp_params.get('filename')
+        # Nettoyer le contenu (supprimer le CRLF final)
+        cleaned = data.rstrip(b"\r\n")
+        if filename:
+            result[field_name] = {"filename": filename, "content": cleaned}
+        else:
+            try:
+                result[field_name] = cleaned.decode(errors="replace")
+            except Exception:
+                result[field_name] = ''
+    return result
+
+
 def get_db_connection() -> sqlite3.Connection:
     """Ouvre une connexion SQLite avec configuration de row_factory.
 
@@ -165,7 +226,30 @@ def init_db() -> None:
         )
         """
     )
+    # Table des articles de presse
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            image_path TEXT,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
+    # Ajouter la colonne is_trainer si elle n'existe pas (prise en charge des entraîneurs)
+    # On interroge les métadonnées de la table et on ajoute la colonne si nécessaire.
+    try:
+        cur.execute("PRAGMA table_info(users)")
+        columns = [row[1] for row in cur.fetchall()]
+        if "is_trainer" not in columns:
+            cur.execute("ALTER TABLE users ADD COLUMN is_trainer INTEGER DEFAULT 0")
+            conn.commit()
+    except Exception:
+        # Si l'ajout de colonne échoue (par exemple, en absence de table), on ignore l'erreur
+        pass
     # Création du compte admin par défaut si besoin
     cur.execute("SELECT id FROM users WHERE username = ?", ("admin",))
     row = cur.fetchone()
@@ -293,6 +377,7 @@ async def register(request: Request) -> HTMLResponse:
     phone = form.get("phone", [""])[0].strip()
     password = form.get("password", [""])[0]
     confirm_password = form.get("confirm_password", [""])[0]
+    role = form.get("role", ["member"])[0]
     # Vérifications de base
     errors: List[str] = []
     if not username:
@@ -316,14 +401,17 @@ async def register(request: Request) -> HTMLResponse:
                 "full_name": full_name,
                 "email": email,
                 "phone": phone,
+                "role": role,
             },
         )
     # Création de l'utilisateur
     pwd_hash = hash_password(password)
+    # Déterminer si l'utilisateur est entraîneur
+    is_trainer = 1 if role == "trainer" else 0
     cur.execute(
-        "INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated) "
-        "VALUES (?, ?, ?, ?, ?, 0, 0)",
-        (username, pwd_hash, full_name, email, phone),
+        "INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated, is_trainer) "
+        "VALUES (?, ?, ?, ?, ?, 0, 0, ?)",
+        (username, pwd_hash, full_name, email, phone, is_trainer),
     )
     conn.commit()
     conn.close()
@@ -536,7 +624,8 @@ async def admin_members(request: Request) -> HTMLResponse:
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, username, full_name, email, phone, is_admin, validated FROM users ORDER BY id"
+        "SELECT id, username, full_name, email, phone, is_admin, validated, is_trainer "
+        "FROM users ORDER BY id"
     )
     members = cur.fetchall()
     conn.close()
@@ -639,3 +728,216 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLRe
         {"request": request, "status_code": exc.status_code, "detail": exc.detail},
         status_code=exc.status_code,
     )
+
+# -----------------------------------------------------------------------------
+#  Section Articles
+# -----------------------------------------------------------------------------
+
+@app.get("/articles", response_class=HTMLResponse)
+async def articles_list(request: Request) -> HTMLResponse:
+    """Affiche la liste des articles publiés.
+
+    Les articles sont ordonnés par date de création décroissante. Chaque entrée
+    présente le titre, une image s'il y en a une et un extrait du contenu.
+
+    Args:
+        request: objet Request pour récupérer la session et les URLs.
+
+    Returns:
+        Page HTML contenant la liste des articles.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, title, content, image_path, created_at FROM articles ORDER BY datetime(created_at) DESC")
+    articles = cur.fetchall()
+    conn.close()
+    user = get_current_user(request)
+    return templates.TemplateResponse(
+        "articles.html",
+        {
+            "request": request,
+            "user": user,
+            "articles": articles,
+        },
+    )
+
+
+@app.get("/articles/{article_id}", response_class=HTMLResponse)
+async def article_detail(request: Request, article_id: int) -> HTMLResponse:
+    """Affiche le détail d'un article de presse.
+
+    Args:
+        request: objet Request.
+        article_id: identifiant de l'article à afficher.
+
+    Returns:
+        Page HTML avec le contenu de l'article ou page d'erreur si introuvable.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+    article = cur.fetchone()
+    conn.close()
+    if article is None:
+        raise HTTPException(status_code=404, detail="Article introuvable")
+    user = get_current_user(request)
+    # Construire une URL absolue pour le partage sur Facebook. Si l'application est
+    # hébergée derrière un proxy, request.url donnera l'URL complète.
+    article_url = str(request.url)
+    return templates.TemplateResponse(
+        "article_detail.html",
+        {
+            "request": request,
+            "user": user,
+            "article": article,
+            "share_url": f"https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(article_url, safe='')}",
+        },
+    )
+
+
+@app.get("/admin/articles", response_class=HTMLResponse)
+async def admin_articles(request: Request) -> HTMLResponse:
+    """Interface d'administration des articles.
+
+    Permet aux administrateurs de voir la liste des articles et de créer de
+    nouveaux articles. Les administrateurs peuvent supprimer les articles
+    existants via cette interface.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, title, created_at FROM articles ORDER BY datetime(created_at) DESC")
+    articles = cur.fetchall()
+    conn.close()
+    return templates.TemplateResponse(
+        "admin_articles.html",
+        {
+            "request": request,
+            "user": user,
+            "articles": articles,
+        },
+    )
+
+
+@app.get("/admin/articles/nouveau", response_class=HTMLResponse)
+async def admin_new_article_form(request: Request) -> HTMLResponse:
+    """Affiche le formulaire de création d'un nouvel article pour les administrateurs."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    return templates.TemplateResponse(
+        "admin_article_form.html",
+        {"request": request, "user": user, "errors": []},
+    )
+
+
+@app.post("/admin/articles/nouveau", response_class=HTMLResponse)
+async def admin_new_article(request: Request) -> HTMLResponse:
+    """Traite la soumission du formulaire de création d'article.
+
+    Ce gestionnaire prend en charge deux types de formulaires :
+    - `multipart/form-data` : permet de télécharger un fichier image depuis le
+      navigateur grâce à un champ `<input type="file" name="image_file">`. Le
+      fichier est enregistré dans `static/article_images/` avec un nom unique.
+    - `application/x-www-form-urlencoded` : permet de spécifier un champ
+      `image_url` contenant l'adresse de l'image.
+
+    Dans tous les cas, le titre et le contenu sont requis. Si un champ est
+    manquant, une erreur est renvoyée et le formulaire est réaffiché.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    # Déterminer le type de contenu
+    content_type = request.headers.get("content-type", "")
+    errors: List[str] = []
+    title = ""
+    content_text = ""
+    image_path: str = ""
+    if "multipart/form-data" in content_type:
+        # Analyse du corps multipart
+        body = await request.body()
+        form = parse_multipart_form(body, content_type)
+        title = str(form.get("title", "")).strip()
+        content_text = str(form.get("content", "")).strip()
+        # Gestion du fichier image s'il existe
+        file_field = form.get("image_file")
+        if file_field and isinstance(file_field, dict):
+            filename = file_field.get("filename")
+            file_content = file_field.get("content", b"")
+            if filename and file_content:
+                # Créer un dossier pour les images si nécessaire
+                images_dir = os.path.join(BASE_DIR, "static", "article_images")
+                os.makedirs(images_dir, exist_ok=True)
+                # Générer un nom unique pour éviter les collisions
+                ext = os.path.splitext(filename)[1] or ".bin"
+                unique_name = f"{uuid.uuid4().hex}{ext}"
+                file_path = os.path.join(images_dir, unique_name)
+                with open(file_path, "wb") as f:
+                    f.write(file_content)
+                # Stocker le chemin relatif pour utilisation dans les templates
+                image_path = f"/static/article_images/{unique_name}"
+    else:
+        # Formulaire standard urlencoded (image_url fourni par l'utilisateur)
+        raw_body = await request.body()
+        form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+        title = form.get("title", [""])[0].strip()
+        content_text = form.get("content", [""])[0].strip()
+        image_path = form.get("image_url", [""])[0].strip()
+    # Vérifications
+    if not title:
+        errors.append("Le titre est obligatoire.")
+    if not content_text:
+        errors.append("Le contenu est obligatoire.")
+    # Si erreurs, renvoyer le formulaire avec les champs saisis
+    if errors:
+        # Indiquer les valeurs précédentes pour pré-remplir le formulaire
+        return templates.TemplateResponse(
+            "admin_article_form.html",
+            {
+                "request": request,
+                "user": user,
+                "errors": errors,
+                "title": title,
+                "content": content_text,
+                # Si le formulaire multipart a été utilisé, l'URL n'est pas disponible
+                "image_url": image_path if "multipart/form-data" not in content_type else "",
+            },
+        )
+    # Insérer dans la base de données
+    conn = get_db_connection()
+    cur = conn.cursor()
+    now_str = datetime.utcnow().isoformat()
+    cur.execute(
+        "INSERT INTO articles (title, content, image_path, created_at) VALUES (?, ?, ?, ?)",
+        (title, content_text, image_path, now_str),
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin/articles", status_code=303)
+
+
+@app.post("/admin/articles/supprimer", response_class=HTMLResponse)
+async def admin_delete_article(request: Request) -> HTMLResponse:
+    """Supprime un article de presse (administrateurs uniquement)."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    raw_body = await request.body()
+    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+    try:
+        article_id = int(form.get("article_id", ["0"])[0])
+    except ValueError:
+        return RedirectResponse(url="/admin/articles", status_code=303)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin/articles", status_code=303)

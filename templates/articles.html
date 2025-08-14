@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h2 class="mb-4">Actualités</h2>
+{% if articles %}
+  <div class="row">
+    {% for article in articles %}
+      <div class="col-md-12 mb-4">
+        <div class="card h-100">
+          {% if article['image_path'] %}
+          <img src="{{ article['image_path'] }}" class="card-img-top" alt="Image de l'article {{ article['title'] }}">
+          {% endif %}
+          <div class="card-body">
+            <h5 class="card-title">{{ article['title'] }}</h5>
+            <p class="card-text">
+              {{ article['content'][:200] }}{% if article['content']|length > 200 %}...{% endif %}
+            </p>
+            <a href="/articles/{{ article['id'] }}" class="btn btn-primary">Lire la suite</a>
+          </div>
+          <div class="card-footer text-muted">
+            Publié le {{ article['created_at'][:10] }}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>Aucun article pour le moment.</p>
+{% endif %}
+{% endblock %}

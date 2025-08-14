@@ -36,6 +36,13 @@
         <label for="confirm_password" class="form-label">Confirmer le mot de passe</label>
         <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
     </div>
+    <div class="mb-3">
+        <label for="role" class="form-label">Rôle</label>
+        <select id="role" name="role" class="form-select">
+            <option value="member" {% if role|default('member') == 'member' %}selected{% endif %}>Membre</option>
+            <option value="trainer" {% if role|default('member') == 'trainer' %}selected{% endif %}>Entraîneur</option>
+        </select>
+    </div>
     <button type="submit" class="btn btn-primary">S'inscrire</button>
 </form>
 {% endblock %}
