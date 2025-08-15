@@ -800,26 +800,57 @@ async def validate_member(request: Request) -> HTMLResponse:
 @app.get("/admin/reservations", response_class=HTMLResponse)
 async def admin_reservations(request: Request) -> HTMLResponse:
     """Affiche toutes les réservations pour les administrateurs."""
-    user = get_current_user(request)
-    if not user:
-        return RedirectResponse(url="/connexion", status_code=303)
-    check_admin(user)
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT r.id, r.court_number, r.date, r.start_time, r.end_time, u.full_name AS user_full_name, u.username "
-        "FROM reservations r JOIN users u ON r.user_id = u.id ORDER BY r.date, r.start_time"
-    )
-    bookings = cur.fetchall()
-    conn.close()
-    return templates.TemplateResponse(
-        "admin_reservations.html",
-        {
-            "request": request,
-            "user": user,
-            "bookings": bookings,
-        },
-    )
+    try:
+        user = get_current_user(request)
+        if not user:
+            return RedirectResponse(url="/connexion", status_code=303)
+        check_admin(user)
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Récupérer toutes les réservations
+        cur.execute(
+            "SELECT r.id, r.court_number, r.date, r.start_time, r.end_time, u.full_name AS user_full_name, u.username "
+            "FROM reservations r JOIN users u ON r.user_id = u.id ORDER BY r.date, r.start_time"
+        )
+        bookings = cur.fetchall()
+        
+        # Calculer les statistiques
+        today = date.today().isoformat()
+        cur.execute(
+            "SELECT COUNT(*) FROM reservations WHERE date = ?",
+            (today,)
+        )
+        today_bookings = cur.fetchone()[0]
+        
+        # Calculer les réservations de cette semaine
+        from datetime import timedelta
+        week_start = (date.today() - timedelta(days=date.today().weekday())).isoformat()
+        week_end = (date.today() + timedelta(days=6-date.today().weekday())).isoformat()
+        cur.execute(
+            "SELECT COUNT(*) FROM reservations WHERE date BETWEEN ? AND ?",
+            (week_start, week_end)
+        )
+        this_week_bookings = cur.fetchone()[0]
+        
+        conn.close()
+        
+        return templates.TemplateResponse(
+            "admin_reservations.html",
+            {
+                "request": request,
+                "user": user,
+                "bookings": bookings,
+                "today_bookings": today_bookings,
+                "this_week_bookings": this_week_bookings,
+            },
+        )
+        
+    except Exception as e:
+        print(f"Erreur dans admin_reservations: {e}")
+        # En cas d'erreur, rediriger vers la page d'accueil admin
+        return RedirectResponse(url="/", status_code=303)
 
 
 @app.post("/admin/reservations/supprimer", response_class=HTMLResponse)
