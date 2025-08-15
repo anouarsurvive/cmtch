@@ -93,8 +93,9 @@
             </div>
             <div class="col-lg-6 text-center">
                 <div class="position-relative">
-                    <img src="{{ url_for('static', path='images/hero.png') }}" alt="Vue du club" class="img-fluid rounded-custom shadow-custom">
-                    <div class="position-absolute top-0 start-0 w-100 h-100 bg-gradient-accent opacity-10 rounded-custom"></div>
+                    <div class="placeholder-image bg-gradient-accent rounded-custom shadow-custom d-flex align-items-center justify-content-center" style="height: 300px;">
+                        <i class="fas fa-tennis-ball fa-4x text-white opacity-75"></i>
+                    </div>
                 </div>
             </div>
         </div>
@@ -166,7 +167,9 @@
                                 <img src="{{ article['image_path'] }}" class="card-img-top" alt="{{ article['title'] }}">
                             {% endif %}
                         {% else %}
-                            <img src="{{ url_for('static', path='images/hero.png') }}" class="card-img-top" alt="Pas d'image">
+                            <div class="placeholder-article bg-gradient-primary d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <i class="fas fa-newspaper fa-3x text-white opacity-75"></i>
+                            </div>
                         {% endif %}
                         <div class="card-overlay position-absolute top-0 start-0 w-100 h-100 bg-gradient-primary opacity-0 transition-all">
                             <div class="d-flex align-items-center justify-content-center h-100">
