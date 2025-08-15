@@ -2,12 +2,12 @@
 
 {% block content %}
 <!-- Section héroïque sobre et professionnelle -->
-<div class="hero bg-primary text-white py-5">
+<div class="hero bg-primary text-white py-4">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-8 mx-auto text-center">
-                <h1 class="display-4 fw-bold mb-4">Club Municipal de Tennis Chihia</h1>
-                <p class="lead mb-4">Un club de tennis d'excellence au cœur de Chihia</p>
+                <h1 class="display-4 fw-bold mb-3">Club Municipal de Tennis Chihia</h1>
+                <p class="lead mb-3">Un club de tennis d'excellence au cœur de Chihia</p>
                 {% if not user %}
                     <a href="/inscription" class="btn btn-light btn-lg px-4">
                         Rejoindre le club
@@ -27,12 +27,12 @@
 </div>
 
 <!-- Section Présentation sobre -->
-<section class="py-5">
+<section class="py-4">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-6">
-                <h2 class="h3 mb-4">À propos du club</h2>
-                <p class="text-muted mb-4">{{ description }}</p>
+                <h2 class="h3 mb-3">À propos du club</h2>
+                <p class="text-muted mb-3">{{ description }}</p>
                 <div class="row g-3">
                     <div class="col-6">
                         <div class="d-flex align-items-center">
@@ -55,8 +55,8 @@
                 </div>
             </div>
             <div class="col-lg-6 text-center">
-                <div class="bg-light rounded p-4" style="height: 300px;">
-                    <i class="fas fa-tennis-ball fa-4x text-muted"></i>
+                <div class="bg-light rounded p-4" style="height: 250px;">
+                    <i class="fas fa-tennis-ball fa-3x text-muted"></i>
                 </div>
             </div>
         </div>
@@ -64,14 +64,14 @@
 </section>
 
 <!-- Section Services épurée -->
-<section class="py-5 bg-light">
+<section class="py-4 bg-light">
     <div class="container">
-        <h2 class="h3 text-center mb-5">Nos services</h2>
+        <h2 class="h3 text-center mb-4">Nos services</h2>
         <div class="row g-4">
             <div class="col-md-4">
                 <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-calendar-alt fa-2x text-primary mb-3"></i>
+                    <div class="card-body text-center p-3">
+                        <i class="fas fa-calendar-alt fa-2x text-primary mb-2"></i>
                         <h5 class="card-title">Réservation en ligne</h5>
                         <p class="card-text text-muted">Réservez vos créneaux de tennis en ligne, 24h/24.</p>
                     </div>
@@ -79,8 +79,8 @@
             </div>
             <div class="col-md-4">
                 <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-users fa-2x text-primary mb-3"></i>
+                    <div class="card-body text-center p-3">
+                        <i class="fas fa-users fa-2x text-primary mb-2"></i>
                         <h5 class="card-title">Communauté active</h5>
                         <p class="card-text text-muted">Rejoignez une communauté passionnée de tennis.</p>
                     </div>
@@ -88,8 +88,8 @@
             </div>
             <div class="col-md-4">
                 <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-shield-alt fa-2x text-primary mb-3"></i>
+                    <div class="card-body text-center p-3">
+                        <i class="fas fa-shield-alt fa-2x text-primary mb-2"></i>
                         <h5 class="card-title">Installations sécurisées</h5>
                         <p class="card-text text-muted">Profitez de courts de tennis de qualité.</p>
                     </div>
@@ -100,18 +100,18 @@
 </section>
 
 <!-- Section Actualités sobre -->
-<section class="py-5">
+<section class="py-4">
     <div class="container">
-        <h2 class="h3 text-center mb-5">Actualités</h2>
+        <h2 class="h3 text-center mb-4">Actualités</h2>
         {% if latest_articles %}
         <div class="row g-4">
             {% for article in latest_articles %}
             <div class="col-lg-4 col-md-6">
                 <div class="card border-0 shadow-sm h-100">
                     {% if article['image_path'] %}
-                        <img src="{{ article['image_path'] }}" class="card-img-top" alt="{{ article['title'] }}" style="height: 200px; object-fit: cover;">
+                        <img src="{{ article['image_path'] }}" class="card-img-top" alt="{{ article['title'] }}" style="height: 180px; object-fit: cover;">
                     {% else %}
-                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 180px;">
                             <i class="fas fa-newspaper fa-2x text-muted"></i>
                         </div>
                     {% endif %}
@@ -130,14 +130,14 @@
             </div>
             {% endfor %}
         </div>
-        <div class="text-center mt-4">
+        <div class="text-center mt-3">
             <a href="/articles" class="btn btn-primary">
                 Voir toutes les actualités
             </a>
         </div>
         {% else %}
-            <div class="text-center py-4">
-                <i class="fas fa-newspaper fa-3x text-muted mb-3"></i>
+            <div class="text-center py-3">
+                <i class="fas fa-newspaper fa-2x text-muted mb-2"></i>
                 <h5 class="text-muted">Aucune actualité pour le moment</h5>
                 <p class="text-muted">Revenez bientôt pour découvrir nos dernières nouvelles.</p>
             </div>
@@ -146,26 +146,26 @@
 </section>
 
 <!-- Section Contact sobre -->
-<section class="py-5 bg-light">
+<section class="py-4 bg-light">
     <div class="container">
         <div class="row">
-            <div class="col-lg-6 mb-4">
-                <h3 class="h4 mb-4">Contact</h3>
-                <div class="mb-3">
+            <div class="col-lg-6 mb-3">
+                <h3 class="h4 mb-3">Contact</h3>
+                <div class="mb-2">
                     <i class="fas fa-map-marker-alt text-primary me-2"></i>
                     <span>{{ adresse }}</span>
                 </div>
-                <div class="mb-3">
+                <div class="mb-2">
                     <i class="fas fa-phone text-primary me-2"></i>
                     <span>{{ telephone }}</span>
                 </div>
-                <div class="mb-3">
+                <div class="mb-2">
                     <i class="fas fa-envelope text-primary me-2"></i>
                     <a href="mailto:{{ email }}" class="text-decoration-none">{{ email }}</a>
                 </div>
             </div>
             <div class="col-lg-6">
-                <h3 class="h4 mb-4">Suivez-nous</h3>
+                <h3 class="h4 mb-3">Suivez-nous</h3>
                 <div class="d-flex gap-3">
                     <a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="btn btn-outline-primary">
                         <i class="fab fa-facebook-f"></i>
@@ -183,10 +183,10 @@
 </section>
 
 <!-- Section CTA sobre -->
-<section class="py-5 bg-primary text-white">
+<section class="py-4 bg-primary text-white">
     <div class="container text-center">
-        <h3 class="mb-3">Prêt à rejoindre notre club ?</h3>
-        <p class="mb-4">Commencez votre aventure tennis dès aujourd'hui.</p>
+        <h3 class="mb-2">Prêt à rejoindre notre club ?</h3>
+        <p class="mb-3">Commencez votre aventure tennis dès aujourd'hui.</p>
         {% if not user %}
             <a href="/inscription" class="btn btn-light me-2">
                 S'inscrire
