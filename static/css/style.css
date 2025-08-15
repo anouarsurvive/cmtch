@@ -1573,7 +1573,7 @@ footer p {
 
 /* Styles pour les pages d'authentification */
 .auth-section {
-    min-height: 80vh;
+    min-height: 60vh;
     display: flex;
     align-items: center;
     background: linear-gradient(135deg, var(--light-bg) 0%, #ffffff 100%);
@@ -1583,7 +1583,7 @@ footer p {
     background: var(--secondary-color);
     border-radius: calc(var(--border-radius) + 0.5rem);
     box-shadow: var(--shadow-xl);
-    padding: 3rem;
+    padding: 2rem;
     position: relative;
     overflow: hidden;
 }
@@ -1599,38 +1599,38 @@ footer p {
 }
 
 .auth-header {
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
 }
 
 .auth-icon-wrapper {
     display: inline-block;
-    padding: 2rem;
+    padding: 1.5rem;
     border-radius: 50%;
     background: linear-gradient(135deg, rgba(30, 58, 138, 0.1) 0%, rgba(245, 158, 11, 0.1) 100%);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .auth-title {
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 800;
     color: var(--primary-color);
     margin-bottom: 0.5rem;
 }
 
 .auth-subtitle {
-    font-size: 1.125rem;
+    font-size: 1rem;
     color: var(--text-muted);
     margin-bottom: 0;
 }
 
 .auth-form .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .auth-form .form-label {
     font-weight: 600;
     color: var(--text-color);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
 }
@@ -1638,7 +1638,7 @@ footer p {
 .auth-form .form-control {
     border-radius: var(--border-radius);
     border: 2px solid #e5e7eb;
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
     font-size: 1rem;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: var(--secondary-color);
@@ -1651,13 +1651,13 @@ footer p {
 }
 
 .auth-form .form-control-lg {
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1.25rem;
     font-size: 1.125rem;
 }
 
 .auth-footer {
-    margin-top: 2rem;
-    padding-top: 2rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
     border-top: 1px solid #e5e7eb;
 }
 

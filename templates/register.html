@@ -1,25 +1,25 @@
 {% extends 'layout.html' %}
 {% block content %}
 <!-- Section d'inscription moderne -->
-<section class="auth-section py-5">
+<section class="auth-section py-3">
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-lg-8 col-md-10">
                 <div class="auth-card">
-                    <div class="auth-header text-center mb-4">
-                        <div class="auth-icon-wrapper mb-3">
-                            <i class="fas fa-user-plus fa-3x text-primary"></i>
+                    <div class="auth-header text-center mb-3">
+                        <div class="auth-icon-wrapper mb-2">
+                            <i class="fas fa-user-plus fa-2x text-primary"></i>
                         </div>
                         <h2 class="auth-title">Inscription</h2>
-                        <p class="auth-subtitle">Rejoignez notre club de tennis</p>
-                        <div class="alert alert-info">
+                        <p class="auth-subtitle mb-2">Rejoignez notre club de tennis</p>
+                        <div class="alert alert-info py-2">
                             <i class="fas fa-info-circle me-2"></i>
                             Votre demande sera validée par un administrateur après soumission.
                         </div>
                     </div>
 
                     {% if errors %}
-                        <div class="alert alert-danger fade-in">
+                        <div class="alert alert-danger fade-in mb-3">
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                 <div>
@@ -38,11 +38,11 @@
                         <div class="row">
                             <!-- Informations personnelles -->
                             <div class="col-md-6">
-                                <h4 class="form-section-title">
+                                <h4 class="form-section-title mb-3">
                                     <i class="fas fa-user me-2"></i>Informations personnelles
                                 </h4>
                                 
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="username" class="form-label">Nom d'utilisateur *</label>
                                     <input type="text" 
                                            class="form-control" 
@@ -53,7 +53,7 @@
                                            placeholder="Choisissez un nom d'utilisateur">
                                 </div>
                                 
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="full_name" class="form-label">Nom complet *</label>
                                     <input type="text" 
                                            class="form-control" 
@@ -64,7 +64,7 @@
                                            placeholder="Votre nom complet">
                                 </div>
                                 
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="email" class="form-label">Adresse e-mail *</label>
                                     <input type="email" 
                                            class="form-control" 
@@ -75,7 +75,7 @@
                                            placeholder="votre.email@exemple.com">
                                 </div>
                                 
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="phone" class="form-label">Téléphone *</label>
                                     <input type="tel" 
                                            class="form-control" 
@@ -89,11 +89,11 @@
                             
                             <!-- Informations supplémentaires -->
                             <div class="col-md-6">
-                                <h4 class="form-section-title">
+                                <h4 class="form-section-title mb-3">
                                     <i class="fas fa-id-card me-2"></i>Informations supplémentaires
                                 </h4>
                                 
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="ijin_number" class="form-label">Numéro IJIN *</label>
                                     <input type="text" 
                                            class="form-control" 
@@ -104,7 +104,7 @@
                                            placeholder="Votre numéro IJIN">
                                 </div>
                                 
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="birth_date" class="form-label">Date de naissance *</label>
                                     <input type="date" 
                                            class="form-control" 
@@ -114,7 +114,7 @@
                                            value="{{ birth_date|default('') }}">
                                 </div>
                                 
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="role" class="form-label">Rôle *</label>
                                     <select id="role" name="role" class="form-select">
                                         <option value="member" {% if role|default('member') == 'member' %}selected{% endif %}>Membre</option>
@@ -123,7 +123,7 @@
                                 </div>
                                 
                                 <!-- Photo de profil simplifiée -->
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="photo_file" class="form-label">Photo de profil (optionnel)</label>
                                     <div class="file-upload-wrapper">
                                         <input type="file" 
@@ -142,12 +142,12 @@
                         
                         <div class="row">
                             <div class="col-md-6">
-                                <h4 class="form-section-title">
+                                <h4 class="form-section-title mb-3">
                                     <i class="fas fa-shield-alt me-2"></i>Sécurité
                                 </h4>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="password" class="form-label">Mot de passe *</label>
                                     <div class="password-input-wrapper">
                                         <input type="password" 
@@ -160,11 +160,11 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
                                     </div>
-                                    <div class="password-strength mt-2" id="password-strength"></div>
+                                    <div class="password-strength mt-1" id="password-strength"></div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group mb-3">
+                                <div class="form-group mb-2">
                                     <label for="confirm_password" class="form-label">Confirmer le mot de passe *</label>
                                     <div class="password-input-wrapper">
                                         <input type="password" 
@@ -177,20 +177,20 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
                                     </div>
-                                    <div class="password-match mt-2" id="password-match"></div>
+                                    <div class="password-match mt-1" id="password-match"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="form-group mt-4">
+                        <div class="form-group mt-3">
                             <button type="submit" class="btn btn-primary btn-lg w-100" id="submitBtn">
                                 <i class="fas fa-user-plus me-2"></i>Créer mon compte
                             </button>
                         </div>
                     </form>
 
-                    <div class="auth-footer text-center mt-4">
-                        <p class="mb-3">Déjà un compte ?</p>
+                    <div class="auth-footer text-center mt-3">
+                        <p class="mb-2">Déjà un compte ?</p>
                         <a href="/connexion" class="btn btn-outline-primary">
                             <i class="fas fa-sign-in-alt me-2"></i>Se connecter
                         </a>
