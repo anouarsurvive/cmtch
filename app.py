@@ -499,29 +499,63 @@ async def login_form(request: Request) -> HTMLResponse:
 @app.post("/connexion", response_class=HTMLResponse)
 async def login(request: Request) -> HTMLResponse:
     """Valide les informations de connexion et ouvre une session."""
-    raw_body = await request.body()
-    form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
-    username = form.get("username", [""])[0].strip()
-    password = form.get("password", [""])[0]
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
-    user = cur.fetchone()
-    conn.close()
-    errors: List[str] = []
-    if user is None or not verify_password(password, user["password_hash"]):
-        errors.append("Nom d'utilisateur ou mot de passe incorrect.")
-    elif not user["validated"]:
-        errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
-    if errors:
+    try:
+        # Utiliser Form pour une gestion plus robuste des données
+        form_data = await request.form()
+        username = form_data.get("username", "").strip()
+        password = form_data.get("password", "")
+        
+        # Validation des données
+        if not username or not password:
+            return templates.TemplateResponse(
+                "login.html",
+                {"request": request, "errors": ["Veuillez remplir tous les champs."], "username": username},
+            )
+        
+        # Connexion à la base de données
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+        user = cur.fetchone()
+        conn.close()
+        
+        errors: List[str] = []
+        
+        # Vérification de l'utilisateur
+        if user is None:
+            errors.append("Nom d'utilisateur ou mot de passe incorrect.")
+        elif not verify_password(password, user["password_hash"]):
+            errors.append("Nom d'utilisateur ou mot de passe incorrect.")
+        elif not user["validated"]:
+            errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
+        
+        # Si erreurs, afficher le formulaire avec les erreurs
+        if errors:
+            return templates.TemplateResponse(
+                "login.html",
+                {"request": request, "errors": errors, "username": username},
+            )
+        
+        # Connexion réussie - créer la session
+        token = create_session_token(user["id"])
+        response = RedirectResponse(url="/", status_code=303)
+        response.set_cookie(
+            key="session_token", 
+            value=token, 
+            httponly=True, 
+            max_age=60 * 60 * 24 * 7,  # 7 jours
+            secure=False,  # Mettre True en production avec HTTPS
+            samesite="lax"
+        )
+        return response
+        
+    except Exception as e:
+        # Gestion des erreurs
+        print(f"Erreur lors de la connexion: {e}")
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "errors": errors, "username": username},
+            {"request": request, "errors": ["Une erreur s'est produite. Veuillez réessayer."], "username": username if 'username' in locals() else ""},
         )
-    token = create_session_token(user["id"])
-    response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(key="session_token", value=token, httponly=True, max_age=60 * 60 * 24 * 7)
-    return response
 
 
 @app.get("/deconnexion")

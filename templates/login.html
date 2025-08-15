@@ -30,7 +30,7 @@
                         </div>
                     {% endif %}
 
-                    <form method="post" class="auth-form">
+                    <form method="post" class="auth-form" id="loginForm">
                         <div class="form-group mb-4">
                             <label for="username" class="form-label">
                                 <i class="fas fa-user me-2"></i>Nom d'utilisateur
@@ -62,7 +62,7 @@
                         </div>
 
                         <div class="form-group mb-4">
-                            <button type="submit" class="btn btn-primary btn-lg w-100" data-loading="true">
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="loginBtn">
                                 <i class="fas fa-sign-in-alt me-2"></i>Se connecter
                             </button>
                         </div>
@@ -95,5 +95,41 @@ function togglePassword() {
         toggleBtn.classList.add('fa-eye');
     }
 }
+
+// Débogage du formulaire de connexion
+document.addEventListener('DOMContentLoaded', function() {
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    
+    if (loginForm) {
+        console.log('✅ Formulaire de connexion trouvé');
+        
+        loginForm.addEventListener('submit', function(e) {
+            console.log('🚀 Soumission du formulaire...');
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            console.log('📝 Données du formulaire:', {
+                username: username,
+                password: password ? '***' : 'vide'
+            });
+            
+            if (!username || !password) {
+                e.preventDefault();
+                alert('Veuillez remplir tous les champs');
+                return false;
+            }
+            
+            // Désactiver le bouton pour éviter la double soumission
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Connexion...';
+            
+            console.log('✅ Formulaire valide, envoi en cours...');
+        });
+    } else {
+        console.error('❌ Formulaire de connexion non trouvé');
+    }
+});
 </script>
 {% endblock %}
