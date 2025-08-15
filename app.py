@@ -1093,6 +1093,15 @@ async def user_dashboard(request: Request) -> HTMLResponse:
     )
 
 # -----------------------------------------------------------------------------
+#  Endpoint de santé pour Render
+# -----------------------------------------------------------------------------
+
+@app.get("/health")
+async def health_check():
+    """Endpoint de santé pour Render."""
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+# -----------------------------------------------------------------------------
 #  Démarrage de l'application
 # -----------------------------------------------------------------------------
 
