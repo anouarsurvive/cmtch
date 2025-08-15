@@ -159,11 +159,11 @@
             <div class="col-lg-4 col-md-6 mb-4">
                 <div class="card news-card h-100">
                     <div class="card-image-wrapper position-relative overflow-hidden">
-                        {% if article.image_path %}
-                            {% if article.image_path.startswith('http') %}
-                                <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}">
+                        {% if article['image_path'] %}
+                            {% if article['image_path'].startswith('http') %}
+                                <img src="{{ article['image_path'] }}" class="card-img-top" alt="{{ article['title'] }}">
                             {% else %}
-                                <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}">
+                                <img src="{{ article['image_path'] }}" class="card-img-top" alt="{{ article['title'] }}">
                             {% endif %}
                         {% else %}
                             <img src="{{ url_for('static', path='images/hero.png') }}" class="card-img-top" alt="Pas d'image">
@@ -178,12 +178,12 @@
                         <div class="card-meta mb-2">
                             <small class="text-muted">
                                 <i class="fas fa-calendar me-1"></i>
-                                {{ article.created_at.strftime('%d/%m/%Y') if article.created_at else 'Date inconnue' }}
+                                {{ article['created_at'][:10] if article['created_at'] else 'Date inconnue' }}
                             </small>
                         </div>
-                        <h5 class="card-title">{{ article.title }}</h5>
-                        <p class="card-text flex-grow-1">{{ article.content[:120] }}{% if article.content|length > 120 %}…{% endif %}</p>
-                        <a href="/article/{{ article.id }}" class="btn btn-outline-primary mt-auto">
+                        <h5 class="card-title">{{ article['title'] }}</h5>
+                        <p class="card-text flex-grow-1">{{ article['content'][:120] }}{% if article['content']|length > 120 %}…{% endif %}</p>
+                        <a href="/article/{{ article['id'] }}" class="btn btn-outline-primary mt-auto">
                             <i class="fas fa-arrow-right me-2"></i>Lire la suite
                         </a>
                     </div>
