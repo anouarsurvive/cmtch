@@ -910,20 +910,49 @@ async def articles_list(request: Request) -> HTMLResponse:
     Returns:
         Page HTML contenant la liste des articles.
     """
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, title, content, image_path, created_at FROM articles ORDER BY datetime(created_at) DESC")
-    articles = cur.fetchall()
-    conn.close()
-    user = get_current_user(request)
-    return templates.TemplateResponse(
-        "articles.html",
-        {
-            "request": request,
-            "user": user,
-            "articles": articles,
-        },
-    )
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Récupérer tous les articles avec plus d'informations
+        cur.execute("""
+            SELECT id, title, content, image_path, created_at, 
+                   COALESCE(image_path, '') as image_path_clean
+            FROM articles 
+            ORDER BY datetime(created_at) DESC
+        """)
+        articles = cur.fetchall()
+        
+        # Debug: afficher les informations des articles
+        print(f"📰 Articles trouvés: {len(articles)}")
+        for i, article in enumerate(articles):
+            print(f"  Article {i+1}: ID={article['id']}, Titre='{article['title']}', Date='{article['created_at']}'")
+        
+        conn.close()
+        user = get_current_user(request)
+        
+        return templates.TemplateResponse(
+            "articles.html",
+            {
+                "request": request,
+                "user": user,
+                "articles": articles,
+            },
+        )
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la récupération des articles: {e}")
+        # En cas d'erreur, retourner une page avec message d'erreur
+        user = get_current_user(request)
+        return templates.TemplateResponse(
+            "articles.html",
+            {
+                "request": request,
+                "user": user,
+                "articles": [],
+                "error": f"Erreur lors du chargement des articles: {str(e)}"
+            },
+        )
 
 
 @app.get("/articles/{article_id}", response_class=HTMLResponse)
