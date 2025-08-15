@@ -1091,3 +1091,11 @@ async def user_dashboard(request: Request) -> HTMLResponse:
             "data_pairs": data_pairs,
         },
     )
+
+# -----------------------------------------------------------------------------
+#  Démarrage de l'application
+# -----------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -12,7 +12,39 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+    <!-- CSS Critique inline pour le rendu initial -->
+    <style>
+        /* CSS critique minimal pour le rendu initial */
+        :root{--primary-color:#1e3a8a;--accent-color:#f59e0b;--secondary-color:#fff;--text-color:#1f2937;--border-radius:.75rem}
+        *{box-sizing:border-box}html{scroll-behavior:smooth}body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f8fafc;color:#1f2937;line-height:1.6;margin:0;padding:0;font-weight:400;overflow-x:hidden}
+        .navbar{background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%)!important;box-shadow:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -2px rgba(0,0,0,.05);padding:1rem 0;transition:all .4s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+        .navbar-brand{display:flex;align-items:center;font-weight:800;font-size:1.5rem;color:#fff!important;text-decoration:none;transition:transform .3s ease}
+        .navbar-nav .nav-link{color:#fff!important;font-weight:600;padding:.75rem 1.25rem!important;margin:0 .25rem;border-radius:.75rem;transition:all .3s cubic-bezier(.4,0,.2,1)}
+        .hero{position:relative;background:linear-gradient(135deg,rgba(30,58,138,.95) 0%,rgba(30,64,175,.9) 50%,rgba(245,158,11,.8) 100%),url('/static/images/hero.png');background-size:cover;background-position:center;color:#fff;padding:140px 0;min-height:80vh;display:flex;align-items:center}
+        .hero-content{position:relative;z-index:2;text-align:center;max-width:900px;margin:0 auto}
+        .hero-content h1{font-size:clamp(2.5rem,6vw,4rem);font-weight:800;margin-bottom:1.5rem;text-shadow:2px 2px 4px rgba(0,0,0,.3);background:linear-gradient(135deg,#fff 0%,#fbbf24 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .hero-content p{font-size:clamp(1.125rem,2.5vw,1.5rem);margin-bottom:2.5rem;opacity:.95;font-weight:500}
+        .btn{font-weight:600;border-radius:.75rem;padding:.875rem 1.75rem;transition:all .4s cubic-bezier(.4,0,.2,1);border:none;position:relative;overflow:hidden;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:.5rem}
+        .btn-primary{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);color:#fff;box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -1px rgba(0,0,0,.06)}
+        .btn-lg{padding:1.125rem 2.25rem;font-size:1.125rem;border-radius:1rem}
+        section{padding:100px 0;position:relative}
+        .section-title{text-align:center;font-size:clamp(2rem,4vw,3rem);font-weight:800;margin-bottom:4rem;color:#1e3a8a;position:relative;letter-spacing:-.02em}
+        .card{border:none;border-radius:.75rem;overflow:hidden;transition:all .4s cubic-bezier(.4,0,.2,1);background:#fff}
+        .card:hover{transform:translateY(-8px);box-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 10px 10px -5px rgba(0,0,0,.04)}
+        @media (max-width:768px){.hero-content h1{font-size:clamp(2rem,8vw,3rem)}.section-title{font-size:clamp(1.75rem,6vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}section{padding:80px 0}}
+        @media (max-width:576px){.hero-content h1{font-size:clamp(1.75rem,10vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}}
+        .text-gradient{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .bg-gradient-primary{background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%)}
+        .bg-gradient-accent{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%)}
+    </style>
+
+    <!-- Préchargement des ressources critiques -->
+    <link rel="preload" href="{{ url_for('static', path='css/style.css') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}"></noscript>
+    
+    <link rel="preload" href="{{ url_for('static', path='js/performance.js') }}" as="script">
+    <link rel="preload" href="{{ url_for('static', path='images/hero.png') }}" as="image">
+    <link rel="preload" href="{{ url_for('static', path='images/logo.jpg') }}" as="image">
 </head>
 <body>
     <!-- Navigation moderne -->
@@ -176,7 +208,7 @@
     
     <!-- Script personnalisé pour les animations -->
     <script>
-        // Animation au scroll
+        // Animation au scroll avec Intersection Observer
         document.addEventListener('DOMContentLoaded', function() {
             // Ajouter la classe active au lien de navigation actuel
             const currentPath = window.location.pathname;
@@ -188,7 +220,7 @@
                 }
             });
             
-            // Animation des éléments au scroll
+            // Configuration de l'Intersection Observer pour les animations au scroll
             const observerOptions = {
                 threshold: 0.1,
                 rootMargin: '0px 0px -50px 0px'
@@ -198,16 +230,348 @@
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         entry.target.classList.add('fade-in');
+                        
+                        // Animation spéciale pour les statistiques
+                        if (entry.target.classList.contains('stat-item')) {
+                            animateNumbers(entry.target);
+                        }
+                        
+                        // Animation pour les cartes de services
+                        if (entry.target.classList.contains('service-card')) {
+                            entry.target.style.animationDelay = '0.2s';
+                        }
+                        
+                        // Animation pour les cartes d'actualités
+                        if (entry.target.classList.contains('news-card')) {
+                            entry.target.style.animationDelay = '0.1s';
+                        }
                     }
                 });
             }, observerOptions);
             
             // Observer les éléments à animer
-            const elementsToAnimate = document.querySelectorAll('.stat-item, .service-card, .news-card, .feature-item');
+            const elementsToAnimate = document.querySelectorAll('.stat-item, .service-card, .news-card, .feature-item, .club-section, .contact-section');
             elementsToAnimate.forEach(el => {
                 observer.observe(el);
             });
+            
+            // Animation des nombres dans les statistiques
+            function animateNumbers(element) {
+                const numberElement = element.querySelector('h3');
+                if (numberElement) {
+                    const finalNumber = parseInt(numberElement.textContent);
+                    const suffix = numberElement.textContent.replace(/[0-9]/g, '');
+                    let currentNumber = 0;
+                    const increment = finalNumber / 50;
+                    
+                    const timer = setInterval(() => {
+                        currentNumber += increment;
+                        if (currentNumber >= finalNumber) {
+                            currentNumber = finalNumber;
+                            clearInterval(timer);
+                        }
+                        numberElement.textContent = Math.floor(currentNumber) + suffix;
+                    }, 30);
+                }
+            }
+            
+            // Effet de parallax pour la section héro
+            const hero = document.querySelector('.hero');
+            if (hero) {
+                window.addEventListener('scroll', () => {
+                    const scrolled = window.pageYOffset;
+                    const rate = scrolled * -0.5;
+                    hero.style.transform = `translateY(${rate}px)`;
+                });
+            }
+            
+            // Animation de la navbar au scroll
+            const navbar = document.querySelector('.navbar');
+            let lastScrollTop = 0;
+            
+            window.addEventListener('scroll', () => {
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                
+                if (scrollTop > 100) {
+                    navbar.style.background = 'rgba(30, 58, 138, 0.95)';
+                    navbar.style.backdropFilter = 'blur(20px)';
+                } else {
+                    navbar.style.background = 'var(--gradient-primary)';
+                    navbar.style.backdropFilter = 'blur(20px)';
+                }
+                
+                // Animation de la navbar (hide/show)
+                if (scrollTop > lastScrollTop && scrollTop > 200) {
+                    navbar.style.transform = 'translateY(-100%)';
+                } else {
+                    navbar.style.transform = 'translateY(0)';
+                }
+                
+                lastScrollTop = scrollTop;
+            });
+            
+            // Effet de hover amélioré pour les boutons
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-3px) scale(1.02)';
+                });
+                
+                button.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0) scale(1)';
+                });
+            });
+            
+            // Animation des cartes au hover
+            const cards = document.querySelectorAll('.card, .service-card, .news-card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-10px) rotateX(5deg)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0) rotateX(0deg)';
+                });
+            });
+            
+            // Effet de ripple pour les boutons
+            function createRipple(event) {
+                const button = event.currentTarget;
+                const ripple = document.createElement('span');
+                const rect = button.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = event.clientX - rect.left - size / 2;
+                const y = event.clientY - rect.top - size / 2;
+                
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.classList.add('ripple');
+                
+                button.appendChild(ripple);
+                
+                setTimeout(() => {
+                    ripple.remove();
+                }, 600);
+            }
+            
+            buttons.forEach(button => {
+                button.addEventListener('click', createRipple);
+            });
+            
+            // Animation des icônes
+            const icons = document.querySelectorAll('.fas, .fab');
+            icons.forEach(icon => {
+                icon.addEventListener('mouseenter', function() {
+                    this.style.transform = 'scale(1.2) rotate(10deg)';
+                });
+                
+                icon.addEventListener('mouseleave', function() {
+                    this.style.transform = 'scale(1) rotate(0deg)';
+                });
+            });
+            
+            // Effet de typing pour le titre principal
+            const heroTitle = document.querySelector('.hero-content h1');
+            if (heroTitle) {
+                const text = heroTitle.textContent;
+                heroTitle.textContent = '';
+                heroTitle.style.borderRight = '2px solid var(--accent-color)';
+                
+                let i = 0;
+                const typeWriter = () => {
+                    if (i < text.length) {
+                        heroTitle.textContent += text.charAt(i);
+                        i++;
+                        setTimeout(typeWriter, 100);
+                    } else {
+                        heroTitle.style.borderRight = 'none';
+                    }
+                };
+                
+                setTimeout(typeWriter, 1000);
+            }
+            
+            // Animation des réseaux sociaux
+            const socialLinks = document.querySelectorAll('.social-link, .social-link-footer');
+            socialLinks.forEach((link, index) => {
+                link.style.animationDelay = `${index * 0.1}s`;
+                link.classList.add('fade-in');
+            });
+            
+            // Effet de scroll smooth pour les ancres
+            const anchorLinks = document.querySelectorAll('a[href^="#"]');
+            anchorLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+            
+            // Animation des formulaires
+            const formInputs = document.querySelectorAll('.form-control');
+            formInputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.classList.add('focused');
+                });
+                
+                input.addEventListener('blur', function() {
+                    if (!this.value) {
+                        this.parentElement.classList.remove('focused');
+                    }
+                });
+            });
+            
+            // Effet de loading pour les actions
+            const loadingButtons = document.querySelectorAll('.btn[data-loading]');
+            loadingButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    this.classList.add('loading');
+                    this.disabled = true;
+                    
+                    setTimeout(() => {
+                        this.classList.remove('loading');
+                        this.disabled = false;
+                    }, 2000);
+                });
+            });
+            
+            // Animation des tableaux
+            const tableRows = document.querySelectorAll('.table tbody tr');
+            tableRows.forEach((row, index) => {
+                row.style.animationDelay = `${index * 0.1}s`;
+                row.classList.add('fade-in');
+            });
+            
+            // Effet de particules pour la section héro
+            function createParticle() {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.cssText = `
+                    position: absolute;
+                    width: 4px;
+                    height: 4px;
+                    background: rgba(255, 255, 255, 0.5);
+                    border-radius: 50%;
+                    pointer-events: none;
+                    animation: float 3s ease-in-out infinite;
+                `;
+                
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 3 + 's';
+                
+                hero.appendChild(particle);
+                
+                setTimeout(() => {
+                    particle.remove();
+                }, 3000);
+            }
+            
+            // Créer des particules périodiquement
+            setInterval(createParticle, 500);
+            
+            // Effet de glitch pour le titre (optionnel)
+            const glitchTitle = document.querySelector('.hero-content h1');
+            if (glitchTitle) {
+                setInterval(() => {
+                    if (Math.random() > 0.95) {
+                        glitchTitle.style.textShadow = '2px 0 red, -2px 0 blue';
+                        setTimeout(() => {
+                            glitchTitle.style.textShadow = '2px 2px 4px rgba(0, 0, 0, 0.3)';
+                        }, 100);
+                    }
+                }, 1000);
+            }
         });
+        
+        // Styles CSS pour les effets supplémentaires
+        const additionalStyles = `
+            <style>
+                .ripple {
+                    position: absolute;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.3);
+                    transform: scale(0);
+                    animation: ripple-animation 0.6s linear;
+                    pointer-events: none;
+                }
+                
+                @keyframes ripple-animation {
+                    to {
+                        transform: scale(4);
+                        opacity: 0;
+                    }
+                }
+                
+                .particle {
+                    animation: particle-float 3s ease-in-out infinite;
+                }
+                
+                @keyframes particle-float {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0; }
+                    50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
+                }
+                
+                .focused .form-label {
+                    color: var(--accent-color);
+                    transform: translateY(-5px);
+                }
+                
+                .btn.loading {
+                    pointer-events: none;
+                }
+                
+                .btn.loading::after {
+                    content: '';
+                    position: absolute;
+                    width: 20px;
+                    height: 20px;
+                    border: 2px solid transparent;
+                    border-top: 2px solid currentColor;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+                
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                
+                .navbar {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                
+                .hero {
+                    transition: transform 0.1s ease-out;
+                }
+                
+                .card, .service-card, .news-card {
+                    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                
+                .fas, .fab {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                
+                .form-control {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                
+                .form-label {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+            </style>
+        `;
+        
+        // Ajouter les styles au head
+        document.head.insertAdjacentHTML('beforeend', additionalStyles);
     </script>
 </body>
 </html>

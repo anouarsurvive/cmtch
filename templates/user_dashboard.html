@@ -1,68 +1,285 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<h2 class="mb-4">Mon espace</h2>
-<p>Voici un aperçu du nombre de séances que vous avez réservées chaque mois.</p>
+<!-- Section tableau de bord utilisateur moderne -->
+<section class="dashboard-section py-5">
+    <div class="container">
+        <!-- En-tête du tableau de bord -->
+        <div class="dashboard-header text-center mb-5">
+            <div class="dashboard-icon-wrapper mb-3">
+                <i class="fas fa-chart-line fa-3x text-primary"></i>
+            </div>
+            <h2 class="dashboard-title">Mon Espace Personnel</h2>
+            <p class="dashboard-subtitle">Suivez vos activités et vos statistiques de tennis</p>
+        </div>
+
+        {% if months %}
+            <!-- Cartes de statistiques -->
+            <div class="row mb-5">
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper">
+                            <i class="fas fa-calendar-check text-primary"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number">{{ total_reservations|default(0) }}</h3>
+                            <p class="stat-label">Réservations totales</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper">
+                            <i class="fas fa-clock text-accent"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number">{{ total_hours|default(0) }}</h3>
+                            <p class="stat-label">Heures de jeu</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper">
+                            <i class="fas fa-trophy text-warning"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 class="stat-number">{{ months|length }}</h3>
+                            <p class="stat-label">Mois d'activité</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphique des séances -->
+            <div class="chart-card mb-5">
+                <div class="chart-header">
+                    <h4 class="chart-title">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Évolution des réservations par mois
+                    </h4>
+                    <p class="chart-subtitle">Visualisez votre progression au fil du temps</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="sessionChart" height="200"></canvas>
+                </div>
+            </div>
+
+            <!-- Tableau des séances -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h4 class="table-title">
+                        <i class="fas fa-table me-2"></i>
+                        Détail des séances par mois
+                    </h4>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <i class="fas fa-calendar me-2"></i>
+                                    Mois
+                                </th>
+                                <th>
+                                    <i class="fas fa-tennis-ball me-2"></i>
+                                    Nombre de séances
+                                </th>
+                                <th>
+                                    <i class="fas fa-percentage me-2"></i>
+                                    Pourcentage
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m, c in data_pairs %}
+                            <tr>
+                                <td>
+                                    <span class="month-name">{{ m }}</span>
+                                </td>
+                                <td>
+                                    <span class="session-count">{{ c }}</span>
+                                </td>
+                                <td>
+                                    <div class="progress-wrapper">
+                                        <div class="progress">
+                                            <div class="progress-bar" style="width: {{ (c / total_reservations * 100)|round(1) }}%"></div>
+                                        </div>
+                                        <span class="progress-text">{{ (c / total_reservations * 100)|round(1) }}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Actions rapides -->
+            <div class="quick-actions mt-5">
+                <h4 class="quick-actions-title">
+                    <i class="fas fa-bolt me-2"></i>
+                    Actions rapides
+                </h4>
+                <div class="row">
+                    <div class="col-md-6 col-lg-3 mb-3">
+                        <a href="/reservations" class="quick-action-card">
+                            <div class="quick-action-icon">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                            <h5>Nouvelle réservation</h5>
+                            <p>Réservez un créneau de tennis</p>
+                        </a>
+                    </div>
+                    <div class="col-md-6 col-lg-3 mb-3">
+                        <a href="/articles" class="quick-action-card">
+                            <div class="quick-action-icon">
+                                <i class="fas fa-newspaper"></i>
+                            </div>
+                            <h5>Actualités</h5>
+                            <p>Consultez les dernières nouvelles</p>
+                        </a>
+                    </div>
+                    <div class="col-md-6 col-lg-3 mb-3">
+                        <a href="/profile" class="quick-action-card">
+                            <div class="quick-action-icon">
+                                <i class="fas fa-user-edit"></i>
+                            </div>
+                            <h5>Mon profil</h5>
+                            <p>Modifiez vos informations</p>
+                        </a>
+                    </div>
+                    <div class="col-md-6 col-lg-3 mb-3">
+                        <a href="/logout" class="quick-action-card">
+                            <div class="quick-action-icon">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </div>
+                            <h5>Déconnexion</h5>
+                            <p>Fermez votre session</p>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        {% else %}
+            <!-- État vide -->
+            <div class="empty-state">
+                <div class="empty-state-icon mb-4">
+                    <i class="fas fa-chart-line fa-4x text-muted"></i>
+                </div>
+                <h3 class="empty-state-title">Aucune donnée disponible</h3>
+                <p class="empty-state-text">
+                    Vous n'avez pas encore effectué de réservation. Les statistiques apparaîtront ici 
+                    lorsque vous aurez réservé des créneaux de tennis.
+                </p>
+                <div class="empty-state-actions">
+                    <a href="/reservations" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus me-2"></i>
+                        Faire ma première réservation
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Script pour le graphique -->
 {% if months %}
-  <div class="card p-4 mb-4">
-    <canvas id="sessionChart" height="200"></canvas>
-  </div>
-  <div class="card p-4">
-    <h5>Tableau des séances par mois</h5>
-    <table class="table table-striped mt-3">
-      <thead>
-        <tr>
-          <th>Mois</th>
-          <th>Nombre de séances</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for m, c in data_pairs %}
-        <tr>
-          <td>{{ m }}</td>
-          <td>{{ c }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script>
-    const labels = {{ months_js | safe }};
-    const data = {{ counts_js | safe }};
-    const ctx = document.getElementById('sessionChart').getContext('2d');
-    const chart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Nombre de séances',
-                data: data,
-                backgroundColor: 'rgba(2, 46, 106, 0.6)',
-                borderColor: 'rgba(2, 46, 106, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Séances'
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const labels = {{ months_js | safe }};
+        const data = {{ counts_js | safe }};
+        const ctx = document.getElementById('sessionChart').getContext('2d');
+        
+        // Configuration du graphique avec design moderne
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Nombre de séances',
+                    data: data,
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderColor: 'rgba(245, 158, 11, 1)',
+                    borderWidth: 3,
+                    pointBackgroundColor: 'rgba(245, 158, 11, 1)',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(30, 58, 138, 0.9)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: 'rgba(245, 158, 11, 1)',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: false
                     }
                 },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Mois'
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#6b7280',
+                            font: {
+                                size: 12
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Nombre de séances',
+                            color: '#374151',
+                            font: {
+                                size: 14,
+                                weight: '600'
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#6b7280',
+                            font: {
+                                size: 12
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Mois',
+                            color: '#374151',
+                            font: {
+                                size: 14,
+                                weight: '600'
+                            }
+                        }
                     }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
                 }
             }
-        }
+        });
     });
-  </script>
-{% else %}
-  <p>Vous n'avez pas encore effectué de réservation. Les statistiques apparaîtront ici lorsque vous aurez réservé des créneaux.</p>
+</script>
 {% endif %}
 {% endblock %}

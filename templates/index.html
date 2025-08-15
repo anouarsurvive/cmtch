@@ -7,11 +7,11 @@
         <h1 class="fw-bold text-gradient">Club Municipal de Tennis Chihia</h1>
         <p class="lead">Venez pratiquer votre passion dans un cadre convivial et dynamique !</p>
         {% if not user %}
-            <a href="/inscription" class="btn btn-primary btn-lg">
+            <a href="/inscription" class="btn btn-primary btn-lg" data-loading="true">
                 <i class="fas fa-user-plus me-2"></i>Rejoignez-nous
             </a>
         {% elif user.validated %}
-            <a href="/reservations" class="btn btn-primary btn-lg">
+            <a href="/reservations" class="btn btn-primary btn-lg" data-loading="true">
                 <i class="fas fa-calendar-check me-2"></i>Réservez un court
             </a>
         {% else %}
@@ -22,28 +22,28 @@
     </div>
 </div>
 
-<!-- Section Statistiques -->
+<!-- Section Statistiques avec animations -->
 <section class="stats-section py-5">
     <div class="container">
         <div class="row text-center">
             <div class="col-md-3 col-6 mb-4">
                 <div class="stat-item">
                     <i class="fas fa-users fa-3x text-primary mb-3"></i>
-                    <h3 class="fw-bold text-primary">150+</h3>
+                    <h3 class="fw-bold text-primary counter" data-target="150">0</h3>
                     <p class="text-muted">Membres actifs</p>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-4">
                 <div class="stat-item">
                     <i class="fas fa-tennis-ball fa-3x text-accent mb-3"></i>
-                    <h3 class="fw-bold text-accent">3</h3>
+                    <h3 class="fw-bold text-accent counter" data-target="3">0</h3>
                     <p class="text-muted">Courts de tennis</p>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-4">
                 <div class="stat-item">
                     <i class="fas fa-trophy fa-3x text-primary mb-3"></i>
-                    <h3 class="fw-bold text-primary">25+</h3>
+                    <h3 class="fw-bold text-primary counter" data-target="25">0</h3>
                     <p class="text-muted">Années d'expérience</p>
                 </div>
             </div>
@@ -58,7 +58,7 @@
     </div>
 </section>
 
-<!-- Section Notre club -->
+<!-- Section Notre club avec design amélioré -->
 <section id="club" class="club-section">
     <div class="container">
         <div class="row align-items-center">
@@ -92,43 +92,64 @@
                 </div>
             </div>
             <div class="col-lg-6 text-center">
-                <img src="{{ url_for('static', path='images/hero.png') }}" alt="Vue du club" class="img-fluid rounded-custom shadow-custom">
+                <div class="position-relative">
+                    <img src="{{ url_for('static', path='images/hero.png') }}" alt="Vue du club" class="img-fluid rounded-custom shadow-custom">
+                    <div class="position-absolute top-0 start-0 w-100 h-100 bg-gradient-accent opacity-10 rounded-custom"></div>
+                </div>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Section Services -->
+<!-- Section Services avec animations -->
 <section class="services-section py-5 bg-light">
     <div class="container">
         <h2 class="section-title">Nos Services</h2>
         <div class="row">
             <div class="col-md-4 mb-4">
                 <div class="service-card text-center p-4 h-100">
-                    <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
+                    <div class="service-icon-wrapper mb-4">
+                        <i class="fas fa-calendar-alt fa-3x text-primary"></i>
+                    </div>
                     <h4>Réservation en ligne</h4>
                     <p class="text-muted">Réservez vos créneaux de tennis en quelques clics, 24h/24 et 7j/7.</p>
+                    <div class="service-features mt-3">
+                        <span class="badge bg-primary me-2">Rapide</span>
+                        <span class="badge bg-accent">Sécurisé</span>
+                    </div>
                 </div>
             </div>
             <div class="col-md-4 mb-4">
                 <div class="service-card text-center p-4 h-100">
-                    <i class="fas fa-users fa-3x text-accent mb-3"></i>
+                    <div class="service-icon-wrapper mb-4">
+                        <i class="fas fa-users fa-3x text-accent"></i>
+                    </div>
                     <h4>Communauté active</h4>
                     <p class="text-muted">Rejoignez une communauté passionnée de tennis avec des événements réguliers.</p>
+                    <div class="service-features mt-3">
+                        <span class="badge bg-primary me-2">Convivial</span>
+                        <span class="badge bg-accent">Événements</span>
+                    </div>
                 </div>
             </div>
             <div class="col-md-4 mb-4">
                 <div class="service-card text-center p-4 h-100">
-                    <i class="fas fa-shield-alt fa-3x text-primary mb-3"></i>
+                    <div class="service-icon-wrapper mb-4">
+                        <i class="fas fa-shield-alt fa-3x text-primary"></i>
+                    </div>
                     <h4>Installations sécurisées</h4>
                     <p class="text-muted">Profitez de courts de tennis de qualité dans un environnement sécurisé.</p>
+                    <div class="service-features mt-3">
+                        <span class="badge bg-primary me-2">Qualité</span>
+                        <span class="badge bg-accent">Sécurisé</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Section Actualités -->
+<!-- Section Actualités avec design moderne -->
 <section id="actualites" class="news-section">
     <div class="container">
         <h2 class="section-title">Actualités</h2>
@@ -137,16 +158,29 @@
             {% for article in latest_articles %}
             <div class="col-lg-4 col-md-6 mb-4">
                 <div class="card news-card h-100">
-                    {% if article.image_path %}
-                        {% if article.image_path.startswith('http') %}
-                            <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}">
+                    <div class="card-image-wrapper position-relative overflow-hidden">
+                        {% if article.image_path %}
+                            {% if article.image_path.startswith('http') %}
+                                <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}">
+                            {% else %}
+                                <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}">
+                            {% endif %}
                         {% else %}
-                            <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}">
+                            <img src="{{ url_for('static', path='images/hero.png') }}" class="card-img-top" alt="Pas d'image">
                         {% endif %}
-                    {% else %}
-                        <img src="{{ url_for('static', path='images/hero.png') }}" class="card-img-top" alt="Pas d'image">
-                    {% endif %}
+                        <div class="card-overlay position-absolute top-0 start-0 w-100 h-100 bg-gradient-primary opacity-0 transition-all">
+                            <div class="d-flex align-items-center justify-content-center h-100">
+                                <i class="fas fa-eye fa-2x text-white"></i>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card-body d-flex flex-column">
+                        <div class="card-meta mb-2">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ article.created_at.strftime('%d/%m/%Y') if article.created_at else 'Date inconnue' }}
+                            </small>
+                        </div>
                         <h5 class="card-title">{{ article.title }}</h5>
                         <p class="card-text flex-grow-1">{{ article.content[:120] }}{% if article.content|length > 120 %}…{% endif %}</p>
                         <a href="/article/{{ article.id }}" class="btn btn-outline-primary mt-auto">
@@ -157,49 +191,104 @@
             </div>
             {% endfor %}
         </div>
-        <div class="text-center mt-4">
+        <div class="text-center mt-5">
             <a href="/articles" class="btn btn-primary btn-lg">
                 <i class="fas fa-newspaper me-2"></i>Voir toutes les actualités
             </a>
         </div>
         {% else %}
-            <div class="text-center">
-                <i class="fas fa-newspaper fa-3x text-muted mb-3"></i>
-                <p class="text-muted">Aucune actualité pour le moment.</p>
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <i class="fas fa-newspaper fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">Aucune actualité pour le moment</h4>
+                    <p class="text-muted">Revenez bientôt pour découvrir nos dernières nouvelles !</p>
+                </div>
             </div>
         {% endif %}
     </div>
 </section>
 
-<!-- Section Contact / Réseaux -->
+<!-- Section Contact / Réseaux avec design amélioré -->
 <section id="contact" class="contact-section">
     <div class="container">
         <div class="row">
             <div class="col-lg-6 mb-4 mb-lg-0">
                 <h2><i class="fas fa-address-book me-3"></i>Contactez-nous</h2>
-                <ul class="list-unstyled">
-                    <li><i class="fas fa-map-marker-alt"></i>{{ adresse }}</li>
-                    <li><i class="fas fa-phone"></i>{{ telephone }}</li>
-                    <li><i class="fas fa-envelope"></i><a href="mailto:{{ email }}" class="ms-1 text-decoration-none text-white">{{ email }}</a></li>
+                <ul class="list-unstyled contact-list">
+                    <li class="contact-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>{{ adresse }}</span>
+                    </li>
+                    <li class="contact-item">
+                        <i class="fas fa-phone"></i>
+                        <span>{{ telephone }}</span>
+                    </li>
+                    <li class="contact-item">
+                        <i class="fas fa-envelope"></i>
+                        <a href="mailto:{{ email }}" class="ms-1 text-decoration-none text-white">{{ email }}</a>
+                    </li>
                 </ul>
-            </div>
-            <div class="col-lg-6">
-                <h2><i class="fas fa-share-alt me-3"></i>Suivez-nous</h2>
-                <div class="social-links">
-                    <a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="social-link">
-                        <i class="fab fa-facebook-f fa-2x"></i>
+                <div class="mt-4">
+                    <a href="tel:{{ telephone }}" class="btn btn-outline-light me-3">
+                        <i class="fas fa-phone me-2"></i>Appeler
                     </a>
-                    <a href="#" class="social-link">
-                        <i class="fab fa-instagram fa-2x"></i>
-                    </a>
-                    <a href="#" class="social-link">
-                        <i class="fab fa-twitter fa-2x"></i>
-                    </a>
-                    <a href="#" class="social-link">
-                        <i class="fab fa-youtube fa-2x"></i>
+                    <a href="mailto:{{ email }}" class="btn btn-outline-light">
+                        <i class="fas fa-envelope me-2"></i>Email
                     </a>
                 </div>
             </div>
+            <div class="col-lg-6">
+                <h2><i class="fas fa-share-alt me-3"></i>Suivez-nous</h2>
+                <p class="text-white-50 mb-4">Restez connecté avec notre communauté et suivez nos actualités !</p>
+                <div class="social-links">
+                    <a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="social-link" title="Facebook">
+                        <i class="fab fa-facebook-f fa-2x"></i>
+                    </a>
+                    <a href="#" class="social-link" title="Instagram">
+                        <i class="fab fa-instagram fa-2x"></i>
+                    </a>
+                    <a href="#" class="social-link" title="Twitter">
+                        <i class="fab fa-twitter fa-2x"></i>
+                    </a>
+                    <a href="#" class="social-link" title="YouTube">
+                        <i class="fab fa-youtube fa-2x"></i>
+                    </a>
+                </div>
+                <div class="mt-4">
+                    <p class="text-white-50 mb-2">Newsletter</p>
+                    <div class="input-group">
+                        <input type="email" class="form-control" placeholder="Votre email" aria-label="Email pour newsletter">
+                        <button class="btn btn-accent" type="button">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Section Call-to-Action -->
+<section class="cta-section py-5 bg-gradient-primary text-white">
+    <div class="container text-center">
+        <h2 class="mb-4">Prêt à rejoindre notre club ?</h2>
+        <p class="lead mb-4">Commencez votre aventure tennis dès aujourd'hui !</p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            {% if not user %}
+                <a href="/inscription" class="btn btn-accent btn-lg">
+                    <i class="fas fa-user-plus me-2"></i>S'inscrire maintenant
+                </a>
+                <a href="/connexion" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-sign-in-alt me-2"></i>Se connecter
+                </a>
+            {% elif user.validated %}
+                <a href="/reservations" class="btn btn-accent btn-lg">
+                    <i class="fas fa-calendar-check me-2"></i>Réserver un court
+                </a>
+                <a href="/espace" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-user me-2"></i>Mon espace
+                </a>
+            {% endif %}
         </div>
     </div>
 </section>

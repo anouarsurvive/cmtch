@@ -1,60 +1,296 @@
 {% extends 'layout.html' %}
 {% block content %}
-<h2>Inscription</h2>
-<p>Remplissez le formulaire ci‑dessous pour devenir membre du club. Votre demande sera validée par un administrateur.</p>
-{% if errors %}
-    <div class="alert alert-danger">
-        <ul class="mb-0">
-        {% for err in errors %}
-            <li>{{ err }}</li>
-        {% endfor %}
-        </ul>
+<!-- Section d'inscription moderne -->
+<section class="auth-section py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-md-10">
+                <div class="auth-card">
+                    <div class="auth-header text-center mb-4">
+                        <div class="auth-icon-wrapper mb-3">
+                            <i class="fas fa-user-plus fa-3x text-primary"></i>
+                        </div>
+                        <h2 class="auth-title">Inscription</h2>
+                        <p class="auth-subtitle">Rejoignez notre club de tennis</p>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Votre demande sera validée par un administrateur après soumission.
+                        </div>
+                    </div>
+
+                    {% if errors %}
+                        <div class="alert alert-danger fade-in">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <div>
+                                    <strong>Erreurs de validation</strong>
+                                    <ul class="mb-0 mt-1">
+                                    {% for err in errors %}
+                                        <li>{{ err }}</li>
+                                    {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <form method="post" enctype="multipart/form-data" class="auth-form">
+                        <div class="row">
+                            <!-- Informations personnelles -->
+                            <div class="col-md-6">
+                                <h4 class="form-section-title">
+                                    <i class="fas fa-user me-2"></i>Informations personnelles
+                                </h4>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="username" class="form-label">Nom d'utilisateur *</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="username" 
+                                           name="username" 
+                                           required 
+                                           value="{{ username|default('') }}"
+                                           placeholder="Choisissez un nom d'utilisateur">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="full_name" class="form-label">Nom complet *</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="full_name" 
+                                           name="full_name" 
+                                           required 
+                                           value="{{ full_name|default('') }}"
+                                           placeholder="Votre nom complet">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="email" class="form-label">Adresse e-mail *</label>
+                                    <input type="email" 
+                                           class="form-control" 
+                                           id="email" 
+                                           name="email" 
+                                           required 
+                                           value="{{ email|default('') }}"
+                                           placeholder="votre.email@exemple.com">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="phone" class="form-label">Téléphone *</label>
+                                    <input type="tel" 
+                                           class="form-control" 
+                                           id="phone" 
+                                           name="phone" 
+                                           required 
+                                           value="{{ phone|default('') }}"
+                                           placeholder="+216 XX XXX XXX">
+                                </div>
+                            </div>
+                            
+                            <!-- Informations supplémentaires -->
+                            <div class="col-md-6">
+                                <h4 class="form-section-title">
+                                    <i class="fas fa-id-card me-2"></i>Informations supplémentaires
+                                </h4>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="ijin_number" class="form-label">Numéro IJIN *</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="ijin_number" 
+                                           name="ijin_number" 
+                                           required 
+                                           value="{{ ijin_number|default('') }}"
+                                           placeholder="Votre numéro IJIN">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="birth_date" class="form-label">Date de naissance *</label>
+                                    <input type="date" 
+                                           class="form-control" 
+                                           id="birth_date" 
+                                           name="birth_date" 
+                                           required 
+                                           value="{{ birth_date|default('') }}">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="role" class="form-label">Rôle *</label>
+                                    <select id="role" name="role" class="form-select">
+                                        <option value="member" {% if role|default('member') == 'member' %}selected{% endif %}>Membre</option>
+                                        <option value="trainer" {% if role|default('member') == 'trainer' %}selected{% endif %}>Entraîneur</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="photo_file" class="form-label">Photo de profil</label>
+                                    <div class="file-upload-wrapper">
+                                        <input type="file" 
+                                               class="form-control" 
+                                               id="photo_file" 
+                                               name="photo_file" 
+                                               accept="image/*"
+                                               onchange="previewImage(this)">
+                                        <div class="file-upload-info">
+                                            <i class="fas fa-cloud-upload-alt me-2"></i>
+                                            Cliquez pour sélectionner une image
+                                        </div>
+                                    </div>
+                                    <div id="image-preview" class="mt-2" style="display: none;">
+                                        <img id="preview-img" class="img-thumbnail" style="max-width: 150px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Sécurité -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <h4 class="form-section-title">
+                                    <i class="fas fa-shield-alt me-2"></i>Sécurité
+                                </h4>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="password" class="form-label">Mot de passe *</label>
+                                    <div class="password-input-wrapper">
+                                        <input type="password" 
+                                               class="form-control" 
+                                               id="password" 
+                                               name="password" 
+                                               required
+                                               placeholder="Créez un mot de passe sécurisé">
+                                        <button type="button" class="password-toggle" onclick="togglePassword('password')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <div class="password-strength mt-2" id="password-strength"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="confirm_password" class="form-label">Confirmer le mot de passe *</label>
+                                    <div class="password-input-wrapper">
+                                        <input type="password" 
+                                               class="form-control" 
+                                               id="confirm_password" 
+                                               name="confirm_password" 
+                                               required
+                                               placeholder="Confirmez votre mot de passe">
+                                        <button type="button" class="password-toggle" onclick="togglePassword('confirm_password')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <div class="password-match mt-2" id="password-match"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg w-100" data-loading="true">
+                                <i class="fas fa-user-plus me-2"></i>Créer mon compte
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="auth-footer text-center mt-4">
+                        <p class="mb-3">Déjà un compte ?</p>
+                        <a href="/connexion" class="btn btn-outline-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>Se connecter
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-{% endif %}
-<form method="post" enctype="multipart/form-data">
-    <div class="mb-3">
-        <label for="username" class="form-label">Nom d'utilisateur</label>
-        <input type="text" class="form-control" id="username" name="username" required value="{{ username|default('') }}">
-    </div>
-    <div class="mb-3">
-        <label for="full_name" class="form-label">Nom complet</label>
-        <input type="text" class="form-control" id="full_name" name="full_name" required value="{{ full_name|default('') }}">
-    </div>
-    <div class="mb-3">
-        <label for="email" class="form-label">Adresse e‑mail</label>
-        <input type="email" class="form-control" id="email" name="email" required value="{{ email|default('') }}">
-    </div>
-    <div class="mb-3">
-        <label for="phone" class="form-label">Téléphone</label>
-        <input type="text" class="form-control" id="phone" name="phone" required value="{{ phone|default('') }}">
-    </div>
-    <div class="mb-3">
-        <label for="ijin_number" class="form-label">Numéro IJIN</label>
-        <input type="text" class="form-control" id="ijin_number" name="ijin_number" required value="{{ ijin_number|default('') }}">
-    </div>
-    <div class="mb-3">
-        <label for="birth_date" class="form-label">Date de naissance</label>
-        <input type="date" class="form-control" id="birth_date" name="birth_date" required value="{{ birth_date|default('') }}">
-    </div>
-    <div class="mb-3">
-        <label for="photo_file" class="form-label">Photo de profil (optionnel)</label>
-        <input type="file" class="form-control" id="photo_file" name="photo_file" accept="image/*">
-    </div>
-    <div class="mb-3">
-        <label for="password" class="form-label">Mot de passe</label>
-        <input type="password" class="form-control" id="password" name="password" required>
-    </div>
-    <div class="mb-3">
-        <label for="confirm_password" class="form-label">Confirmer le mot de passe</label>
-        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-    </div>
-    <div class="mb-3">
-        <label for="role" class="form-label">Rôle</label>
-        <select id="role" name="role" class="form-select">
-            <option value="member" {% if role|default('member') == 'member' %}selected{% endif %}>Membre</option>
-            <option value="trainer" {% if role|default('member') == 'trainer' %}selected{% endif %}>Entraîneur</option>
-        </select>
-    </div>
-    <button type="submit" class="btn btn-primary">S'inscrire</button>
-</form>
+</section>
+
+<script>
+function togglePassword(fieldId) {
+    const passwordInput = document.getElementById(fieldId);
+    const toggleBtn = passwordInput.parentElement.querySelector('.password-toggle i');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleBtn.classList.remove('fa-eye');
+        toggleBtn.classList.add('fa-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        toggleBtn.classList.remove('fa-eye-slash');
+        toggleBtn.classList.add('fa-eye');
+    }
+}
+
+function previewImage(input) {
+    const preview = document.getElementById('image-preview');
+    const previewImg = document.getElementById('preview-img');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            preview.style.display = 'block';
+        }
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        preview.style.display = 'none';
+    }
+}
+
+// Validation du mot de passe
+document.getElementById('password').addEventListener('input', function() {
+    const password = this.value;
+    const strengthDiv = document.getElementById('password-strength');
+    let strength = 0;
+    let message = '';
+    let color = '';
+    
+    if (password.length >= 8) strength++;
+    if (/[a-z]/.test(password)) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    
+    switch(strength) {
+        case 0:
+        case 1:
+            message = 'Très faible';
+            color = 'danger';
+            break;
+        case 2:
+            message = 'Faible';
+            color = 'warning';
+            break;
+        case 3:
+            message = 'Moyen';
+            color = 'info';
+            break;
+        case 4:
+            message = 'Fort';
+            color = 'success';
+            break;
+        case 5:
+            message = 'Très fort';
+            color = 'success';
+            break;
+    }
+    
+    strengthDiv.innerHTML = `<small class="text-${color}"><i class="fas fa-shield-alt me-1"></i>${message}</small>`;
+});
+
+// Vérification de la correspondance des mots de passe
+document.getElementById('confirm_password').addEventListener('input', function() {
+    const password = document.getElementById('password').value;
+    const confirmPassword = this.value;
+    const matchDiv = document.getElementById('password-match');
+    
+    if (confirmPassword === '') {
+        matchDiv.innerHTML = '';
+    } else if (password === confirmPassword) {
+        matchDiv.innerHTML = '<small class="text-success"><i class="fas fa-check me-1"></i>Les mots de passe correspondent</small>';
+    } else {
+        matchDiv.innerHTML = '<small class="text-danger"><i class="fas fa-times me-1"></i>Les mots de passe ne correspondent pas</small>';
+    }
+});
+</script>
 {% endblock %}

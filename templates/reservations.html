@@ -1,101 +1,254 @@
 {% extends 'layout.html' %}
 {% block content %}
-<h2 class="section-title">Réservations des courts</h2>
-
-<form method="get" class="mb-4">
-    <div class="input-group reservations-select-date">
-        <span class="input-group-text">Date</span>
-        <input type="date" class="form-control" name="date" value="{{ selected_date }}" onchange="this.form.submit()">
-    </div>
-</form>
-
-<div class="row">
-    <div class="col-lg-8 mb-4">
-        <h3 class="mb-3">Planning du {{ selected_date }}</h3>
-        <div class="table-responsive">
-            <table class="table table-bordered text-center align-middle">
-                <thead>
-                <tr>
-                    <th>Heure</th>
-                    <th>Court 1</th>
-                    <th>Court 2</th>
-                    <th>Court 3</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for slot in time_slots %}
-                    <tr>
-                        <th scope="row" class="time-slot">{{ slot[0] }} – {{ slot[1] }}</th>
-                        {% for court in (1, 2, 3) %}
-                            {% set is_reserved = availability[court][slot] %}
-                            <td>
-                                {% if is_reserved %}
-                                    <div class="bg-danger text-white py-2 rounded">Réservé</div>
-                                {% else %}
-                                    <button type="button" class="btn btn-outline-success w-100 slot-available" data-court="{{ court }}" data-start="{{ slot[0] }}" data-end="{{ slot[1] }}">
-                                        Libre
-                                    </button>
-                                {% endif %}
-                            </td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+<!-- Section des réservations moderne -->
+<section class="reservations-section py-5">
+    <div class="container">
+        <!-- En-tête de la page -->
+        <div class="page-header text-center mb-5">
+            <h2 class="section-title">Réservations des courts</h2>
+            <p class="lead text-muted">Réservez votre créneau de tennis en quelques clics</p>
         </div>
-        <p class="text-muted"><small>Cliquez sur un créneau libre pour créer une réservation d'une heure.</small></p>
-        <!-- Formulaire caché pour envoyer la réservation -->
-        <form id="reservationForm" method="post" style="display: none;">
-            <input type="hidden" name="date" value="{{ selected_date }}">
-            <input type="hidden" name="court_number" id="form_court_number">
-            <input type="hidden" name="start_time" id="form_start_time">
-            <input type="hidden" name="end_time" id="form_end_time">
-        </form>
+
+        <!-- Sélecteur de date -->
+        <div class="date-selector-wrapper mb-5">
+            <form method="get" class="date-selector-form">
+                <div class="row justify-content-center">
+                    <div class="col-md-6 col-lg-4">
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-primary text-white">
+                                <i class="fas fa-calendar-alt"></i>
+                            </span>
+                            <input type="date" 
+                                   class="form-control" 
+                                   name="date" 
+                                   value="{{ selected_date }}" 
+                                   onchange="this.form.submit()"
+                                   min="{{ today_date }}">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="row">
+            <!-- Planning principal -->
+            <div class="col-lg-8 mb-4">
+                <div class="schedule-card">
+                    <div class="schedule-header">
+                        <h3 class="schedule-title">
+                            <i class="fas fa-calendar-day me-2"></i>
+                            Planning du {{ selected_date }}
+                        </h3>
+                        <div class="schedule-legend">
+                            <span class="legend-item">
+                                <span class="legend-color available"></span>
+                                Libre
+                            </span>
+                            <span class="legend-item">
+                                <span class="legend-color reserved"></span>
+                                Réservé
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table schedule-table">
+                            <thead>
+                                <tr>
+                                    <th class="time-header">Heure</th>
+                                    <th class="court-header">Court 1</th>
+                                    <th class="court-header">Court 2</th>
+                                    <th class="court-header">Court 3</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for slot in time_slots %}
+                                <tr class="time-row">
+                                    <th scope="row" class="time-slot">
+                                        <div class="time-display">
+                                            <span class="time-start">{{ slot[0] }}</span>
+                                            <span class="time-separator">–</span>
+                                            <span class="time-end">{{ slot[1] }}</span>
+                                        </div>
+                                    </th>
+                                    {% for court in (1, 2, 3) %}
+                                        {% set is_reserved = availability[court][slot] %}
+                                        <td class="court-cell">
+                                            {% if is_reserved %}
+                                                <div class="slot-reserved">
+                                                    <i class="fas fa-lock me-2"></i>
+                                                    <span>Réservé</span>
+                                                </div>
+                                            {% else %}
+                                                <button type="button" 
+                                                        class="btn slot-available" 
+                                                        data-court="{{ court }}" 
+                                                        data-start="{{ slot[0] }}" 
+                                                        data-end="{{ slot[1] }}"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#reservationModal">
+                                                    <i class="fas fa-check me-2"></i>
+                                                    <span>Libre</span>
+                                                </button>
+                                            {% endif %}
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="schedule-footer">
+                        <p class="text-muted">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Cliquez sur un créneau libre pour créer une réservation d'une heure.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mes réservations -->
+            <div class="col-lg-4">
+                <div class="my-reservations-card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-list me-2"></i>
+                            Mes réservations
+                        </h3>
+                    </div>
+                    
+                    <div class="card-body">
+                        {% if user_reservations %}
+                            <div class="reservations-list">
+                                {% for r in user_reservations %}
+                                    <div class="reservation-item">
+                                        <div class="reservation-header">
+                                            <span class="reservation-date">
+                                                <i class="fas fa-calendar me-1"></i>
+                                                {{ r.date }}
+                                            </span>
+                                            <span class="reservation-court">
+                                                <i class="fas fa-tennis-ball me-1"></i>
+                                                Court {{ r.court_number }}
+                                            </span>
+                                        </div>
+                                        <div class="reservation-time">
+                                            <i class="fas fa-clock me-1"></i>
+                                            {{ r.start_time }} - {{ r.end_time }}
+                                        </div>
+                                        <div class="reservation-actions">
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    onclick="cancelReservation({{ r.id }})"
+                                                    title="Annuler la réservation">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-reservations">
+                                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">Aucune réservation</h5>
+                                <p class="text-muted">Vous n'avez pas encore de réservation.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="col-lg-4">
-        <h3>Mes réservations</h3>
-        {% if user_reservations %}
-        <table class="table table-bordered table-sm">
-            <thead>
-            <tr>
-                <th>Date</th>
-                <th>Court</th>
-                <th>Début</th>
-                <th>Fin</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for r in user_reservations %}
-                <tr>
-                    <td>{{ r.date }}</td>
-                    <td>{{ r.court_number }}</td>
-                    <td>{{ r.start_time }}</td>
-                    <td>{{ r.end_time }}</td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-            <p>Vous n'avez pas encore de réservation.</p>
-        {% endif %}
+</section>
+
+<!-- Modal de confirmation de réservation -->
+<div class="modal fade" id="reservationModal" tabindex="-1" aria-labelledby="reservationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reservationModalLabel">
+                    <i class="fas fa-calendar-check me-2"></i>
+                    Confirmer la réservation
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="reservation-details">
+                    <div class="detail-item">
+                        <i class="fas fa-calendar me-2"></i>
+                        <strong>Date :</strong> <span id="modal-date">{{ selected_date }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-tennis-ball me-2"></i>
+                        <strong>Court :</strong> <span id="modal-court"></span>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-clock me-2"></i>
+                        <strong>Horaire :</strong> <span id="modal-time"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Annuler
+                </button>
+                <form id="reservationForm" method="post" style="display: inline;">
+                    <input type="hidden" name="date" value="{{ selected_date }}">
+                    <input type="hidden" name="court_number" id="form_court_number">
+                    <input type="hidden" name="start_time" id="form_start_time">
+                    <input type="hidden" name="end_time" id="form_end_time">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check me-2"></i>Confirmer
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Script pour traiter le clic sur un créneau libre -->
+<!-- Scripts -->
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const slots = document.querySelectorAll('.slot-available');
-        slots.forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                const court = this.getAttribute('data-court');
-                const start = this.getAttribute('data-start');
-                const end = this.getAttribute('data-end');
-                document.getElementById('form_court_number').value = court;
-                document.getElementById('form_start_time').value = start;
-                document.getElementById('form_end_time').value = end;
-                document.getElementById('reservationForm').submit();
-            });
+document.addEventListener('DOMContentLoaded', function () {
+    // Gestion des clics sur les créneaux libres
+    const slots = document.querySelectorAll('.slot-available');
+    slots.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const court = this.getAttribute('data-court');
+            const start = this.getAttribute('data-start');
+            const end = this.getAttribute('data-end');
+            
+            // Mise à jour du modal
+            document.getElementById('modal-court').textContent = 'Court ' + court;
+            document.getElementById('modal-time').textContent = start + ' - ' + end;
+            
+            // Mise à jour du formulaire caché
+            document.getElementById('form_court_number').value = court;
+            document.getElementById('form_start_time').value = start;
+            document.getElementById('form_end_time').value = end;
         });
     });
+});
+
+function cancelReservation(reservationId) {
+    if (confirm('Êtes-vous sûr de vouloir annuler cette réservation ?')) {
+        // Ici vous pouvez ajouter la logique pour annuler la réservation
+        // Par exemple, faire une requête AJAX vers une route de suppression
+        console.log('Annulation de la réservation:', reservationId);
+    }
+}
+
+// Animation des créneaux au survol
+document.querySelectorAll('.slot-available').forEach(slot => {
+    slot.addEventListener('mouseenter', function() {
+        this.style.transform = 'scale(1.05)';
+    });
+    
+    slot.addEventListener('mouseleave', function() {
+        this.style.transform = 'scale(1)';
+    });
+});
 </script>
 {% endblock %}

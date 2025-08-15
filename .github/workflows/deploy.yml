@@ -1,0 +1,72 @@
+name: Déploiement Automatique
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configuration Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Installation des dépendances
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio httpx
+    
+    - name: Tests de base
+      run: |
+        python -c "import app; print('Application importée avec succès')"
+    
+    - name: Vérification de la syntaxe
+      run: |
+        python -m py_compile app.py
+        echo "✅ Syntaxe Python valide"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configuration Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Installation des dépendances
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Déploiement sur Railway (Alternative)
+      if: false  # Désactivé par défaut
+      uses: bervProject/railway-deploy@v1.0.0
+      with:
+        railway_token: ${{ secrets.RAILWAY_TOKEN }}
+        service: ${{ secrets.RAILWAY_SERVICE }}
+    
+    - name: Déploiement sur Render
+      uses: johnbeynon/render-deploy-action@v1.0.0
+      with:
+        service-id: ${{ secrets.RENDER_SERVICE_ID }}
+        api-key: ${{ secrets.RENDER_API_KEY }}
+    
+    - name: Notification de déploiement
+      run: |
+        echo "🚀 Déploiement terminé avec succès!"
+        echo "📅 Date: $(date)"
+        echo "🔗 Commit: ${{ github.sha }}"
+        echo "🌐 Plateforme: Render"
