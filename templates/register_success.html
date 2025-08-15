@@ -1,6 +1,53 @@
 {% extends 'layout.html' %}
 {% block content %}
-<h2>Inscription réussie</h2>
-<p>Merci {{ username }} pour votre inscription. Un administrateur validera votre compte prochainement. Vous recevrez un e‑mail lorsque vous pourrez vous connecter.</p>
-<a href="/connexion" class="btn btn-primary">Se connecter</a>
+<!-- Section de succès d'inscription -->
+<section class="auth-section py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+                <div class="auth-card text-center">
+                    <div class="auth-header mb-4">
+                        <div class="auth-icon-wrapper mb-3">
+                            <i class="fas fa-check-circle fa-3x text-success"></i>
+                        </div>
+                        <h2 class="auth-title text-success">Inscription réussie !</h2>
+                        <p class="auth-subtitle">Bienvenue dans notre club de tennis</p>
+                    </div>
+
+                    <div class="alert alert-success">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Félicitations {{ username }} !</strong><br>
+                        Votre compte a été créé avec succès.
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-clock me-2"></i>
+                        <strong>Prochaine étape :</strong><br>
+                        Votre compte sera validé par un administrateur dans les plus brefs délais.<br>
+                        Vous recevrez un email de confirmation une fois validé.
+                    </div>
+
+                    <div class="auth-footer mt-4">
+                        <p class="mb-3">En attendant la validation, vous pouvez :</p>
+                        <div class="d-grid gap-2">
+                            <a href="/" class="btn btn-primary">
+                                <i class="fas fa-home me-2"></i>Retour à l'accueil
+                            </a>
+                            <a href="/connexion" class="btn btn-outline-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i>Se connecter (après validation)
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            <i class="fas fa-question-circle me-1"></i>
+                            Questions ? Contactez-nous à contact@tennis-chihia.tn
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 {% endblock %}

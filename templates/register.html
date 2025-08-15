@@ -34,7 +34,7 @@
                         </div>
                     {% endif %}
 
-                    <form method="post" enctype="multipart/form-data" class="auth-form">
+                    <form method="post" class="auth-form">
                         <div class="row">
                             <!-- Informations personnelles -->
                             <div class="col-md-6">
@@ -122,30 +122,26 @@
                                     </select>
                                 </div>
                                 
+                                <!-- Photo de profil simplifiée -->
                                 <div class="form-group mb-3">
-                                    <label for="photo_file" class="form-label">Photo de profil</label>
+                                    <label for="photo_file" class="form-label">Photo de profil (optionnel)</label>
                                     <div class="file-upload-wrapper">
                                         <input type="file" 
                                                class="form-control" 
                                                id="photo_file" 
                                                name="photo_file" 
-                                               accept="image/*"
-                                               onchange="previewImage(this)">
+                                               accept="image/*">
                                         <div class="file-upload-info">
                                             <i class="fas fa-cloud-upload-alt me-2"></i>
                                             Cliquez pour sélectionner une image
                                         </div>
                                     </div>
-                                    <div id="image-preview" class="mt-2" style="display: none;">
-                                        <img id="preview-img" class="img-thumbnail" style="max-width: 150px;">
-                                    </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Sécurité -->
-                        <div class="row mt-4">
-                            <div class="col-12">
+                        <div class="row">
+                            <div class="col-md-6">
                                 <h4 class="form-section-title">
                                     <i class="fas fa-shield-alt me-2"></i>Sécurité
                                 </h4>
@@ -187,7 +183,7 @@
                         </div>
 
                         <div class="form-group mt-4">
-                            <button type="submit" class="btn btn-primary btn-lg w-100" data-loading="true">
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="submitBtn">
                                 <i class="fas fa-user-plus me-2"></i>Créer mon compte
                             </button>
                         </div>
@@ -218,22 +214,6 @@ function togglePassword(fieldId) {
         passwordInput.type = 'password';
         toggleBtn.classList.remove('fa-eye-slash');
         toggleBtn.classList.add('fa-eye');
-    }
-}
-
-function previewImage(input) {
-    const preview = document.getElementById('image-preview');
-    const previewImg = document.getElementById('preview-img');
-    
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            previewImg.src = e.target.result;
-            preview.style.display = 'block';
-        }
-        reader.readAsDataURL(input.files[0]);
-    } else {
-        preview.style.display = 'none';
     }
 }
 
@@ -296,7 +276,7 @@ document.getElementById('confirm_password').addEventListener('input', function()
 // Débogage du formulaire d'inscription
 document.addEventListener('DOMContentLoaded', function() {
     const registerForm = document.querySelector('form[method="post"]');
-    const submitBtn = document.querySelector('button[type="submit"]');
+    const submitBtn = document.getElementById('submitBtn');
     
     if (registerForm) {
         console.log('✅ Formulaire d\'inscription trouvé');
