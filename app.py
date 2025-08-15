@@ -861,6 +861,127 @@ async def validate_member(request: Request) -> HTMLResponse:
     return RedirectResponse(url="/admin/membres", status_code=303)
 
 
+@app.post("/admin/membres/supprimer", response_class=HTMLResponse)
+async def admin_delete_member(request: Request) -> HTMLResponse:
+    """Permet à un administrateur de supprimer un membre."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        form_data = await request.form()
+        user_id = int(form_data.get("user_id", 0))
+        
+        if user_id == 0:
+            return RedirectResponse(url="/admin/membres", status_code=303)
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Vérifier que l'utilisateur existe et n'est pas admin
+        cur.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
+        member = cur.fetchone()
+        
+        if not member:
+            conn.close()
+            return RedirectResponse(url="/admin/membres", status_code=303)
+        
+        if member['is_admin']:
+            conn.close()
+            return RedirectResponse(url="/admin/membres", status_code=303)
+        
+        # Supprimer l'utilisateur
+        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        
+        return RedirectResponse(url="/admin/membres", status_code=303)
+        
+    except Exception as e:
+        print(f"Erreur lors de la suppression: {e}")
+        return RedirectResponse(url="/admin/membres", status_code=303)
+
+
+@app.get("/admin/membres/{member_id}/details")
+async def admin_member_details(request: Request, member_id: int):
+    """Retourne les détails d'un membre en JSON pour le modal."""
+    user = get_current_user(request)
+    if not user:
+        return {"status": "error", "message": "Non autorisé"}
+    check_admin(user)
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+        member = cur.fetchone()
+        conn.close()
+        
+        if not member:
+            return {"status": "error", "message": "Membre non trouvé"}
+        
+        # Générer le HTML pour le modal
+        html = f"""
+        <div class="member-details-content">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Informations personnelles</h6>
+                    <p><strong>Nom complet:</strong> {member['full_name']}</p>
+                    <p><strong>Nom d'utilisateur:</strong> {member['username']}</p>
+                    <p><strong>Email:</strong> {member['email'] or 'Non renseigné'}</p>
+                    <p><strong>Téléphone:</strong> {member['phone'] or 'Non renseigné'}</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Informations supplémentaires</h6>
+                    <p><strong>Numéro IJIN:</strong> {member['ijin_number'] or 'Non renseigné'}</p>
+                    <p><strong>Date de naissance:</strong> {member['birth_date'] or 'Non renseignée'}</p>
+                    <p><strong>Rôle:</strong> {'Administrateur' if member['is_admin'] else 'Entraîneur' if member['is_trainer'] else 'Membre'}</p>
+                    <p><strong>Statut:</strong> {'Validé' if member['validated'] else 'En attente'}</p>
+                </div>
+            </div>
+        </div>
+        """
+        
+        return {"status": "success", "html": html}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/admin/membres/{member_id}/edit", response_class=HTMLResponse)
+async def admin_edit_member_form(request: Request, member_id: int) -> HTMLResponse:
+    """Affiche le formulaire d'édition d'un membre."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+        member = cur.fetchone()
+        conn.close()
+        
+        if not member:
+            raise HTTPException(status_code=404, detail="Membre non trouvé")
+        
+        return templates.TemplateResponse(
+            "admin_member_edit.html",
+            {
+                "request": request,
+                "user": user,
+                "member": member,
+                "errors": []
+            },
+        )
+        
+    except Exception as e:
+        print(f"Erreur lors de l'édition: {e}")
+        return RedirectResponse(url="/admin/membres", status_code=303)
+
+
 @app.get("/admin/reservations", response_class=HTMLResponse)
 async def admin_reservations(request: Request) -> HTMLResponse:
     """Affiche toutes les réservations pour les administrateurs."""
@@ -1325,3 +1446,116 @@ async def init_articles_endpoint():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.get("/debug-auth")
+async def debug_auth(request: Request):
+    """Point de terminaison de débogage pour vérifier l'état de l'authentification."""
+    try:
+        user = get_current_user(request)
+        
+        if user:
+            return {
+                "status": "connected",
+                "user": {
+                    "id": user["id"],
+                    "username": user["username"],
+                    "full_name": user["full_name"],
+                    "is_admin": bool(user["is_admin"]),
+                    "validated": bool(user["validated"]),
+                    "is_trainer": bool(user["is_trainer"])
+                },
+                "message": "Utilisateur connecté"
+            }
+        else:
+            return {
+                "status": "not_connected",
+                "message": "Aucun utilisateur connecté"
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur: {str(e)}"
+        }
+
+
+@app.get("/fix-admin")
+async def fix_admin_endpoint():
+    """Point de terminaison pour corriger automatiquement l'utilisateur admin."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Vérifier si l'utilisateur admin existe
+        cur.execute("SELECT * FROM users WHERE username = 'admin'")
+        admin_user = cur.fetchone()
+        
+        if admin_user:
+            # Corriger les permissions si nécessaire
+            updates = []
+            
+            if not admin_user['is_admin']:
+                cur.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
+                updates.append("droits admin ajoutés")
+            
+            if not admin_user['validated']:
+                cur.execute("UPDATE users SET validated = 1 WHERE username = 'admin'")
+                updates.append("statut validé ajouté")
+            
+            # Mettre à jour le mot de passe
+            admin_password = "admin"
+            admin_password_hash = hash_password(admin_password)
+            
+            if admin_user['password_hash'] != admin_password_hash:
+                cur.execute("UPDATE users SET password_hash = ? WHERE username = 'admin'", (admin_password_hash,))
+                updates.append("mot de passe mis à jour")
+            
+            conn.commit()
+            
+            if updates:
+                return {
+                    "status": "success",
+                    "message": f"Utilisateur admin corrigé: {', '.join(updates)}",
+                    "credentials": {
+                        "username": "admin",
+                        "password": "admin"
+                    }
+                }
+            else:
+                return {
+                    "status": "success",
+                    "message": "Utilisateur admin déjà correct",
+                    "credentials": {
+                        "username": "admin",
+                        "password": "admin"
+                    }
+                }
+        else:
+            # Créer l'utilisateur admin
+            admin_password = "admin"
+            admin_password_hash = hash_password(admin_password)
+            
+            cur.execute("""
+                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+            
+            conn.commit()
+            
+            return {
+                "status": "success",
+                "message": "Utilisateur admin créé avec succès",
+                "credentials": {
+                    "username": "admin",
+                    "password": "admin"
+                }
+            }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la correction: {str(e)}"
+        }
+    finally:
+        conn.close()

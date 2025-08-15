@@ -203,17 +203,26 @@
                             <td>
                                 <div class="action-buttons">
                                     {% if not m.is_admin %}
-                                    <form method="post" action="/admin/membres/valider" class="d-inline">
+                                    <form method="post" action="/admin/membres/valider" class="d-inline" style="display: inline-block;">
                                         <input type="hidden" name="user_id" value="{{ m.id }}">
-                                        <button type="submit" class="btn btn-sm {% if m.validated %}btn-warning{% else %}btn-success{% endif %}" title="{% if m.validated %}Invalider{% else %}Valider{% endif %} le compte">
+                                        <button type="submit" class="btn btn-sm {% if m.validated %}btn-warning{% else %}btn-success{% endif %}" 
+                                                title="{% if m.validated %}Invalider{% else %}Valider{% endif %} le compte"
+                                                onclick="return confirm('Êtes-vous sûr de vouloir {% if m.validated %}invalider{% else %}valider{% endif %} ce compte ?')">
                                             <i class="fas {% if m.validated %}fa-times{% else %}fa-check{% endif %}"></i>
+                                            {% if m.validated %}Invalider{% else %}Valider{% endif %}
                                         </button>
                                     </form>
                                     <button class="btn btn-sm btn-outline-primary" onclick="viewMemberDetails({{ m.id }})" title="Voir les détails">
                                         <i class="fas fa-eye"></i>
+                                        Détails
                                     </button>
                                     <button class="btn btn-sm btn-outline-secondary" onclick="editMember({{ m.id }})" title="Modifier">
                                         <i class="fas fa-edit"></i>
+                                        Modifier
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteMember({{ m.id }}, '{{ m.username }}')" title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                        Supprimer
                                     </button>
                                     {% else %}
                                     <span class="text-muted">—</span>
@@ -304,28 +313,11 @@ document.addEventListener('DOMContentLoaded', function() {
     statusFilter.addEventListener('change', filterMembers);
     roleFilter.addEventListener('change', filterMembers);
 
-    clearFiltersBtn.addEventListener('click', function() {
-        searchInput.value = '';
-        statusFilter.value = '';
-        roleFilter.value = '';
-        filterMembers();
-    });
-
     // Sélection en lot
     const selectAllCheckbox = document.getElementById('selectAll');
     const memberCheckboxes = document.querySelectorAll('.member-checkbox');
     const bulkActions = document.querySelector('.bulk-actions');
     const selectedCount = document.querySelector('.selected-count');
-
-    function updateBulkActions() {
-        const checkedBoxes = document.querySelectorAll('.member-checkbox:checked');
-        if (checkedBoxes.length > 0) {
-            bulkActions.style.display = 'block';
-            selectedCount.textContent = `${checkedBoxes.length} membre(s) sélectionné(s)`;
-        } else {
-            bulkActions.style.display = 'none';
-        }
-    }
 
     selectAllCheckbox.addEventListener('change', function() {
         memberCheckboxes.forEach(checkbox => {
@@ -338,50 +330,90 @@ document.addEventListener('DOMContentLoaded', function() {
         checkbox.addEventListener('change', updateBulkActions);
     });
 
+    function updateBulkActions() {
+        const checkedBoxes = document.querySelectorAll('.member-checkbox:checked');
+        if (checkedBoxes.length > 0) {
+            bulkActions.style.display = 'block';
+            selectedCount.textContent = `${checkedBoxes.length} membre(s) sélectionné(s)`;
+        } else {
+            bulkActions.style.display = 'none';
+        }
+    }
+
     // Actions en lot
     document.getElementById('bulkValidate').addEventListener('click', function() {
-        const selectedIds = Array.from(document.querySelectorAll('.member-checkbox:checked')).map(cb => cb.value);
-        if (selectedIds.length > 0) {
-            if (confirm(`Valider ${selectedIds.length} membre(s) ?`)) {
-                // Implémenter la validation en lot
-                console.log('Validation en lot:', selectedIds);
-            }
+        const checkedBoxes = document.querySelectorAll('.member-checkbox:checked');
+        if (checkedBoxes.length > 0 && confirm(`Valider ${checkedBoxes.length} membre(s) ?`)) {
+            // Implémenter la validation en lot
+            console.log('Validation en lot à implémenter');
         }
     });
 
     document.getElementById('bulkInvalidate').addEventListener('click', function() {
-        const selectedIds = Array.from(document.querySelectorAll('.member-checkbox:checked')).map(cb => cb.value);
-        if (selectedIds.length > 0) {
-            if (confirm(`Invalider ${selectedIds.length} membre(s) ?`)) {
-                // Implémenter l'invalidation en lot
-                console.log('Invalidation en lot:', selectedIds);
-            }
+        const checkedBoxes = document.querySelectorAll('.member-checkbox:checked');
+        if (checkedBoxes.length > 0 && confirm(`Invalider ${checkedBoxes.length} membre(s) ?`)) {
+            // Implémenter l'invalidation en lot
+            console.log('Invalidation en lot à implémenter');
         }
     });
 
     document.getElementById('bulkDelete').addEventListener('click', function() {
-        const selectedIds = Array.from(document.querySelectorAll('.member-checkbox:checked')).map(cb => cb.value);
-        if (selectedIds.length > 0) {
-            if (confirm(`Supprimer définitivement ${selectedIds.length} membre(s) ? Cette action est irréversible.`)) {
-                // Implémenter la suppression en lot
-                console.log('Suppression en lot:', selectedIds);
-            }
+        const checkedBoxes = document.querySelectorAll('.member-checkbox:checked');
+        if (checkedBoxes.length > 0 && confirm(`Supprimer ${checkedBoxes.length} membre(s) ? Cette action est irréversible.`)) {
+            // Implémenter la suppression en lot
+            console.log('Suppression en lot à implémenter');
         }
     });
+
+    // Fonctions d'action individuelles
+    window.viewMemberDetails = function(memberId) {
+        // Charger les détails du membre via AJAX
+        fetch('/admin/membres/' + memberId + '/details')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    document.getElementById('memberDetailsContent').innerHTML = data.html;
+                    new bootstrap.Modal(document.getElementById('memberDetailsModal')).show();
+                } else {
+                    alert('Erreur lors du chargement des détails');
+                }
+            })
+            .catch(function(error) {
+                console.error('Erreur:', error);
+                alert('Erreur lors du chargement des détails');
+            });
+    };
+
+    window.editMember = function(memberId) {
+        // Rediriger vers la page d'édition
+        window.location.href = '/admin/membres/' + memberId + '/edit';
+    };
+
+    window.deleteMember = function(memberId, username) {
+        if (confirm('Êtes-vous sûr de vouloir supprimer le membre "' + username + '" ? Cette action est irréversible.')) {
+            // Créer un formulaire temporaire pour la suppression
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/admin/membres/supprimer';
+            
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'user_id';
+            input.value = memberId;
+            
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    };
+
+    // Effacer les filtres
+    clearFiltersBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        statusFilter.value = '';
+        roleFilter.value = '';
+        filterMembers();
+    });
 });
-
-// Fonction pour afficher les détails d'un membre
-function viewMemberDetails(memberId) {
-    // Implémenter l'affichage des détails
-    console.log('Afficher les détails du membre:', memberId);
-    const modal = new bootstrap.Modal(document.getElementById('memberDetailsModal'));
-    modal.show();
-}
-
-// Fonction pour modifier un membre
-function editMember(memberId) {
-    // Implémenter la modification
-    console.log('Modifier le membre:', memberId);
-}
 </script>
 {% endblock %}
