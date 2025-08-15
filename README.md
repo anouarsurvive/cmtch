@@ -24,12 +24,12 @@ Site web moderne pour le Club Municipal de Tennis Chihia avec système de réser
      - `RENDER_API_KEY` : `rnd_XXXXXXXXXXXXXXXXXXXX` (depuis Account Settings → API Keys)
 
 4. **Déploiement automatique**
-   - Chaque push sur `main` déclenchera un déploiement automatique
+   - Chaque push sur `CMTCH` déclenchera un déploiement automatique
    - Le workflow GitHub Actions gère les tests et le déploiement
 
 ### URL de votre site
 ```
-https://cmtch-app.onrender.com
+https://cmtch.onrender.com
 ```
 
 ## 🔧 Configuration GitHub Actions
@@ -51,7 +51,7 @@ Le workflow `.github/workflows/deploy.yml` :
 ### Installation
 ```bash
 # Cloner le repository
-git clone https://github.com/votre-username/cmtch.git
+git clone https://github.com/anouarsurve/cmtch.git
 cd cmtch
 
 # Créer un environnement virtuel
@@ -128,7 +128,7 @@ Le site inclut des optimisations avancées :
 ## 📞 Support
 
 Pour toute question ou problème :
-1. Vérifiez les [Issues GitHub](https://github.com/votre-username/cmtch/issues)
+1. Vérifiez les [Issues GitHub](https://github.com/anouarsurve/cmtch/issues)
 2. Créez une nouvelle issue si nécessaire
 3. Consultez la documentation de déploiement Render
 

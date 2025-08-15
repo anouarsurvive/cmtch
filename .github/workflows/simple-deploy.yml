@@ -1,0 +1,36 @@
+name: Déploiement Simple
+
+on:
+  push:
+    branches: [ CMTCH, main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configuration Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Installation des dépendances
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Tests de base
+      run: |
+        python -c "import app; print('✅ Application importée avec succès')"
+        python -m py_compile app.py
+        echo "✅ Syntaxe Python valide"
+    
+    - name: Notification de succès
+      run: |
+        echo "🚀 Tests réussis !"
+        echo "📅 Date: $(date)"
+        echo "🔗 Commit: ${{ github.sha }}"
+        echo "🌐 Prêt pour déploiement sur Render"
+        echo "🌿 Branche: ${{ github.ref_name }}"

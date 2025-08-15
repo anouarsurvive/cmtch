@@ -2,9 +2,9 @@ name: Déploiement Automatique
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ CMTCH, main, master ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ CMTCH, main, master ]
 
 jobs:
   test:
@@ -36,7 +36,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/CMTCH' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
     - uses: actions/checkout@v4
@@ -70,3 +70,4 @@ jobs:
         echo "📅 Date: $(date)"
         echo "🔗 Commit: ${{ github.sha }}"
         echo "🌐 Plateforme: Render"
+        echo "🌿 Branche: ${{ github.ref_name }}"

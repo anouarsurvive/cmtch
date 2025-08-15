@@ -27,7 +27,7 @@ Guide complet pour déployer votre site sur Render avec GitHub Actions.
 ### Étape 3: Configuration automatique
 
 Le fichier `render.yaml` configure automatiquement :
-- ✅ **Nom du service** : `cmtch-app`
+- ✅ **Nom du service** : `cmtch`
 - ✅ **Environnement** : Python
 - ✅ **Plan** : Gratuit
 - ✅ **Build Command** : `pip install -r requirements.txt`
@@ -78,7 +78,7 @@ Le workflow `.github/workflows/deploy.yml` :
 - ✅ Tests de base
 
 ### Déploiement automatique
-- 🚀 Déploiement sur Render à chaque push sur `main`
+- 🚀 Déploiement sur Render à chaque push sur `CMTCH`
 - 📧 Notifications de déploiement
 - 🔄 Rollback automatique en cas d'échec
 
@@ -105,7 +105,7 @@ git add .
 git commit -m "Mise à jour du site"
 
 # Pousser vers GitHub (déclenche le déploiement)
-git push origin main
+git push origin CMTCH
 ```
 
 ## 🔍 Monitoring
@@ -221,7 +221,7 @@ Votre site est maintenant déployé sur Render !
 
 ### URL de votre site
 ```
-https://cmtch-app.onrender.com
+https://cmtch.onrender.com
 ```
 
 ### Prochaines étapes
