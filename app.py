@@ -27,7 +27,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 
 from fastapi import FastAPI, Request, Depends, HTTPException
@@ -284,6 +284,68 @@ def init_db() -> None:
         )
         conn.commit()
     conn.close()
+
+
+def init_database():
+    """Initialise la base de données avec des données de test si nécessaire."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Vérifier s'il y a déjà des articles
+        cur.execute("SELECT COUNT(*) FROM articles")
+        article_count = cur.fetchone()[0]
+        
+        if article_count == 0:
+            print("🆕 Initialisation de la base de données avec des articles de test...")
+            
+            # Articles de test avec des dates récentes
+            test_articles = [
+                {
+                    "title": "Ouverture de la saison 2025",
+                    "content": "Le Club Municipal de Tennis Chihia est ravi d'annoncer l'ouverture de la saison 2025. Cette année promet d'être exceptionnelle avec de nouveaux équipements et des programmes d'entraînement améliorés pour tous les niveaux.",
+                    "created_at": (datetime.now() - timedelta(days=2)).isoformat()
+                },
+                {
+                    "title": "Nouveau programme pour les jeunes",
+                    "content": "Nous lançons un nouveau programme spécialement conçu pour les jeunes de 8 à 16 ans. Ce programme combine technique, tactique et plaisir pour développer la passion du tennis chez nos futurs champions.",
+                    "created_at": (datetime.now() - timedelta(days=5)).isoformat()
+                },
+                {
+                    "title": "Tournoi interne du mois",
+                    "content": "Le tournoi interne du mois de janvier aura lieu le week-end prochain. Tous les membres sont invités à participer. Inscriptions ouvertes jusqu'à vendredi soir.",
+                    "created_at": (datetime.now() - timedelta(days=8)).isoformat()
+                },
+                {
+                    "title": "Maintenance des courts",
+                    "content": "Nos courts de tennis ont été entièrement rénovés pendant les vacances. Nouvelle surface, filets neufs et éclairage amélioré pour une expérience de jeu optimale.",
+                    "created_at": (datetime.now() - timedelta(days=12)).isoformat()
+                },
+                {
+                    "title": "Bienvenue aux nouveaux membres",
+                    "content": "Nous souhaitons la bienvenue à tous nos nouveaux membres qui ont rejoint le club ce mois-ci. N'hésitez pas à participer aux activités et à vous intégrer dans notre communauté tennis.",
+                    "created_at": (datetime.now() - timedelta(days=15)).isoformat()
+                }
+            ]
+            
+            # Insérer les articles
+            for article in test_articles:
+                cur.execute("""
+                    INSERT INTO articles (title, content, created_at)
+                    VALUES (?, ?, ?)
+                """, (article["title"], article["content"], article["created_at"]))
+            
+            conn.commit()
+            print(f"✅ {len(test_articles)} articles de test créés")
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'initialisation: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+# Initialiser la base de données au démarrage
+init_database()
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
@@ -1194,8 +1256,67 @@ async def user_dashboard(request: Request) -> HTMLResponse:
 
 @app.get("/health")
 async def health_check():
-    """Endpoint de santé pour Render."""
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+    """Point de terminaison de vérification de santé pour Render."""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/init-articles")
+async def init_articles_endpoint():
+    """Point de terminaison pour réinitialiser les articles (débogage uniquement)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Supprimer tous les articles existants
+        cur.execute("DELETE FROM articles")
+        
+        # Articles de test avec des dates récentes
+        test_articles = [
+            {
+                "title": "Ouverture de la saison 2025",
+                "content": "Le Club Municipal de Tennis Chihia est ravi d'annoncer l'ouverture de la saison 2025. Cette année promet d'être exceptionnelle avec de nouveaux équipements et des programmes d'entraînement améliorés pour tous les niveaux.",
+                "created_at": (datetime.now() - timedelta(days=2)).isoformat()
+            },
+            {
+                "title": "Nouveau programme pour les jeunes",
+                "content": "Nous lançons un nouveau programme spécialement conçu pour les jeunes de 8 à 16 ans. Ce programme combine technique, tactique et plaisir pour développer la passion du tennis chez nos futurs champions.",
+                "created_at": (datetime.now() - timedelta(days=5)).isoformat()
+            },
+            {
+                "title": "Tournoi interne du mois",
+                "content": "Le tournoi interne du mois de janvier aura lieu le week-end prochain. Tous les membres sont invités à participer. Inscriptions ouvertes jusqu'à vendredi soir.",
+                "created_at": (datetime.now() - timedelta(days=8)).isoformat()
+            },
+            {
+                "title": "Maintenance des courts",
+                "content": "Nos courts de tennis ont été entièrement rénovés pendant les vacances. Nouvelle surface, filets neufs et éclairage amélioré pour une expérience de jeu optimale.",
+                "created_at": (datetime.now() - timedelta(days=12)).isoformat()
+            },
+            {
+                "title": "Bienvenue aux nouveaux membres",
+                "content": "Nous souhaitons la bienvenue à tous nos nouveaux membres qui ont rejoint le club ce mois-ci. N'hésitez pas à participer aux activités et à vous intégrer dans notre communauté tennis.",
+                "created_at": (datetime.now() - timedelta(days=15)).isoformat()
+            }
+        ]
+        
+        # Insérer les articles
+        for article in test_articles:
+            cur.execute("""
+                INSERT INTO articles (title, content, created_at)
+                VALUES (?, ?, ?)
+            """, (article["title"], article["content"], article["created_at"]))
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success", 
+            "message": f"{len(test_articles)} articles créés",
+            "articles": [article["title"] for article in test_articles]
+        }
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # -----------------------------------------------------------------------------
 #  Démarrage de l'application
