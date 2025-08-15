@@ -391,100 +391,102 @@ async def register(request: Request) -> HTMLResponse:
     L'utilisateur est créé avec l'attribut `validated` à 0 et ne pourra pas se
     connecter tant qu'un administrateur ne l'aura pas validé.
     """
-    # Déterminer si le corps est multipart (upload photo) ou urlencoded
-    content_type = request.headers.get("content-type", "")
-    errors: List[str] = []
-    username = full_name = email = phone = password = confirm_password = role = ""
-    ijin_number = birth_date = photo_path = ""
-    file_field = None
-    if "multipart/form-data" in content_type:
-        body = await request.body()
-        form = parse_multipart_form(body, content_type)
-        username = str(form.get("username", "")).strip()
-        full_name = str(form.get("full_name", "")).strip()
-        email = str(form.get("email", "")).strip()
-        phone = str(form.get("phone", "")).strip()
-        ijin_number = str(form.get("ijin_number", "")).strip()
-        birth_date = str(form.get("birth_date", "")).strip()
-        password = str(form.get("password", ""))
-        confirm_password = str(form.get("confirm_password", ""))
-        role = str(form.get("role", "member"))
-        file_field = form.get("photo_file") if isinstance(form.get("photo_file"), dict) else None
-    else:
-        raw_body = await request.body()
-        form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
-        username = form.get("username", [""])[0].strip()
-        full_name = form.get("full_name", [""])[0].strip()
-        email = form.get("email", [""])[0].strip()
-        phone = form.get("phone", [""])[0].strip()
-        ijin_number = form.get("ijin_number", [""])[0].strip()
-        birth_date = form.get("birth_date", [""])[0].strip()
-        password = form.get("password", [""])[0]
-        confirm_password = form.get("confirm_password", [""])[0]
-        role = form.get("role", ["member"])[0]
-        # photo via urlencoded n'est pas supportée ici
-    # Vérifications de base
-    if not username:
-        errors.append("Le nom d'utilisateur est obligatoire.")
-    if not full_name:
-        errors.append("Le nom complet est obligatoire.")
-    if not email:
-        errors.append("L'adresse e‑mail est obligatoire.")
-    if not phone:
-        errors.append("Le téléphone est obligatoire.")
-    if not ijin_number:
-        errors.append("Le numéro IJIN est obligatoire.")
-    if not birth_date:
-        errors.append("La date de naissance est obligatoire.")
-    if password != confirm_password:
-        errors.append("Les mots de passe ne correspondent pas.")
-    # Vérifier que le nom d'utilisateur n'existe pas déjà
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM users WHERE username = ?", (username,))
-    if cur.fetchone():
-        errors.append("Ce nom d'utilisateur est déjà utilisé.")
-    if errors:
+    try:
+        # Utiliser Form pour une gestion plus robuste des données
+        form_data = await request.form()
+        
+        # Récupération des données du formulaire
+        username = str(form_data.get("username", "")).strip()
+        full_name = str(form_data.get("full_name", "")).strip()
+        email = str(form_data.get("email", "")).strip()
+        phone = str(form_data.get("phone", "")).strip()
+        ijin_number = str(form_data.get("ijin_number", "")).strip()
+        birth_date = str(form_data.get("birth_date", "")).strip()
+        password = str(form_data.get("password", ""))
+        confirm_password = str(form_data.get("confirm_password", ""))
+        role = str(form_data.get("role", "member"))
+        
+        # Vérifications de base
+        errors: List[str] = []
+        
+        if not username:
+            errors.append("Le nom d'utilisateur est obligatoire.")
+        if not full_name:
+            errors.append("Le nom complet est obligatoire.")
+        if not email:
+            errors.append("L'adresse e‑mail est obligatoire.")
+        if not phone:
+            errors.append("Le téléphone est obligatoire.")
+        if not ijin_number:
+            errors.append("Le numéro IJIN est obligatoire.")
+        if not birth_date:
+            errors.append("La date de naissance est obligatoire.")
+        if not password:
+            errors.append("Le mot de passe est obligatoire.")
+        if password != confirm_password:
+            errors.append("Les mots de passe ne correspondent pas.")
+        if len(password) < 6:
+            errors.append("Le mot de passe doit contenir au moins 6 caractères.")
+            
+        # Vérifier que le nom d'utilisateur n'existe pas déjà
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+        if cur.fetchone():
+            errors.append("Ce nom d'utilisateur est déjà utilisé.")
+            
+        if errors:
+            conn.close()
+            return templates.TemplateResponse(
+                "register.html",
+                {
+                    "request": request,
+                    "errors": errors,
+                    "username": username,
+                    "full_name": full_name,
+                    "email": email,
+                    "phone": phone,
+                    "role": role,
+                    "ijin_number": ijin_number,
+                    "birth_date": birth_date,
+                },
+            )
+            
+        # Création de l'utilisateur
+        pwd_hash = hash_password(password)
+        is_trainer = 1 if role == "trainer" else 0
+        
+        cur.execute(
+            "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
+            (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
+        )
+        conn.commit()
         conn.close()
+        
+        print(f"✅ Utilisateur créé avec succès: {username}")
+        
+        return templates.TemplateResponse(
+            "register_success.html",
+            {"request": request, "username": username},
+        )
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'inscription: {e}")
         return templates.TemplateResponse(
             "register.html",
             {
                 "request": request,
-                "errors": errors,
-                "username": username,
-                "full_name": full_name,
-                "email": email,
-                "phone": phone,
-                "role": role,
-                "ijin_number": ijin_number,
-                "birth_date": birth_date,
+                "errors": [f"Une erreur s'est produite lors de l'inscription: {str(e)}"],
+                "username": username if 'username' in locals() else "",
+                "full_name": full_name if 'full_name' in locals() else "",
+                "email": email if 'email' in locals() else "",
+                "phone": phone if 'phone' in locals() else "",
+                "role": role if 'role' in locals() else "member",
+                "ijin_number": ijin_number if 'ijin_number' in locals() else "",
+                "birth_date": birth_date if 'birth_date' in locals() else "",
             },
         )
-    # Traiter l'upload de photo si présent
-    if file_field and file_field.get("filename") and file_field.get("content"):
-        # Créer dossier pour photos de profil
-        photos_dir = os.path.join(BASE_DIR, "static", "profile_photos")
-        os.makedirs(photos_dir, exist_ok=True)
-        ext = os.path.splitext(file_field["filename"])[1] or ".bin"
-        unique_name = f"{uuid.uuid4().hex}{ext}"
-        file_path = os.path.join(photos_dir, unique_name)
-        with open(file_path, "wb") as f:
-            f.write(file_field["content"])
-        photo_path = f"/static/profile_photos/{unique_name}"
-    # Création de l'utilisateur
-    pwd_hash = hash_password(password)
-    is_trainer = 1 if role == "trainer" else 0
-    cur.execute(
-        "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
-        (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_trainer),
-    )
-    conn.commit()
-    conn.close()
-    return templates.TemplateResponse(
-        "register_success.html",
-        {"request": request, "username": username},
-    )
 
 
 @app.get("/connexion", response_class=HTMLResponse)

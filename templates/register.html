@@ -292,5 +292,68 @@ document.getElementById('confirm_password').addEventListener('input', function()
         matchDiv.innerHTML = '<small class="text-danger"><i class="fas fa-times me-1"></i>Les mots de passe ne correspondent pas</small>';
     }
 });
+
+// Débogage du formulaire d'inscription
+document.addEventListener('DOMContentLoaded', function() {
+    const registerForm = document.querySelector('form[method="post"]');
+    const submitBtn = document.querySelector('button[type="submit"]');
+    
+    if (registerForm) {
+        console.log('✅ Formulaire d\'inscription trouvé');
+        
+        registerForm.addEventListener('submit', function(e) {
+            console.log('🚀 Soumission du formulaire d\'inscription...');
+            
+            const username = document.getElementById('username').value;
+            const fullName = document.getElementById('full_name').value;
+            const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value;
+            const ijinNumber = document.getElementById('ijin_number').value;
+            const birthDate = document.getElementById('birth_date').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const role = document.querySelector('input[name="role"]:checked')?.value || 'member';
+            
+            console.log('📝 Données du formulaire:', {
+                username: username,
+                fullName: fullName,
+                email: email,
+                phone: phone,
+                ijinNumber: ijinNumber,
+                birthDate: birthDate,
+                password: password ? '***' : 'vide',
+                confirmPassword: confirmPassword ? '***' : 'vide',
+                role: role
+            });
+            
+            // Validation côté client
+            if (!username || !fullName || !email || !phone || !ijinNumber || !birthDate || !password || !confirmPassword) {
+                e.preventDefault();
+                alert('Veuillez remplir tous les champs obligatoires');
+                return false;
+            }
+            
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Les mots de passe ne correspondent pas');
+                return false;
+            }
+            
+            if (password.length < 6) {
+                e.preventDefault();
+                alert('Le mot de passe doit contenir au moins 6 caractères');
+                return false;
+            }
+            
+            // Désactiver le bouton pour éviter la double soumission
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Création en cours...';
+            
+            console.log('✅ Formulaire valide, envoi en cours...');
+        });
+    } else {
+        console.error('❌ Formulaire d\'inscription non trouvé');
+    }
+});
 </script>
 {% endblock %}
