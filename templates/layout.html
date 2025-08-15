@@ -17,9 +17,10 @@
         /* CSS critique minimal pour le rendu initial */
         :root{--primary-color:#1e3a8a;--accent-color:#f59e0b;--secondary-color:#fff;--text-color:#1f2937;--border-radius:.75rem}
         *{box-sizing:border-box}html{scroll-behavior:smooth}body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f8fafc;color:#1f2937;line-height:1.6;margin:0;padding:0;font-weight:400;overflow-x:hidden}
-        .navbar{background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%)!important;box-shadow:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -2px rgba(0,0,0,.05);padding:1rem 0;transition:all .4s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
-        .navbar-brand{display:flex;align-items:center;font-weight:800;font-size:1.5rem;color:#fff!important;text-decoration:none;transition:transform .3s ease}
-        .navbar-nav .nav-link{color:#fff!important;font-weight:600;padding:.75rem 1.25rem!important;margin:0 .25rem;border-radius:.75rem;transition:all .3s cubic-bezier(.4,0,.2,1)}
+        .navbar{background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%)!important;box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -1px rgba(0,0,0,.06);padding:.5rem 0;transition:all .3s ease;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+        .navbar-brand{display:flex;align-items:center;font-weight:700;font-size:1.1rem;color:#fff!important;text-decoration:none;transition:transform .3s ease}
+        .navbar-nav .nav-link{color:#fff!important;font-weight:500;padding:.5rem .75rem!important;margin:0 .15rem;border-radius:.5rem;transition:all .3s ease;font-size:.9rem}
+        .navbar-nav .nav-link:hover{background-color:rgba(255,255,255,.1);transform:translateY(-1px)}
         .hero{position:relative;background:linear-gradient(135deg,rgba(30,58,138,.95) 0%,rgba(30,64,175,.9) 50%,rgba(245,158,11,.8) 100%),url('/static/images/hero.png');background-size:cover;background-position:center;color:#fff;padding:140px 0;min-height:80vh;display:flex;align-items:center}
         .hero-content{position:relative;z-index:2;text-align:center;max-width:900px;margin:0 auto}
         .hero-content h1{font-size:clamp(2.5rem,6vw,4rem);font-weight:800;margin-bottom:1.5rem;text-shadow:2px 2px 4px rgba(0,0,0,.3);background:linear-gradient(135deg,#fff 0%,#fbbf24 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -47,14 +48,14 @@
     <link rel="preload" href="{{ url_for('static', path='images/logo.jpg') }}" as="image">
 </head>
 <body>
-    <!-- Navigation moderne -->
+    <!-- Navigation compacte et horizontale -->
     <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
         <div class="container">
-            <!-- Logo et nom du club -->
+            <!-- Logo et nom du club - version compacte -->
             <a class="navbar-brand d-flex align-items-center" href="/">
-                <img src="{{ url_for('static', path='images/logo.jpg') }}" alt="Logo du club" height="50" class="me-3">
+                <img src="{{ url_for('static', path='images/logo.jpg') }}" alt="Logo du club" height="35" class="me-2">
                 <div>
-                    <span class="d-block fw-bold">Club Municipal</span>
+                    <span class="d-block fw-bold small">Club Municipal</span>
                     <span class="d-block small opacity-75">de Tennis Chihia</span>
                 </div>
             </a>
@@ -64,69 +65,69 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             
-            <!-- Menu de navigation -->
+            <!-- Menu de navigation - version compacte -->
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">
+                        <a class="nav-link py-2" href="/">
                             <i class="fas fa-home me-1"></i>Accueil
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/articles">
+                        <a class="nav-link py-2" href="/articles">
                             <i class="fas fa-newspaper me-1"></i>Actualités
                         </a>
                     </li>
                     {% if not user %}
                         <li class="nav-item">
-                            <a class="nav-link" href="/inscription">
+                            <a class="nav-link py-2" href="/inscription">
                                 <i class="fas fa-user-plus me-1"></i>Inscription
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="/connexion">
+                            <a class="nav-link py-2" href="/connexion">
                                 <i class="fas fa-sign-in-alt me-1"></i>Connexion
                             </a>
                         </li>
                     {% else %}
                         {% if user.validated %}
                             <li class="nav-item">
-                                <a class="nav-link" href="/reservations">
+                                <a class="nav-link py-2" href="/reservations">
                                     <i class="fas fa-calendar-check me-1"></i>Réservations
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/espace">
+                                <a class="nav-link py-2" href="/espace">
                                     <i class="fas fa-user me-1"></i>Mon espace
                                 </a>
                             </li>
                         {% endif %}
                         {% if user.is_admin %}
                             <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-cog me-1"></i>Administration
+                                <a class="nav-link dropdown-toggle py-2" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-cog me-1"></i>Admin
                                 </a>
                                 <ul class="dropdown-menu" aria-labelledby="adminDropdown">
                                     <li>
                                         <a class="dropdown-item" href="/admin/membres">
-                                            <i class="fas fa-users me-2"></i>Gérer les membres
+                                            <i class="fas fa-users me-2"></i>Membres
                                         </a>
                                     </li>
                                     <li>
                                         <a class="dropdown-item" href="/admin/reservations">
-                                            <i class="fas fa-calendar me-2"></i>Gérer les réservations
+                                            <i class="fas fa-calendar me-2"></i>Réservations
                                         </a>
                                     </li>
                                     <li>
                                         <a class="dropdown-item" href="/admin/articles">
-                                            <i class="fas fa-newspaper me-2"></i>Gérer les articles
+                                            <i class="fas fa-newspaper me-2"></i>Articles
                                         </a>
                                     </li>
                                 </ul>
                             </li>
                         {% endif %}
                         <li class="nav-item">
-                            <a class="nav-link" href="/deconnexion">
+                            <a class="nav-link py-2" href="/deconnexion">
                                 <i class="fas fa-sign-out-alt me-1"></i>Déconnexion
                             </a>
                         </li>
@@ -136,8 +137,8 @@
         </div>
     </nav>
 
-    <!-- Contenu principal avec padding pour la navbar fixe -->
-    <main style="padding-top: 80px;">
+    <!-- Contenu principal avec padding réduit pour la navbar compacte -->
+    <main style="padding-top: 60px;">
         {% block content %}{% endblock %}
     </main>
 
