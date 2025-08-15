@@ -43,19 +43,19 @@
                     </header>
 
                     <!-- Image de l'article -->
-                    {% if article['image_path'] %}
+{% if article['image_path'] %}
                         <div class="article-image-container">
                             <img src="{{ article['image_path'] }}" 
                                  class="article-featured-image" 
                                  alt="Image de l'article {{ article['title'] }}">
                         </div>
-                    {% endif %}
+{% endif %}
 
                     <!-- Contenu de l'article -->
                     <div class="article-content">
                         <div class="content-text">
-                            {{ article['content'] | replace('\n', '<br>') | safe }}
-                        </div>
+  {{ article['content'] | replace('\n', '<br>') | safe }}
+</div>
                     </div>
 
                     <!-- Actions de l'article -->
@@ -187,7 +187,7 @@
                 </div>
             </div>
         </div>
-    </div>
+</div>
 </section>
 
 <script>
