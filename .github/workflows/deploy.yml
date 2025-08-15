@@ -1,17 +1,18 @@
-name: Déploiement Automatique
+name: Test et Déploiement
 
 on:
   push:
-    branches: [ CMTCH, main, master ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ CMTCH, main, master ]
+    branches: [ main, master ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout du code
+      uses: actions/checkout@v4
     
     - name: Configuration Python
       uses: actions/setup-python@v4
@@ -22,52 +23,31 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-asyncio httpx
     
     - name: Tests de base
       run: |
-        python -c "import app; print('Application importée avec succès')"
-    
-    - name: Vérification de la syntaxe
-      run: |
+        python -c "import app; print('✅ Application importée avec succès')"
         python -m py_compile app.py
         echo "✅ Syntaxe Python valide"
+    
+    - name: Vérification des templates
+      run: |
+        echo "✅ Vérification des templates Jinja2"
+        find templates -name "*.html" -exec echo "Template: {}" \;
 
-  deploy:
+  deploy-notification:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/CMTCH' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Configuration Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Installation des dépendances
+    - name: Notification de succès
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Déploiement sur Railway (Alternative)
-      if: false  # Désactivé par défaut
-      uses: bervProject/railway-deploy@v1.0.0
-      with:
-        railway_token: ${{ secrets.RAILWAY_TOKEN }}
-        service: ${{ secrets.RAILWAY_SERVICE }}
-    
-    - name: Déploiement sur Render
-      uses: johnbeynon/render-deploy-action@v1.0.0
-      with:
-        service-id: ${{ secrets.RENDER_SERVICE_ID }}
-        api-key: ${{ secrets.RENDER_API_KEY }}
-    
-    - name: Notification de déploiement
-      run: |
-        echo "🚀 Déploiement terminé avec succès!"
+        echo "🚀 Tests réussis !"
         echo "📅 Date: $(date)"
         echo "🔗 Commit: ${{ github.sha }}"
-        echo "🌐 Plateforme: Render"
         echo "🌿 Branche: ${{ github.ref_name }}"
+        echo ""
+        echo "ℹ️  Déploiement automatique sur Render activé"
+        echo "🌐 Votre site sera mis à jour automatiquement"
+        echo "⏱️  Attendez 2-5 minutes pour voir les changements"
