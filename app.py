@@ -218,12 +218,17 @@ def init_database():
             """, ("admin", admin_password_hash, "Administrateur", "admin@example.com", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
             print("✅ Utilisateur administrateur créé")
         
-        # 2. Vérifier s'il y a déjà des articles
+        # 2. Vérifier s'il y a déjà des articles (SEULEMENT si la table est vraiment vide)
         cur.execute("SELECT COUNT(*) FROM articles")
         article_count = cur.fetchone()[0]
         
-        if article_count == 0:
-            print("🆕 Initialisation de la base de données avec des articles de test...")
+        # Vérifier aussi s'il y a des utilisateurs autres que admin
+        cur.execute("SELECT COUNT(*) FROM users WHERE username != 'admin'")
+        other_users_count = cur.fetchone()[0]
+        
+        # Ne créer des articles de test QUE si la base est vraiment vide
+        if article_count == 0 and other_users_count == 0:
+            print("🆕 Base de données complètement vide - initialisation avec des articles de test...")
             
             # Articles de test avec des dates récentes
             test_articles = [
@@ -263,7 +268,7 @@ def init_database():
             
             print(f"✅ {len(test_articles)} articles de test créés")
         else:
-            print(f"✅ Base de données déjà initialisée avec {article_count} articles existants")
+            print(f"✅ Base de données déjà initialisée avec {article_count} articles et {other_users_count + (1 if admin_exists else 0)} utilisateurs existants")
         
         # 3. Vérifier le nombre total d'utilisateurs
         cur.execute("SELECT COUNT(*) FROM users")
@@ -321,14 +326,24 @@ def require_login(request: Request) -> sqlite3.Row:
 @app.on_event("startup")
 async def startup() -> None:
     """Appelé au démarrage de l'application pour préparer la base de données."""
-    init_db()
+    print("🚀 Démarrage de l'application...")
+    
+    # Initialiser la base de données UNIQUEMENT si nécessaire
+    try:
+        init_db()
+        print("✅ Initialisation de la base de données terminée")
+    except Exception as e:
+        print(f"❌ Erreur lors de l'initialisation de la base: {e}")
     
     # Migrer les données de SQLite vers PostgreSQL si nécessaire
     try:
         from database import migrate_data_from_sqlite
         migrate_data_from_sqlite()
+        print("✅ Migration des données terminée")
     except Exception as e:
         print(f"⚠️ Migration des données ignorée: {e}")
+    
+    print("🎉 Application prête !")
 
 
 @app.get("/", response_class=HTMLResponse)
