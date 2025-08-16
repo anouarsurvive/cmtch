@@ -205,7 +205,20 @@ def init_database():
     cur = conn.cursor()
     
     try:
-        # Vérifier s'il y a déjà des articles
+        # 1. Vérifier et créer l'utilisateur admin si nécessaire
+        cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
+        admin_exists = cur.fetchone()[0] > 0
+        
+        if not admin_exists:
+            print("🆕 Création de l'utilisateur administrateur...")
+            admin_password_hash = hash_password("admin")
+            cur.execute("""
+                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("admin", admin_password_hash, "Administrateur", "admin@example.com", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+            print("✅ Utilisateur administrateur créé")
+        
+        # 2. Vérifier s'il y a déjà des articles
         cur.execute("SELECT COUNT(*) FROM articles")
         article_count = cur.fetchone()[0]
         
@@ -248,10 +261,16 @@ def init_database():
                     VALUES (?, ?, ?)
                 """, (article["title"], article["content"], article["created_at"]))
             
-            conn.commit()
             print(f"✅ {len(test_articles)} articles de test créés")
         else:
             print(f"✅ Base de données déjà initialisée avec {article_count} articles existants")
+        
+        # 3. Vérifier le nombre total d'utilisateurs
+        cur.execute("SELECT COUNT(*) FROM users")
+        total_users = cur.fetchone()[0]
+        print(f"📊 Total des utilisateurs dans la base : {total_users}")
+        
+        conn.commit()
         
     except Exception as e:
         print(f"❌ Erreur lors de l'initialisation: {e}")
