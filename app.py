@@ -250,6 +250,8 @@ def init_database():
             
             conn.commit()
             print(f"✅ {len(test_articles)} articles de test créés")
+        else:
+            print(f"✅ Base de données déjà initialisée avec {article_count} articles existants")
         
     except Exception as e:
         print(f"❌ Erreur lors de l'initialisation: {e}")
@@ -257,8 +259,7 @@ def init_database():
     finally:
         conn.close()
 
-# Initialiser la base de données au démarrage
-init_database()
+# Initialisation de la base de données supprimée - gérée par l'événement startup
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
