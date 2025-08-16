@@ -179,15 +179,14 @@ def parse_multipart_form(body: bytes, content_type: str) -> Dict[str, Any]:
     return result
 
 
-def get_db_connection() -> sqlite3.Connection:
-    """Ouvre une connexion SQLite avec configuration de row_factory.
+def get_db_connection():
+    """Ouvre une connexion à la base de données (SQLite ou PostgreSQL).
 
     Returns:
         Instance de connexion à la base de données.
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    from database import get_db_connection as get_db_conn
+    return get_db_conn()
 
 
 def init_db() -> None:
@@ -196,94 +195,8 @@ def init_db() -> None:
     Crée les tables et un compte administrateur par défaut si elles
     n'existent pas déjà.
     """
-    conn = get_db_connection()
-    cur = conn.cursor()
-    # Table des utilisateurs
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            full_name TEXT,
-            email TEXT,
-            phone TEXT,
-            ijin_number TEXT,
-            birth_date TEXT,
-            photo_path TEXT,
-            is_admin INTEGER DEFAULT 0,
-            validated INTEGER DEFAULT 0
-        )
-        """
-    )
-    # Table des réservations
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS reservations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            court_number INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-        """
-    )
-    # Table des articles de presse
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS articles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            image_path TEXT,
-            created_at TEXT NOT NULL
-        )
-        """
-    )
-    conn.commit()
-    # Ajouter la colonne is_trainer si elle n'existe pas (prise en charge des entraîneurs)
-    # On interroge les métadonnées de la table et on ajoute la colonne si nécessaire.
-    try:
-        cur.execute("PRAGMA table_info(users)")
-        columns = [row[1] for row in cur.fetchall()]
-        if "is_trainer" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN is_trainer INTEGER DEFAULT 0")
-            conn.commit()
-        # Ajouter les colonnes ijin_number, birth_date et photo_path si elles n'existent pas
-        if "ijin_number" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN ijin_number TEXT")
-            conn.commit()
-        if "birth_date" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN birth_date TEXT")
-            conn.commit()
-        if "photo_path" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN photo_path TEXT")
-            conn.commit()
-    except Exception:
-        # Si l'ajout de colonne échoue (par exemple, en absence de table), on ignore l'erreur
-        pass
-    # Création du compte admin par défaut si besoin
-    cur.execute("SELECT id FROM users WHERE username = ?", ("admin",))
-    row = cur.fetchone()
-    if row is None:
-        admin_pwd = hash_password("admin")
-        cur.execute(
-            "INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                "admin",
-                admin_pwd,
-                "Administrateur",
-                "admin@example.com",
-                "",
-                1,
-                1,
-            ),
-        )
-        conn.commit()
-    conn.close()
+    from database import init_db as init_database
+    init_database()
 
 
 def init_database():
@@ -389,6 +302,13 @@ def require_login(request: Request) -> sqlite3.Row:
 async def startup() -> None:
     """Appelé au démarrage de l'application pour préparer la base de données."""
     init_db()
+    
+    # Migrer les données de SQLite vers PostgreSQL si nécessaire
+    try:
+        from database import migrate_data_from_sqlite
+        migrate_data_from_sqlite()
+    except Exception as e:
+        print(f"⚠️ Migration des données ignorée: {e}")
 
 
 @app.get("/", response_class=HTMLResponse)
