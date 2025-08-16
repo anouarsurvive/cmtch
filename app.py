@@ -951,41 +951,108 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
 async def admin_reservations(request: Request) -> HTMLResponse:
     """Affiche toutes les réservations pour les administrateurs."""
     try:
+        # 1. Vérifier l'utilisateur
         user = get_current_user(request)
         if not user:
+            print("❌ Utilisateur non connecté")
             return RedirectResponse(url="/connexion", status_code=303)
-        check_admin(user)
         
-        conn = get_db_connection()
+        print(f"✅ Utilisateur connecté: {user['username']}")
+        
+        # 2. Vérifier les droits admin
+        if not user["is_admin"]:
+            print(f"❌ Utilisateur non admin: is_admin={user['is_admin']}")
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "status_code": 403,
+                    "detail": "Accès réservé à l'administration. Vous devez être administrateur."
+                },
+                status_code=403
+            )
+        
+        print("✅ Droits admin vérifiés")
+        
+        # 3. Connexion à la base de données
+        try:
+            conn = get_db_connection()
+            print("✅ Connexion base de données réussie")
+        except Exception as db_error:
+            print(f"❌ Erreur connexion base: {db_error}")
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "status_code": 500,
+                    "detail": f"Erreur de connexion à la base de données: {str(db_error)}"
+                },
+                status_code=500
+            )
+        
         cur = conn.cursor()
         
-        # Récupérer toutes les réservations
-        cur.execute(
-            "SELECT r.id, r.court_number, r.date, r.start_time, r.end_time, u.full_name AS user_full_name, u.username "
-            "FROM reservations r JOIN users u ON r.user_id = u.id ORDER BY r.date, r.start_time"
-        )
-        bookings = cur.fetchall()
+        # 4. Vérifier que la table reservations existe
+        try:
+            cur.execute("SELECT COUNT(*) FROM reservations")
+            total_bookings = cur.fetchone()[0]
+            print(f"✅ Table reservations accessible: {total_bookings} réservations")
+        except Exception as table_error:
+            print(f"❌ Erreur table reservations: {table_error}")
+            conn.close()
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "status_code": 500,
+                    "detail": f"Erreur d'accès à la table des réservations: {str(table_error)}"
+                },
+                status_code=500
+            )
         
-        # Calculer les statistiques
-        today = date.today().isoformat()
-        cur.execute(
-            "SELECT COUNT(*) FROM reservations WHERE date = ?",
-            (today,)
-        )
-        today_bookings = cur.fetchone()[0]
+        # 5. Récupérer les réservations
+        try:
+            cur.execute(
+                "SELECT r.id, r.court_number, r.date, r.start_time, r.end_time, u.full_name AS user_full_name, u.username "
+                "FROM reservations r JOIN users u ON r.user_id = u.id ORDER BY r.date, r.start_time"
+            )
+            bookings = cur.fetchall()
+            print(f"✅ Réservations récupérées: {len(bookings)}")
+        except Exception as query_error:
+            print(f"❌ Erreur requête réservations: {query_error}")
+            conn.close()
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "status_code": 500,
+                    "detail": f"Erreur lors de la récupération des réservations: {str(query_error)}"
+                },
+                status_code=500
+            )
         
-        # Calculer les réservations de cette semaine
-        from datetime import timedelta
-        week_start = (date.today() - timedelta(days=date.today().weekday())).isoformat()
-        week_end = (date.today() + timedelta(days=6-date.today().weekday())).isoformat()
-        cur.execute(
-            "SELECT COUNT(*) FROM reservations WHERE date BETWEEN ? AND ?",
-            (week_start, week_end)
-        )
-        this_week_bookings = cur.fetchone()[0]
+        # 6. Calculer les statistiques
+        try:
+            today = date.today().isoformat()
+            cur.execute("SELECT COUNT(*) FROM reservations WHERE date = ?", (today,))
+            today_bookings = cur.fetchone()[0]
+            
+            from datetime import timedelta
+            week_start = (date.today() - timedelta(days=date.today().weekday())).isoformat()
+            week_end = (date.today() + timedelta(days=6-date.today().weekday())).isoformat()
+            cur.execute("SELECT COUNT(*) FROM reservations WHERE date BETWEEN ? AND ?", (week_start, week_end))
+            this_week_bookings = cur.fetchone()[0]
+            
+            print(f"✅ Statistiques calculées: aujourd'hui={today_bookings}, semaine={this_week_bookings}")
+        except Exception as stats_error:
+            print(f"❌ Erreur calcul statistiques: {stats_error}")
+            today_bookings = 0
+            this_week_bookings = 0
         
         conn.close()
         
+        # 7. Rendre le template
+        print("✅ Rendu du template admin_reservations.html")
         return templates.TemplateResponse(
             "admin_reservations.html",
             {
@@ -998,8 +1065,10 @@ async def admin_reservations(request: Request) -> HTMLResponse:
         )
         
     except Exception as e:
-        print(f"❌ Erreur dans admin_reservations: {e}")
-        # En cas d'erreur, afficher une page d'erreur détaillée au lieu de rediriger
+        print(f"❌ Erreur générale dans admin_reservations: {e}")
+        import traceback
+        traceback.print_exc()
+        
         return templates.TemplateResponse(
             "error.html",
             {
