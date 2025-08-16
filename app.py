@@ -998,9 +998,17 @@ async def admin_reservations(request: Request) -> HTMLResponse:
         )
         
     except Exception as e:
-        print(f"Erreur dans admin_reservations: {e}")
-        # En cas d'erreur, rediriger vers la page d'accueil admin
-        return RedirectResponse(url="/", status_code=303)
+        print(f"❌ Erreur dans admin_reservations: {e}")
+        # En cas d'erreur, afficher une page d'erreur détaillée au lieu de rediriger
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "status_code": 500,
+                "detail": f"Erreur lors du chargement des réservations: {str(e)}"
+            },
+            status_code=500
+        )
 
 
 @app.post("/admin/reservations/supprimer", response_class=HTMLResponse)
@@ -1524,3 +1532,75 @@ async def fix_admin_endpoint():
         }
     finally:
         conn.close()
+
+@app.get("/test-admin-reservations")
+async def test_admin_reservations(request: Request):
+    """Endpoint de test pour diagnostiquer le problème des réservations admin"""
+    try:
+        user = get_current_user(request)
+        
+        if not user:
+            return {
+                "status": "error",
+                "message": "Utilisateur non connecté",
+                "step": "authentication"
+            }
+        
+        if not user["is_admin"]:
+            return {
+                "status": "error", 
+                "message": "Utilisateur non administrateur",
+                "step": "admin_check",
+                "user_info": {
+                    "username": user["username"],
+                    "is_admin": bool(user["is_admin"]),
+                    "validated": bool(user["validated"])
+                }
+            }
+        
+        # Test de connexion à la base de données
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            
+            # Test de la table reservations
+            cur.execute("SELECT COUNT(*) FROM reservations")
+            reservations_count = cur.fetchone()[0]
+            
+            # Test de la table users
+            cur.execute("SELECT COUNT(*) FROM users")
+            users_count = cur.fetchone()[0]
+            
+            conn.close()
+            
+            return {
+                "status": "success",
+                "message": "Tous les tests passent",
+                "user": {
+                    "username": user["username"],
+                    "is_admin": bool(user["is_admin"]),
+                    "validated": bool(user["validated"])
+                },
+                "database": {
+                    "reservations_count": reservations_count,
+                    "users_count": users_count
+                }
+            }
+            
+        except Exception as db_error:
+            return {
+                "status": "error",
+                "message": f"Erreur de base de données: {str(db_error)}",
+                "step": "database_connection",
+                "user_info": {
+                    "username": user["username"],
+                    "is_admin": bool(user["is_admin"])
+                }
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur générale: {str(e)}",
+            "step": "general"
+        }
