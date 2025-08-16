@@ -1021,15 +1021,41 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             
             # 6. Rendu du template avec données minimales
             print("✅ Rendu du template admin_reservations.html")
+            
+            # Récupérer les informations des utilisateurs pour chaque réservation
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                
+                # Enrichir les réservations avec les informations utilisateur
+                enriched_bookings = []
+                for booking in bookings:
+                    cur.execute("SELECT username, full_name FROM users WHERE id = ?", (booking['user_id'],))
+                    user_info = cur.fetchone()
+                    if user_info:
+                        enriched_booking = dict(booking)
+                        enriched_booking['username'] = user_info['username']
+                        enriched_booking['user_full_name'] = user_info['full_name']
+                        enriched_bookings.append(enriched_booking)
+                    else:
+                        enriched_bookings.append(booking)
+                
+                conn.close()
+                print(f"✅ Réservations enrichies: {len(enriched_bookings)}")
+                
+            except Exception as enrich_error:
+                print(f"⚠️ Erreur enrichissement réservations: {enrich_error}")
+                enriched_bookings = bookings
+            
             return templates.TemplateResponse(
                 "admin_reservations.html",
                 {
                     "request": request,
                     "user": user,
-                    "bookings": bookings,
+                    "bookings": enriched_bookings,
                     "today_bookings": 0,
                     "this_week_bookings": 0,
-                    "today": date.today().isoformat(),  # Ajout de la variable manquante
+                    "today": date.today().isoformat(),  # Format YYYY-MM-DD pour comparaison
                 },
             )
             
