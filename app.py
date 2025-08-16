@@ -189,69 +189,11 @@ def get_db_connection():
     return get_db_conn()
 
 
-def init_db() -> None:
-    """Initialise la base de données si nécessaire.
-
-    Crée les tables et un compte administrateur par défaut si elles
-    n'existent pas déjà.
-    """
-    # Appel direct de la fonction locale
-    init_database()
-
-
-def init_database():
-    """Initialise la base de données UNIQUEMENT avec l'utilisateur admin si nécessaire."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        # Vérifier et créer l'utilisateur admin si nécessaire
-        cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
-        admin_exists = cur.fetchone()[0] > 0
-        
-        if not admin_exists:
-            print("🆕 Création de l'utilisateur administrateur...")
-            admin_password_hash = hash_password("admin")
-            cur.execute("""
-                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("admin", admin_password_hash, "Administrateur", "admin@example.com", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
-            print("✅ Utilisateur administrateur créé")
-        else:
-            print("✅ Utilisateur administrateur déjà existant")
-        
-        # Vérifier l'état de la base de données
-        cur.execute("SELECT COUNT(*) FROM articles")
-        article_count = cur.fetchone()[0]
-        
-        cur.execute("SELECT COUNT(*) FROM users WHERE username != 'admin'")
-        other_users_count = cur.fetchone()[0]
-        
-        cur.execute("SELECT COUNT(*) FROM reservations")
-        reservation_count = cur.fetchone()[0]
-        
-        print(f"📊 État de la base de données :")
-        print(f"   - Articles : {article_count}")
-        print(f"   - Utilisateurs (hors admin) : {other_users_count}")
-        print(f"   - Réservations : {reservation_count}")
-        print(f"   - Total utilisateurs : {other_users_count + (1 if admin_exists else 0)}")
-        
-        # IMPORTANT : Ne JAMAIS recréer d'articles ou de données de test
-        # Les données existantes doivent être préservées
-        if article_count > 0 or other_users_count > 0 or reservation_count > 0:
-            print("✅ Base de données contient des données existantes - AUCUNE réinitialisation effectuée")
-        else:
-            print("ℹ️ Base de données vide - Aucune donnée de test créée automatiquement")
-        
-        conn.commit()
-        
-    except Exception as e:
-        print(f"❌ Erreur lors de l'initialisation: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
-
-# Initialisation de la base de données supprimée - gérée par l'événement startup
+# IMPORTANT : Les fonctions d'initialisation automatique ont été supprimées
+# pour éviter la perte de données lors des redémarrages
+# 
+# Si vous devez créer l'utilisateur admin, utilisez l'endpoint /fix-admin
+# Si vous devez créer des articles de test, utilisez l'endpoint /init-articles
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
@@ -293,23 +235,38 @@ def require_login(request: Request) -> sqlite3.Row:
 
 @app.on_event("startup")
 async def startup() -> None:
-    """Appelé au démarrage de l'application pour préparer la base de données."""
+    """Appelé au démarrage de l'application."""
     print("🚀 Démarrage de l'application...")
     
-    # Initialiser la base de données UNIQUEMENT si nécessaire
-    try:
-        init_db()
-        print("✅ Initialisation de la base de données terminée")
-    except Exception as e:
-        print(f"❌ Erreur lors de l'initialisation de la base: {e}")
+    # IMPORTANT : AUCUNE initialisation automatique de la base de données
+    # Les tables et données existantes doivent être préservées
+    print("ℹ️ Initialisation automatique de la base de données désactivée")
+    print("ℹ️ Les données existantes sont préservées")
     
-    # Migrer les données de SQLite vers PostgreSQL si nécessaire
+    # Vérifier seulement la connexion à la base
     try:
-        from database import migrate_data_from_sqlite
-        migrate_data_from_sqlite()
-        print("✅ Migration des données terminée")
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Compter les données existantes
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM articles")
+        articles_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM reservations")
+        reservations_count = cur.fetchone()[0]
+        
+        print(f"📊 État de la base de données au démarrage :")
+        print(f"   - Utilisateurs : {users_count}")
+        print(f"   - Articles : {articles_count}")
+        print(f"   - Réservations : {reservations_count}")
+        
+        conn.close()
+        
     except Exception as e:
-        print(f"⚠️ Migration des données ignorée: {e}")
+        print(f"⚠️ Impossible de vérifier l'état de la base : {e}")
     
     print("🎉 Application prête !")
 
@@ -1591,7 +1548,7 @@ async def debug_auth(request: Request):
 
 @app.get("/fix-admin")
 async def fix_admin_endpoint():
-    """Point de terminaison pour corriger automatiquement l'utilisateur admin."""
+    """Point de terminaison pour créer/corriger l'utilisateur admin UNIQUEMENT si nécessaire."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1668,6 +1625,52 @@ async def fix_admin_endpoint():
         }
     finally:
         conn.close()
+
+
+@app.get("/create-admin")
+async def create_admin_endpoint():
+    """Point de terminaison pour créer l'utilisateur admin si la base est vide."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Vérifier si la base contient des données
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        if users_count > 0:
+            return {
+                "status": "info",
+                "message": f"La base contient déjà {users_count} utilisateur(s). Utilisez /fix-admin pour corriger l'admin.",
+                "users_count": users_count
+            }
+        
+        # Créer l'utilisateur admin si la base est vide
+        admin_password = "admin"
+        admin_password_hash = hash_password(admin_password)
+        
+        cur.execute("""
+            INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "message": "Base de données vide - Utilisateur admin créé avec succès",
+            "credentials": {
+                "username": "admin",
+                "password": "admin"
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la création: {str(e)}"
+        }
 
 @app.get("/test-admin-reservations")
 async def test_admin_reservations(request: Request):
