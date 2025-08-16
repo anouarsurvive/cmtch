@@ -816,20 +816,65 @@ async def admin_members(request: Request) -> HTMLResponse:
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
     check_admin(user)
+    
+    # Récupération des paramètres de pagination
+    page = int(request.query_params.get("page", 1))
+    per_page = int(request.query_params.get("per_page", 20))
+    
+    # Calcul des offsets
+    offset = (page - 1) * per_page
+    
     conn = get_db_connection()
     cur = conn.cursor()
+    
+    # Compter le nombre total de membres
+    cur.execute("SELECT COUNT(*) FROM users")
+    total_members = cur.fetchone()[0]
+    
+    # Récupérer les membres pour la page courante
     cur.execute(
         "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
-        "FROM users ORDER BY id"
+        "FROM users ORDER BY id LIMIT ? OFFSET ?",
+        (per_page, offset)
     )
     members = cur.fetchall()
     conn.close()
+    
+    # Calcul de la pagination
+    total_pages = max(1, (total_members + per_page - 1) // per_page)
+    has_prev = page > 1
+    has_next = page < total_pages
+    
+    # Générer les liens de pagination
+    pagination_links = []
+    if total_pages > 1:
+        start_page = max(1, page - 2)
+        end_page = min(total_pages, page + 2)
+        
+        for p in range(start_page, end_page + 1):
+            pagination_links.append({
+                'page': p,
+                'is_current': p == page,
+                'url': f"/admin/membres?page={p}&per_page={per_page}"
+            })
+    
     return templates.TemplateResponse(
         "admin_members.html",
         {
             "request": request,
             "user": user,
             "members": members,
+            "pagination": {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_members": total_members,
+                "per_page": per_page,
+                "has_prev": has_prev,
+                "has_next": has_next,
+                "prev_url": f"/admin/membres?page={page-1}&per_page={per_page}" if has_prev else None,
+                "next_url": f"/admin/membres?page={page+1}&per_page={per_page}" if has_next else None,
+                "links": pagination_links
+            }
         },
     )
 
