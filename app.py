@@ -195,17 +195,17 @@ def init_db() -> None:
     Crée les tables et un compte administrateur par défaut si elles
     n'existent pas déjà.
     """
-    from database import init_db as init_database
+    # Appel direct de la fonction locale
     init_database()
 
 
 def init_database():
-    """Initialise la base de données avec des données de test si nécessaire."""
+    """Initialise la base de données UNIQUEMENT avec l'utilisateur admin si nécessaire."""
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        # 1. Vérifier et créer l'utilisateur admin si nécessaire
+        # Vérifier et créer l'utilisateur admin si nécessaire
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
         admin_exists = cur.fetchone()[0] > 0
         
@@ -217,63 +217,31 @@ def init_database():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, ("admin", admin_password_hash, "Administrateur", "admin@example.com", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
             print("✅ Utilisateur administrateur créé")
+        else:
+            print("✅ Utilisateur administrateur déjà existant")
         
-        # 2. Vérifier s'il y a déjà des articles (SEULEMENT si la table est vraiment vide)
+        # Vérifier l'état de la base de données
         cur.execute("SELECT COUNT(*) FROM articles")
         article_count = cur.fetchone()[0]
         
-        # Vérifier aussi s'il y a des utilisateurs autres que admin
         cur.execute("SELECT COUNT(*) FROM users WHERE username != 'admin'")
         other_users_count = cur.fetchone()[0]
         
-        # Ne créer des articles de test QUE si la base est vraiment vide
-        if article_count == 0 and other_users_count == 0:
-            print("🆕 Base de données complètement vide - initialisation avec des articles de test...")
-            
-            # Articles de test avec des dates récentes
-            test_articles = [
-                {
-                    "title": "Ouverture de la saison 2025",
-                    "content": "Le Club Municipal de Tennis Chihia est ravi d'annoncer l'ouverture de la saison 2025. Cette année promet d'être exceptionnelle avec de nouveaux équipements et des programmes d'entraînement améliorés pour tous les niveaux.",
-                    "created_at": (datetime.now() - timedelta(days=2)).isoformat()
-                },
-                {
-                    "title": "Nouveau programme pour les jeunes",
-                    "content": "Nous lançons un nouveau programme spécialement conçu pour les jeunes de 8 à 16 ans. Ce programme combine technique, tactique et plaisir pour développer la passion du tennis chez nos futurs champions.",
-                    "created_at": (datetime.now() - timedelta(days=5)).isoformat()
-                },
-                {
-                    "title": "Tournoi interne du mois",
-                    "content": "Le tournoi interne du mois de janvier aura lieu le week-end prochain. Tous les membres sont invités à participer. Inscriptions ouvertes jusqu'à vendredi soir.",
-                    "created_at": (datetime.now() - timedelta(days=8)).isoformat()
-                },
-                {
-                    "title": "Maintenance des courts",
-                    "content": "Nos courts de tennis ont été entièrement rénovés pendant les vacances. Nouvelle surface, filets neufs et éclairage amélioré pour une expérience de jeu optimale.",
-                    "created_at": (datetime.now() - timedelta(days=12)).isoformat()
-                },
-                {
-                    "title": "Bienvenue aux nouveaux membres",
-                    "content": "Nous souhaitons la bienvenue à tous nos nouveaux membres qui ont rejoint le club ce mois-ci. N'hésitez pas à participer aux activités et à vous intégrer dans notre communauté tennis.",
-                    "created_at": (datetime.now() - timedelta(days=15)).isoformat()
-                }
-            ]
-            
-            # Insérer les articles
-            for article in test_articles:
-                cur.execute("""
-                    INSERT INTO articles (title, content, created_at)
-                    VALUES (?, ?, ?)
-                """, (article["title"], article["content"], article["created_at"]))
-            
-            print(f"✅ {len(test_articles)} articles de test créés")
-        else:
-            print(f"✅ Base de données déjà initialisée avec {article_count} articles et {other_users_count + (1 if admin_exists else 0)} utilisateurs existants")
+        cur.execute("SELECT COUNT(*) FROM reservations")
+        reservation_count = cur.fetchone()[0]
         
-        # 3. Vérifier le nombre total d'utilisateurs
-        cur.execute("SELECT COUNT(*) FROM users")
-        total_users = cur.fetchone()[0]
-        print(f"📊 Total des utilisateurs dans la base : {total_users}")
+        print(f"📊 État de la base de données :")
+        print(f"   - Articles : {article_count}")
+        print(f"   - Utilisateurs (hors admin) : {other_users_count}")
+        print(f"   - Réservations : {reservation_count}")
+        print(f"   - Total utilisateurs : {other_users_count + (1 if admin_exists else 0)}")
+        
+        # IMPORTANT : Ne JAMAIS recréer d'articles ou de données de test
+        # Les données existantes doivent être préservées
+        if article_count > 0 or other_users_count > 0 or reservation_count > 0:
+            print("✅ Base de données contient des données existantes - AUCUNE réinitialisation effectuée")
+        else:
+            print("ℹ️ Base de données vide - Aucune donnée de test créée automatiquement")
         
         conn.commit()
         
