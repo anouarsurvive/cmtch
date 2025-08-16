@@ -1029,6 +1029,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
                     "bookings": bookings,
                     "today_bookings": 0,
                     "this_week_bookings": 0,
+                    "today": date.today().isoformat(),  # Ajout de la variable manquante
                 },
             )
             
