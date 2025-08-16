@@ -426,8 +426,23 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('bulkDelete').addEventListener('click', function() {
         const checkedBoxes = document.querySelectorAll('.member-checkbox:checked');
         if (checkedBoxes.length > 0 && confirm(`Supprimer ${checkedBoxes.length} membre(s) ? Cette action est irréversible.`)) {
-            // Implémenter la suppression en lot
-            console.log('Suppression en lot à implémenter');
+            // Créer un formulaire pour la suppression groupée
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/admin/membres/supprimer-groupe';
+            
+            // Ajouter tous les IDs sélectionnés
+            checkedBoxes.forEach(function(checkbox) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'user_ids';
+                input.value = checkbox.value;
+                form.appendChild(input);
+            });
+            
+            // Soumettre le formulaire
+            document.body.appendChild(form);
+            form.submit();
         }
     });
 

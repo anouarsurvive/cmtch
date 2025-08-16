@@ -871,6 +871,63 @@ async def admin_delete_member(request: Request) -> HTMLResponse:
         return RedirectResponse(url="/admin/membres", status_code=303)
 
 
+@app.post("/admin/membres/supprimer-groupe", response_class=HTMLResponse)
+async def admin_delete_members_bulk(request: Request) -> HTMLResponse:
+    """Permet à un administrateur de supprimer plusieurs membres en lot."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        form_data = await request.form()
+        user_ids = form_data.getlist("user_ids")
+        
+        if not user_ids:
+            return RedirectResponse(url="/admin/membres", status_code=303)
+        
+        # Convertir en entiers et filtrer les valeurs invalides
+        valid_user_ids = []
+        for user_id_str in user_ids:
+            try:
+                user_id = int(user_id_str)
+                if user_id > 0:
+                    valid_user_ids.append(user_id)
+            except ValueError:
+                continue
+        
+        if not valid_user_ids:
+            return RedirectResponse(url="/admin/membres", status_code=303)
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Vérifier que les utilisateurs existent et ne sont pas admin
+        placeholders = ','.join(['?' for _ in valid_user_ids])
+        cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
+        members = cur.fetchall()
+        
+        # Filtrer les membres non-admin
+        non_admin_members = [m for m in members if not m['is_admin']]
+        non_admin_ids = [m['id'] for m in non_admin_members]
+        
+        if non_admin_ids:
+            # Supprimer les membres non-admin
+            placeholders = ','.join(['?' for _ in non_admin_ids])
+            cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
+            conn.commit()
+            
+            print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
+        
+        conn.close()
+        
+        return RedirectResponse(url="/admin/membres", status_code=303)
+        
+    except Exception as e:
+        print(f"Erreur lors de la suppression groupée: {e}")
+        return RedirectResponse(url="/admin/membres", status_code=303)
+
+
 @app.get("/admin/membres/{member_id}/details")
 async def admin_member_details(request: Request, member_id: int):
     """Retourne les détails d'un membre en JSON pour le modal."""
