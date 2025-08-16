@@ -1,7 +1,19 @@
 import os
 import sqlite3
-import psycopg2
-from psycopg2.extras import RealDictCursor
+
+# Tentative d'import de psycopg2 avec gestion d'erreur
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    PSYCOPG2_AVAILABLE = True
+    print("✅ psycopg2 importé avec succès")
+except ImportError as e:
+    print(f"⚠️ psycopg2 non disponible: {e}")
+    print("🔄 Utilisation de SQLite en fallback")
+    PSYCOPG2_AVAILABLE = False
+    psycopg2 = None
+    RealDictCursor = None
+
 from typing import Union
 
 def get_db_connection():
@@ -10,18 +22,19 @@ def get_db_connection():
     # Vérifier si on est sur Render (base de données PostgreSQL)
     database_url = os.getenv('DATABASE_URL')
     
-    if database_url:
+    if database_url and PSYCOPG2_AVAILABLE:
         # Connexion PostgreSQL sur Render
         try:
             conn = psycopg2.connect(database_url)
             conn.cursor_factory = RealDictCursor
             return conn
         except Exception as e:
-            print(f"Erreur de connexion PostgreSQL: {e}")
+            print(f"❌ Erreur de connexion PostgreSQL: {e}")
+            print("🔄 Fallback vers SQLite")
             # Fallback vers SQLite si PostgreSQL échoue
             pass
     
-    # Connexion SQLite en local
+    # Connexion SQLite en local ou en fallback
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DB_PATH = os.path.join(BASE_DIR, "database.db")
     conn = sqlite3.connect(DB_PATH)
@@ -107,6 +120,10 @@ def init_sqlite_db():
 
 def init_postgresql_db():
     """Initialise la base de données PostgreSQL"""
+    if not PSYCOPG2_AVAILABLE:
+        print("⚠️ psycopg2 non disponible, initialisation PostgreSQL ignorée")
+        return
+        
     database_url = os.getenv('DATABASE_URL')
     
     if not database_url:
@@ -179,6 +196,10 @@ def init_postgresql_db():
 
 def migrate_data_from_sqlite():
     """Migre les données de SQLite vers PostgreSQL (si nécessaire)"""
+    if not PSYCOPG2_AVAILABLE:
+        print("⚠️ psycopg2 non disponible, migration ignorée")
+        return
+        
     database_url = os.getenv('DATABASE_URL')
     
     if not database_url:
