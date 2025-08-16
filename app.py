@@ -1032,6 +1032,9 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             )
         
         # 6. Calculer les statistiques
+        today_bookings = 0
+        this_week_bookings = 0
+        
         try:
             today = date.today().isoformat()
             cur.execute("SELECT COUNT(*) FROM reservations WHERE date = ?", (today,))
@@ -1046,8 +1049,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             print(f"✅ Statistiques calculées: aujourd'hui={today_bookings}, semaine={this_week_bookings}")
         except Exception as stats_error:
             print(f"❌ Erreur calcul statistiques: {stats_error}")
-            today_bookings = 0
-            this_week_bookings = 0
+            # Les variables sont déjà initialisées à 0
         
         conn.close()
         
