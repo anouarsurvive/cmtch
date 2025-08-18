@@ -2093,6 +2093,50 @@ async def restore_backup_endpoint():
         }
 
 
+@app.get("/test-espace")
+async def test_espace_endpoint():
+    """Point de terminaison pour tester la logique de /espace sans authentification."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Test de la requête SQL
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        # Test de la requête de réservations (pour l'utilisateur 1)
+        cur.execute(
+            "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
+            (1,),
+        )
+        rows = cur.fetchall()
+        
+        conn.close()
+        
+        # Transformer les résultats
+        months = []
+        counts = []
+        for row in rows:
+            months.append(row["month"])
+            counts.append(row["count"])
+        
+        return {
+            "status": "success",
+            "users_count": users_count,
+            "reservations_data": {
+                "months": months,
+                "counts": counts,
+                "rows_count": len(rows)
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur dans le test /espace: {str(e)}"
+        }
+
+
 @app.get("/create-admin")
 async def create_admin_endpoint():
     """Point de terminaison pour créer l'utilisateur admin si la base est vide."""
