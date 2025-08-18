@@ -988,21 +988,144 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
         return RedirectResponse(url="/admin/membres", status_code=303)
 
 
+@app.post("/admin/membres/{member_id}/edit", response_class=HTMLResponse)
+async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
+    """Traite la soumission du formulaire d'édition d'un membre."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        form_data = await request.form()
+        
+        # Récupération des données du formulaire
+        username = str(form_data.get("username", "")).strip()
+        full_name = str(form_data.get("full_name", "")).strip()
+        email = str(form_data.get("email", "")).strip()
+        phone = str(form_data.get("phone", "")).strip()
+        ijin_number = str(form_data.get("ijin_number", "")).strip()
+        birth_date = str(form_data.get("birth_date", "")).strip()
+        new_password = str(form_data.get("new_password", "")).strip()
+        is_admin = bool(form_data.get("is_admin"))
+        validated = bool(form_data.get("validated"))
+        is_trainer = bool(form_data.get("is_trainer"))
+        
+        # Vérifications de base
+        errors: List[str] = []
+        
+        if not username:
+            errors.append("Le nom d'utilisateur est obligatoire.")
+        if not full_name:
+            errors.append("Le nom complet est obligatoire.")
+        
+        # Vérifier que le nom d'utilisateur n'existe pas déjà (sauf pour le membre actuel)
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username, member_id))
+        if cur.fetchone():
+            errors.append("Ce nom d'utilisateur est déjà utilisé par un autre membre.")
+        
+        if errors:
+            # Récupérer les données du membre pour réafficher le formulaire
+            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+            member = cur.fetchone()
+            conn.close()
+            
+            return templates.TemplateResponse(
+                "admin_member_edit.html",
+                {
+                    "request": request,
+                    "user": user,
+                    "member": member,
+                    "errors": errors
+                },
+            )
+        
+        # Mise à jour du membre
+        update_fields = []
+        update_values = []
+        
+        update_fields.append("username = ?")
+        update_values.append(username)
+        
+        update_fields.append("full_name = ?")
+        update_values.append(full_name)
+        
+        update_fields.append("email = ?")
+        update_values.append(email)
+        
+        update_fields.append("phone = ?")
+        update_values.append(phone)
+        
+        update_fields.append("ijin_number = ?")
+        update_values.append(ijin_number)
+        
+        update_fields.append("birth_date = ?")
+        update_values.append(birth_date)
+        
+        update_fields.append("is_admin = ?")
+        update_values.append(1 if is_admin else 0)
+        
+        update_fields.append("validated = ?")
+        update_values.append(1 if validated else 0)
+        
+        update_fields.append("is_trainer = ?")
+        update_values.append(1 if is_trainer else 0)
+        
+        # Si un nouveau mot de passe est fourni
+        if new_password:
+            if len(new_password) < 6:
+                errors.append("Le mot de passe doit contenir au moins 6 caractères.")
+            else:
+                update_fields.append("password_hash = ?")
+                update_values.append(hash_password(new_password))
+        
+        if errors:
+            # Récupérer les données du membre pour réafficher le formulaire
+            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+            member = cur.fetchone()
+            conn.close()
+            
+            return templates.TemplateResponse(
+                "admin_member_edit.html",
+                {
+                    "request": request,
+                    "user": user,
+                    "member": member,
+                    "errors": errors
+                },
+            )
+        
+        # Ajouter l'ID du membre à la fin pour la clause WHERE
+        update_values.append(member_id)
+        
+        # Exécuter la mise à jour
+        query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+        cur.execute(query, update_values)
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ Membre {username} mis à jour avec succès")
+        
+        return RedirectResponse(url="/admin/membres", status_code=303)
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la mise à jour du membre: {e}")
+        return RedirectResponse(url="/admin/membres", status_code=303)
+
+
 @app.get("/admin/reservations", response_class=HTMLResponse)
 async def admin_reservations(request: Request) -> HTMLResponse:
-    """Affiche toutes les réservations pour les administrateurs."""
+    """Affiche toutes les réservations pour les administrateurs avec pagination."""
     try:
         # 1. Vérifier l'utilisateur
         user = get_current_user(request)
         if not user:
-            print("❌ Utilisateur non connecté")
             return RedirectResponse(url="/connexion", status_code=303)
-        
-        print(f"✅ Utilisateur connecté: {user['username']}")
         
         # 2. Vérifier les droits admin
         if not user["is_admin"]:
-            print(f"❌ Utilisateur non admin: is_admin={user['is_admin']}")
             return templates.TemplateResponse(
                 "error.html",
                 {
@@ -1013,110 +1136,73 @@ async def admin_reservations(request: Request) -> HTMLResponse:
                 status_code=403
             )
         
-        print("✅ Droits admin vérifiés")
+        # 3. Récupération des paramètres de pagination
+        page = int(request.query_params.get("page", 1))
+        per_page = int(request.query_params.get("per_page", 20))
         
-        # 3. Test simple de connexion à la base
-        try:
-            conn = get_db_connection()
-            print("✅ Connexion base de données réussie")
+        # Calcul des offsets
+        offset = (page - 1) * per_page
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Compter le nombre total de réservations
+        cur.execute("SELECT COUNT(*) FROM reservations")
+        total_bookings = cur.fetchone()[0]
+        
+        # Récupérer les réservations pour la page courante avec informations utilisateur
+        cur.execute("""
+            SELECT r.*, u.username, u.full_name as user_full_name 
+            FROM reservations r 
+            JOIN users u ON r.user_id = u.id 
+            ORDER BY r.date DESC, r.start_time DESC 
+            LIMIT ? OFFSET ?
+        """, (per_page, offset))
+        bookings = cur.fetchall()
+        
+        conn.close()
+        
+        # Calcul de la pagination
+        total_pages = max(1, (total_bookings + per_page - 1) // per_page)
+        has_prev = page > 1
+        has_next = page < total_pages
+        
+        # Générer les liens de pagination
+        pagination_links = []
+        if total_pages > 1:
+            start_page = max(1, page - 2)
+            end_page = min(total_pages, page + 2)
             
-            cur = conn.cursor()
-            
-            # 4. Test simple de la table reservations
-            try:
-                cur.execute("SELECT COUNT(*) FROM reservations")
-                total_bookings = cur.fetchone()[0]
-                print(f"✅ Table reservations accessible: {total_bookings} réservations")
-            except Exception as table_error:
-                print(f"❌ Erreur table reservations: {table_error}")
-                conn.close()
-                return templates.TemplateResponse(
-                    "error.html",
-                    {
-                        "request": request,
-                        "status_code": 500,
-                        "detail": f"Erreur d'accès à la table des réservations: {str(table_error)}"
-                    },
-                    status_code=500
-                )
-            
-            # 5. Récupération simple des réservations
-            try:
-                cur.execute("SELECT * FROM reservations LIMIT 10")
-                bookings = cur.fetchall()
-                print(f"✅ Réservations récupérées: {len(bookings)}")
-            except Exception as query_error:
-                print(f"❌ Erreur requête réservations: {query_error}")
-                conn.close()
-                return templates.TemplateResponse(
-                    "error.html",
-                    {
-                        "request": request,
-                        "status_code": 500,
-                        "detail": f"Erreur lors de la récupération des réservations: {str(query_error)}"
-                    },
-                    status_code=500
-                )
-            
-            conn.close()
-            
-            # 6. Rendu du template avec données minimales
-            print("✅ Rendu du template admin_reservations.html")
-            
-            # Récupérer les informations des utilisateurs pour chaque réservation
-            try:
-                conn = get_db_connection()
-                cur = conn.cursor()
-                
-                # Enrichir les réservations avec les informations utilisateur
-                enriched_bookings = []
-                for booking in bookings:
-                    cur.execute("SELECT username, full_name FROM users WHERE id = ?", (booking['user_id'],))
-                    user_info = cur.fetchone()
-                    if user_info:
-                        enriched_booking = dict(booking)
-                        enriched_booking['username'] = user_info['username']
-                        enriched_booking['user_full_name'] = user_info['full_name']
-                        enriched_bookings.append(enriched_booking)
-                    else:
-                        enriched_bookings.append(booking)
-                
-                conn.close()
-                print(f"✅ Réservations enrichies: {len(enriched_bookings)}")
-                
-            except Exception as enrich_error:
-                print(f"⚠️ Erreur enrichissement réservations: {enrich_error}")
-                enriched_bookings = bookings
-            
-            return templates.TemplateResponse(
-                "admin_reservations.html",
-                {
-                    "request": request,
-                    "user": user,
-                    "bookings": enriched_bookings,
-                    "today_bookings": 0,
-                    "this_week_bookings": 0,
-                    "today": date.today().isoformat(),  # Format YYYY-MM-DD pour comparaison
+            for p in range(start_page, end_page + 1):
+                pagination_links.append({
+                    'page': p,
+                    'is_current': p == page,
+                    'url': f"/admin/reservations?page={p}&per_page={per_page}"
+                })
+        
+        return templates.TemplateResponse(
+            "admin_reservations.html",
+            {
+                "request": request,
+                "user": user,
+                "bookings": bookings,
+                "pagination": {
+                    "current_page": page,
+                    "total_pages": total_pages,
+                    "total_bookings": total_bookings,
+                    "per_page": per_page,
+                    "has_prev": has_prev,
+                    "has_next": has_next,
+                    "prev_url": f"/admin/reservations?page={page-1}&per_page={per_page}" if has_prev else None,
+                    "next_url": f"/admin/reservations?page={page+1}&per_page={per_page}" if has_next else None,
+                    "links": pagination_links
                 },
-            )
-            
-        except Exception as db_error:
-            print(f"❌ Erreur connexion base: {db_error}")
-            return templates.TemplateResponse(
-                "error.html",
-                {
-                    "request": request,
-                    "status_code": 500,
-                    "detail": f"Erreur de connexion à la base de données: {str(db_error)}"
-                },
-                status_code=500
-            )
+                "today": date.today().isoformat(),
+            },
+        )
         
     except Exception as e:
-        print(f"❌ Erreur générale dans admin_reservations: {e}")
-        import traceback
-        traceback.print_exc()
-        
+        print(f"❌ Erreur dans admin_reservations: {e}")
         return templates.TemplateResponse(
             "error.html",
             {
@@ -1172,7 +1258,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLRe
 
 @app.get("/articles", response_class=HTMLResponse)
 async def articles_list(request: Request) -> HTMLResponse:
-    """Affiche la liste des articles publiés.
+    """Affiche la liste des articles publiés avec pagination.
 
     Les articles sont ordonnés par date de création décroissante. Chaque entrée
     présente le titre, une image s'il y en a une et un extrait du contenu.
@@ -1184,25 +1270,50 @@ async def articles_list(request: Request) -> HTMLResponse:
         Page HTML contenant la liste des articles.
     """
     try:
+        # Récupération des paramètres de pagination
+        page = int(request.query_params.get("page", 1))
+        per_page = int(request.query_params.get("per_page", 6))  # 6 articles par page
+        
+        # Calcul des offsets
+        offset = (page - 1) * per_page
+        
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Récupérer tous les articles avec plus d'informations
+        # Compter le nombre total d'articles
+        cur.execute("SELECT COUNT(*) FROM articles")
+        total_articles = cur.fetchone()[0]
+        
+        # Récupérer les articles pour la page courante
         cur.execute("""
             SELECT id, title, content, image_path, created_at, 
                    COALESCE(image_path, '') as image_path_clean
             FROM articles 
             ORDER BY datetime(created_at) DESC
-        """)
+            LIMIT ? OFFSET ?
+        """, (per_page, offset))
         articles = cur.fetchall()
-        
-        # Debug: afficher les informations des articles
-        print(f"📰 Articles trouvés: {len(articles)}")
-        for i, article in enumerate(articles):
-            print(f"  Article {i+1}: ID={article['id']}, Titre='{article['title']}', Date='{article['created_at']}'")
         
         conn.close()
         user = get_current_user(request)
+        
+        # Calcul de la pagination
+        total_pages = max(1, (total_articles + per_page - 1) // per_page)
+        has_prev = page > 1
+        has_next = page < total_pages
+        
+        # Générer les liens de pagination
+        pagination_links = []
+        if total_pages > 1:
+            start_page = max(1, page - 2)
+            end_page = min(total_pages, page + 2)
+            
+            for p in range(start_page, end_page + 1):
+                pagination_links.append({
+                    'page': p,
+                    'is_current': p == page,
+                    'url': f"/articles?page={p}&per_page={per_page}"
+                })
         
         return templates.TemplateResponse(
             "articles.html",
@@ -1210,6 +1321,17 @@ async def articles_list(request: Request) -> HTMLResponse:
                 "request": request,
                 "user": user,
                 "articles": articles,
+                "pagination": {
+                    "current_page": page,
+                    "total_pages": total_pages,
+                    "total_articles": total_articles,
+                    "per_page": per_page,
+                    "has_prev": has_prev,
+                    "has_next": has_next,
+                    "prev_url": f"/articles?page={page-1}&per_page={per_page}" if has_prev else None,
+                    "next_url": f"/articles?page={page+1}&per_page={per_page}" if has_next else None,
+                    "links": pagination_links
+                },
             },
         )
         

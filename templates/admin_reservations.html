@@ -217,19 +217,64 @@
         </div>
 
         <!-- Pagination - Affichée seulement s'il y a des réservations -->
-        {% if bookings and bookings|length > 0 %}
+        {% if pagination and pagination.total_pages > 1 %}
             <div class="pagination-wrapper mt-4">
                 <nav aria-label="Navigation des réservations">
                     <ul class="pagination justify-content-center">
-                        <li class="page-item disabled">
-                            <a class="page-link" href="#" tabindex="-1">Précédent</a>
+                        <!-- Bouton Précédent -->
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ pagination.prev_url if pagination.has_prev else '#' }}" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                                <i class="fas fa-chevron-left me-1"></i>Précédent
+                            </a>
                         </li>
-                        <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                        <li class="page-item">
-                            <a class="page-link" href="#">Suivant</a>
+                        
+                        <!-- Première page -->
+                        {% if pagination.current_page > 3 %}
+                            <li class="page-item">
+                                <a class="page-link" href="/admin/reservations?page=1&per_page={{ pagination.per_page }}">1</a>
+                            </li>
+                            {% if pagination.current_page > 4 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endif %}
+                        
+                        <!-- Pages autour de la page courante -->
+                        {% for link in pagination.links %}
+                            <li class="page-item {% if link.is_current %}active{% endif %}">
+                                <a class="page-link" href="{{ link.url }}">{{ link.page }}</a>
+                            </li>
+                        {% endfor %}
+                        
+                        <!-- Dernière page -->
+                        {% if pagination.current_page < pagination.total_pages - 2 %}
+                            {% if pagination.current_page < pagination.total_pages - 3 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                            <li class="page-item">
+                                <a class="page-link" href="/admin/reservations?page={{ pagination.total_pages }}&per_page={{ pagination.per_page }}">{{ pagination.total_pages }}</a>
+                            </li>
+                        {% endif %}
+                        
+                        <!-- Bouton Suivant -->
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ pagination.next_url if pagination.has_next else '#' }}" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                                Suivant<i class="fas fa-chevron-right ms-1"></i>
+                            </a>
                         </li>
                     </ul>
                 </nav>
+                
+                <!-- Informations sur la pagination -->
+                <div class="text-center mt-2">
+                    <small class="text-muted">
+                        Page {{ pagination.current_page }} sur {{ pagination.total_pages }} 
+                        ({{ pagination.total_bookings }} réservation{{ 's' if pagination.total_bookings > 1 else '' }})
+                    </small>
+                </div>
             </div>
         {% endif %}
     </div>

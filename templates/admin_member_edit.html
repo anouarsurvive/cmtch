@@ -1,0 +1,106 @@
+{% extends 'layout.html' %}
+
+{% block title %}Modifier le membre - Administration{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-edit me-2"></i>Modifier le membre
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if errors %}
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                {% for error in errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" action="/admin/membres/{{ member.id }}/edit">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="username" class="form-label">Nom d'utilisateur *</label>
+                                <input type="text" class="form-control" id="username" name="username" value="{{ member.username }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="full_name" class="form-label">Nom complet *</label>
+                                <input type="text" class="form-control" id="full_name" name="full_name" value="{{ member.full_name }}" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email" value="{{ member.email or '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="phone" class="form-label">Téléphone</label>
+                                <input type="tel" class="form-control" id="phone" name="phone" value="{{ member.phone or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="ijin_number" class="form-label">Numéro IJIN</label>
+                                <input type="text" class="form-control" id="ijin_number" name="ijin_number" value="{{ member.ijin_number or '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="birth_date" class="form-label">Date de naissance</label>
+                                <input type="date" class="form-control" id="birth_date" name="birth_date" value="{{ member.birth_date or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin" value="1" {% if member.is_admin %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_admin">
+                                        Administrateur
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="validated" name="validated" value="1" {% if member.validated %}checked{% endif %}>
+                                    <label class="form-check-label" for="validated">
+                                        Validé
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="is_trainer" name="is_trainer" value="1" {% if member.is_trainer %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_trainer">
+                                        Entraîneur
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password">
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="/admin/membres" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Retour
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Enregistrer
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
