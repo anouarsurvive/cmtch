@@ -15,8 +15,8 @@ sessions sont gérées via le middleware de Starlette qui signe un cookie
 contant un identifiant d'utilisateur.
 
 Les mots de passe sont hachés avec SHA‑256.  Une entrée administrateur est
-créée automatiquement au démarrage avec le nom d'utilisateur « admin » et
-le mot de passe « admin ».  Nous invitons les responsables du club à
+créée automatiquement au démarrage avec le nom d'utilisateur « admin » et
+le mot de passe « admin ».  Nous invitons les responsables du club à
 changer ces identifiants lors du déploiement.
 
 Autor: ChatGPT
@@ -360,7 +360,7 @@ async def home(request: Request) -> HTMLResponse:
     user = get_current_user(request)
     # Informations publiques sur le club provenant de sources fiables.
     adresse = "Route Teboulbi km 6, 3041 Sfax sud"
-    telephone = "+216 29 60 03 40"
+    telephone = "+216 29 60 03 40"
     email = "club.tennis.chihia@gmail.com"
     description = (
         "Club municipal de tennis Chihia est un lieu spécialement conçu pour les personnes "
@@ -759,21 +759,40 @@ async def create_reservation(request: Request) -> HTMLResponse:
         )
     # Vérifier les conflits
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT * FROM reservations WHERE court_number = ? AND date = ? AND "
-        "((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))",
-        (
-            court_number,
-            _date.isoformat(),
-            end_time,
-            end_time,
-            start_time,
-            start_time,
-            start_time,
-            end_time,
-        ),
-    )
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM reservations WHERE court_number = %s AND date = %s AND "
+            "((start_time < %s AND end_time > %s) OR (start_time < %s AND end_time > %s) OR (start_time >= %s AND end_time <= %s))",
+            (
+                court_number,
+                _date.isoformat(),
+                end_time,
+                end_time,
+                start_time,
+                start_time,
+                start_time,
+                end_time,
+            ),
+        )
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM reservations WHERE court_number = ? AND date = ? AND "
+            "((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))",
+            (
+                court_number,
+                _date.isoformat(),
+                end_time,
+                end_time,
+                start_time,
+                start_time,
+                start_time,
+                end_time,
+            ),
+        )
     conflict = cur.fetchone()
     if conflict:
         conn.close()
@@ -789,11 +808,18 @@ async def create_reservation(request: Request) -> HTMLResponse:
             },
         )
     # Insertion de la réservation
-    cur.execute(
-        "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (user["id"], court_number, _date.isoformat(), start_time, end_time),
-    )
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur.execute(
+            "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (user["id"], court_number, _date.isoformat(), start_time, end_time),
+        )
+    else:
+        cur.execute(
+            "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user["id"], court_number, _date.isoformat(), start_time, end_time),
+        )
     conn.commit()
     conn.close()
     redirect_url = f"/reservations?date={_date.isoformat()}"
@@ -827,11 +853,18 @@ async def admin_members(request: Request) -> HTMLResponse:
     total_members = cur.fetchone()[0]
     
     # Récupérer les membres pour la page courante
-    cur.execute(
-        "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
-        "FROM users ORDER BY id LIMIT ? OFFSET ?",
-        (per_page, offset)
-    )
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur.execute(
+            "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
+            "FROM users ORDER BY id LIMIT %s OFFSET %s",
+            (per_page, offset)
+        )
+    else:
+        cur.execute(
+            "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
+            "FROM users ORDER BY id LIMIT ? OFFSET ?",
+            (per_page, offset)
+        )
     members = cur.fetchall()
     conn.close()
     
@@ -888,14 +921,27 @@ async def validate_member(request: Request) -> HTMLResponse:
     except ValueError:
         return RedirectResponse(url="/admin/membres", status_code=303)
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT validated FROM users WHERE id = ?", (user_id,))
-    row = cur.fetchone()
-    if row is None:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
-    new_state = 0 if row["validated"] else 1
-    cur.execute("UPDATE users SET validated = ? WHERE id = ?", (new_state, user_id))
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("SELECT validated FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if row is None:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        new_state = 0 if row[0] else 1  # MySQL retourne un tuple
+        cur.execute("UPDATE users SET validated = %s WHERE id = %s", (new_state, user_id))
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT validated FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
+        if row is None:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        new_state = 0 if row["validated"] else 1
+        cur.execute("UPDATE users SET validated = ? WHERE id = ?", (new_state, user_id))
+    
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin/membres", status_code=303)
@@ -917,22 +963,43 @@ async def admin_delete_member(request: Request) -> HTMLResponse:
             return RedirectResponse(url="/admin/membres", status_code=303)
         
         conn = get_db_connection()
-        cur = conn.cursor()
         
-        # Vérifier que l'utilisateur existe et n'est pas admin
-        cur.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
-        member = cur.fetchone()
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            
+            # Vérifier que l'utilisateur existe et n'est pas admin
+            cur.execute("SELECT username, is_admin FROM users WHERE id = %s", (user_id,))
+            member = cur.fetchone()
+            
+            if not member:
+                conn.close()
+                return RedirectResponse(url="/admin/membres", status_code=303)
+            
+            if member[1]:  # MySQL retourne un tuple, is_admin est à l'index 1
+                conn.close()
+                return RedirectResponse(url="/admin/membres", status_code=303)
+            
+            # Supprimer l'utilisateur
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        else:
+            cur = conn.cursor()
+            
+            # Vérifier que l'utilisateur existe et n'est pas admin
+            cur.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
+            member = cur.fetchone()
+            
+            if not member:
+                conn.close()
+                return RedirectResponse(url="/admin/membres", status_code=303)
+            
+            if member['is_admin']:
+                conn.close()
+                return RedirectResponse(url="/admin/membres", status_code=303)
+            
+            # Supprimer l'utilisateur
+            cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
         
-        if not member:
-            conn.close()
-            return RedirectResponse(url="/admin/membres", status_code=303)
-        
-        if member['is_admin']:
-            conn.close()
-            return RedirectResponse(url="/admin/membres", status_code=303)
-        
-        # Supprimer l'utilisateur
-        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
         conn.close()
         
@@ -972,24 +1039,46 @@ async def admin_delete_members_bulk(request: Request) -> HTMLResponse:
             return RedirectResponse(url="/admin/membres", status_code=303)
         
         conn = get_db_connection()
-        cur = conn.cursor()
         
-        # Vérifier que les utilisateurs existent et ne sont pas admin
-        placeholders = ','.join(['?' for _ in valid_user_ids])
-        cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
-        members = cur.fetchall()
-        
-        # Filtrer les membres non-admin
-        non_admin_members = [m for m in members if not m['is_admin']]
-        non_admin_ids = [m['id'] for m in non_admin_members]
-        
-        if non_admin_ids:
-            # Supprimer les membres non-admin
-            placeholders = ','.join(['?' for _ in non_admin_ids])
-            cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
-            conn.commit()
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
             
-            print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
+            # Vérifier que les utilisateurs existent et ne sont pas admin
+            placeholders = ','.join(['%s' for _ in valid_user_ids])
+            cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
+            members = cur.fetchall()
+            
+            # Filtrer les membres non-admin (MySQL retourne des tuples)
+            non_admin_members = [m for m in members if not m[2]]  # is_admin est à l'index 2
+            non_admin_ids = [m[0] for m in non_admin_members]  # id est à l'index 0
+            
+            if non_admin_ids:
+                # Supprimer les membres non-admin
+                placeholders = ','.join(['%s' for _ in non_admin_ids])
+                cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
+                conn.commit()
+                
+                print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
+        else:
+            cur = conn.cursor()
+            
+            # Vérifier que les utilisateurs existent et ne sont pas admin
+            placeholders = ','.join(['?' for _ in valid_user_ids])
+            cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
+            members = cur.fetchall()
+            
+            # Filtrer les membres non-admin
+            non_admin_members = [m for m in members if not m['is_admin']]
+            non_admin_ids = [m['id'] for m in non_admin_members]
+            
+            if non_admin_ids:
+                # Supprimer les membres non-admin
+                placeholders = ','.join(['?' for _ in non_admin_ids])
+                cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
+                conn.commit()
+                
+                print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
         
         conn.close()
         
@@ -1010,9 +1099,19 @@ async def admin_member_details(request: Request, member_id: int):
     
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
-        member = cur.fetchone()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names("SELECT * FROM users WHERE id = %s", (member_id,))
+            member = cur.fetchone()
+            member = convert_mysql_result(member, column_names)
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+            member = cur.fetchone()
+        
         conn.close()
         
         if not member:
@@ -1056,9 +1155,19 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
     
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
-        member = cur.fetchone()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names("SELECT * FROM users WHERE id = %s", (member_id,))
+            member = cur.fetchone()
+            member = convert_mysql_result(member, column_names)
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+            member = cur.fetchone()
+        
         conn.close()
         
         if not member:
@@ -1112,15 +1221,30 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         
         # Vérifier que le nom d'utilisateur n'existe pas déjà (sauf pour le membre actuel)
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username, member_id))
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM users WHERE username = %s AND id != %s", (username, member_id))
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username, member_id))
+        
         if cur.fetchone():
             errors.append("Ce nom d'utilisateur est déjà utilisé par un autre membre.")
         
         if errors:
             # Récupérer les données du membre pour réafficher le formulaire
-            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
-            member = cur.fetchone()
+            if hasattr(conn, '_is_mysql') and conn._is_mysql:
+                from database import get_mysql_cursor_with_names, convert_mysql_result
+                execute_with_names = get_mysql_cursor_with_names(conn)
+                cur, column_names = execute_with_names("SELECT * FROM users WHERE id = %s", (member_id,))
+                member = cur.fetchone()
+                member = convert_mysql_result(member, column_names)
+            else:
+                cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+                member = cur.fetchone()
+            
             conn.close()
             
             return templates.TemplateResponse(
@@ -1137,31 +1261,35 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         update_fields = []
         update_values = []
         
-        update_fields.append("username = ?")
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            update_fields.append("username = %s")
+            update_fields.append("full_name = %s")
+            update_fields.append("email = %s")
+            update_fields.append("phone = %s")
+            update_fields.append("ijin_number = %s")
+            update_fields.append("birth_date = %s")
+            update_fields.append("is_admin = %s")
+            update_fields.append("validated = %s")
+            update_fields.append("is_trainer = %s")
+        else:
+            update_fields.append("username = ?")
+            update_fields.append("full_name = ?")
+            update_fields.append("email = ?")
+            update_fields.append("phone = ?")
+            update_fields.append("ijin_number = ?")
+            update_fields.append("birth_date = ?")
+            update_fields.append("is_admin = ?")
+            update_fields.append("validated = ?")
+            update_fields.append("is_trainer = ?")
+        
         update_values.append(username)
-        
-        update_fields.append("full_name = ?")
         update_values.append(full_name)
-        
-        update_fields.append("email = ?")
         update_values.append(email)
-        
-        update_fields.append("phone = ?")
         update_values.append(phone)
-        
-        update_fields.append("ijin_number = ?")
         update_values.append(ijin_number)
-        
-        update_fields.append("birth_date = ?")
         update_values.append(birth_date)
-        
-        update_fields.append("is_admin = ?")
         update_values.append(1 if is_admin else 0)
-        
-        update_fields.append("validated = ?")
         update_values.append(1 if validated else 0)
-        
-        update_fields.append("is_trainer = ?")
         update_values.append(1 if is_trainer else 0)
         
         # Si un nouveau mot de passe est fourni
@@ -1169,13 +1297,24 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
             if len(new_password) < 6:
                 errors.append("Le mot de passe doit contenir au moins 6 caractères.")
             else:
-                update_fields.append("password_hash = ?")
+                if hasattr(conn, '_is_mysql') and conn._is_mysql:
+                    update_fields.append("password_hash = %s")
+                else:
+                    update_fields.append("password_hash = ?")
                 update_values.append(hash_password(new_password))
         
         if errors:
             # Récupérer les données du membre pour réafficher le formulaire
-            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
-            member = cur.fetchone()
+            if hasattr(conn, '_is_mysql') and conn._is_mysql:
+                from database import get_mysql_cursor_with_names, convert_mysql_result
+                execute_with_names = get_mysql_cursor_with_names(conn)
+                cur, column_names = execute_with_names("SELECT * FROM users WHERE id = %s", (member_id,))
+                member = cur.fetchone()
+                member = convert_mysql_result(member, column_names)
+            else:
+                cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+                member = cur.fetchone()
+            
             conn.close()
             
             return templates.TemplateResponse(
@@ -1192,7 +1331,11 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         update_values.append(member_id)
         
         # Exécuter la mise à jour
-        query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = %s"
+        else:
+            query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+        
         cur.execute(query, update_values)
         conn.commit()
         conn.close()
@@ -1237,20 +1380,39 @@ async def admin_reservations(request: Request) -> HTMLResponse:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Compter le nombre total de réservations
-        cur.execute("SELECT COUNT(*) FROM reservations")
-        total_bookings = cur.fetchone()[0]
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            
+            # Compter le nombre total de réservations
+            cur.execute("SELECT COUNT(*) FROM reservations")
+            total_bookings = cur.fetchone()[0]
+            
+            # Récupérer les réservations pour la page courante avec informations utilisateur
+            cur.execute("""
+                SELECT r.*, u.username, u.full_name as user_full_name 
+                FROM reservations r 
+                JOIN users u ON r.user_id = u.id 
+                ORDER BY r.date DESC, r.start_time DESC 
+                LIMIT %s OFFSET %s
+            """, (per_page, offset))
+        else:
+            cur = conn.cursor()
+            
+            # Compter le nombre total de réservations
+            cur.execute("SELECT COUNT(*) FROM reservations")
+            total_bookings = cur.fetchone()[0]
+            
+            # Récupérer les réservations pour la page courante avec informations utilisateur
+            cur.execute("""
+                SELECT r.*, u.username, u.full_name as user_full_name 
+                FROM reservations r 
+                JOIN users u ON r.user_id = u.id 
+                ORDER BY r.date DESC, r.start_time DESC 
+                LIMIT ? OFFSET ?
+            """, (per_page, offset))
         
-        # Récupérer les réservations pour la page courante avec informations utilisateur
-        cur.execute("""
-            SELECT r.*, u.username, u.full_name as user_full_name 
-            FROM reservations r 
-            JOIN users u ON r.user_id = u.id 
-            ORDER BY r.date DESC, r.start_time DESC 
-            LIMIT ? OFFSET ?
-        """, (per_page, offset))
         bookings = cur.fetchall()
-        
         conn.close()
         
         # Calcul de la pagination
@@ -1319,8 +1481,15 @@ async def admin_delete_reservation(request: Request) -> HTMLResponse:
     except ValueError:
         return RedirectResponse(url="/admin/reservations", status_code=303)
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM reservations WHERE id = ?", (booking_id,))
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM reservations WHERE id = %s", (booking_id,))
+    else:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM reservations WHERE id = ?", (booking_id,))
+    
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin/reservations", status_code=303)
@@ -1354,11 +1523,20 @@ async def admin_delete_reservations_bulk(request: Request) -> HTMLResponse:
         
         # Supprimer les réservations
         conn = get_db_connection()
-        cur = conn.cursor()
         
-        # Utiliser une requête avec IN pour supprimer en lot
-        placeholders = ','.join(['?' for _ in valid_ids])
-        cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            
+            # Utiliser une requête avec IN pour supprimer en lot
+            placeholders = ','.join(['%s' for _ in valid_ids])
+            cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
+        else:
+            cur = conn.cursor()
+            
+            # Utiliser une requête avec IN pour supprimer en lot
+            placeholders = ','.join(['?' for _ in valid_ids])
+            cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
         
         deleted_count = cur.rowcount
         conn.commit()
@@ -1400,11 +1578,20 @@ async def admin_cancel_reservations_bulk(request: Request) -> HTMLResponse:
         
         # Supprimer les réservations (annulation = suppression)
         conn = get_db_connection()
-        cur = conn.cursor()
         
-        # Utiliser une requête avec IN pour supprimer en lot
-        placeholders = ','.join(['?' for _ in valid_ids])
-        cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            
+            # Utiliser une requête avec IN pour supprimer en lot
+            placeholders = ','.join(['%s' for _ in valid_ids])
+            cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
+        else:
+            cur = conn.cursor()
+            
+            # Utiliser une requête avec IN pour supprimer en lot
+            placeholders = ','.join(['?' for _ in valid_ids])
+            cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
         
         cancelled_count = cur.rowcount
         conn.commit()
@@ -1505,22 +1692,40 @@ async def articles_list(request: Request) -> HTMLResponse:
         offset = (page - 1) * per_page
         
         conn = get_db_connection()
-        cur = conn.cursor()
         
-        # Compter le nombre total d'articles
-        cur.execute("SELECT COUNT(*) FROM articles")
-        total_articles = cur.fetchone()[0]
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            
+            # Compter le nombre total d'articles
+            cur.execute("SELECT COUNT(*) FROM articles")
+            total_articles = cur.fetchone()[0]
+            
+            # Récupérer les articles pour la page courante
+            cur.execute("""
+                SELECT id, title, content, image_path, created_at, 
+                       COALESCE(image_path, '') as image_path_clean
+                FROM articles 
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, (per_page, offset))
+        else:
+            cur = conn.cursor()
+            
+            # Compter le nombre total d'articles
+            cur.execute("SELECT COUNT(*) FROM articles")
+            total_articles = cur.fetchone()[0]
+            
+            # Récupérer les articles pour la page courante
+            cur.execute("""
+                SELECT id, title, content, image_path, created_at, 
+                       COALESCE(image_path, '') as image_path_clean
+                FROM articles 
+                ORDER BY datetime(created_at) DESC
+                LIMIT ? OFFSET ?
+            """, (per_page, offset))
         
-        # Récupérer les articles pour la page courante
-        cur.execute("""
-            SELECT id, title, content, image_path, created_at, 
-                   COALESCE(image_path, '') as image_path_clean
-            FROM articles 
-            ORDER BY datetime(created_at) DESC
-            LIMIT ? OFFSET ?
-        """, (per_page, offset))
         articles = cur.fetchall()
-        
         conn.close()
         user = get_current_user(request)
         
@@ -1589,8 +1794,15 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
         Page HTML avec le contenu de l'article ou page d'erreur si introuvable.
     """
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+    
     article = cur.fetchone()
     conn.close()
     if article is None:
@@ -1623,8 +1835,15 @@ async def admin_articles(request: Request) -> HTMLResponse:
         return RedirectResponse(url="/connexion", status_code=303)
     check_admin(user)
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, title, created_at FROM articles ORDER BY datetime(created_at) DESC")
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("SELECT id, title, created_at FROM articles ORDER BY created_at DESC")
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT id, title, created_at FROM articles ORDER BY datetime(created_at) DESC")
+    
     articles = cur.fetchall()
     conn.close()
     return templates.TemplateResponse(
@@ -1726,12 +1945,23 @@ async def admin_new_article(request: Request) -> HTMLResponse:
         )
     # Insérer dans la base de données
     conn = get_db_connection()
-    cur = conn.cursor()
-    now_str = datetime.utcnow().isoformat()
-    cur.execute(
-        "INSERT INTO articles (title, content, image_path, created_at) VALUES (?, ?, ?, ?)",
-        (title, content_text, image_path, now_str),
-    )
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        now_str = datetime.utcnow().isoformat()
+        cur.execute(
+            "INSERT INTO articles (title, content, image_path, created_at) VALUES (%s, %s, %s, %s)",
+            (title, content_text, image_path, now_str),
+        )
+    else:
+        cur = conn.cursor()
+        now_str = datetime.utcnow().isoformat()
+        cur.execute(
+            "INSERT INTO articles (title, content, image_path, created_at) VALUES (?, ?, ?, ?)",
+            (title, content_text, image_path, now_str),
+        )
+    
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin/articles", status_code=303)
@@ -1751,8 +1981,15 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
     except ValueError:
         return RedirectResponse(url="/admin/articles", status_code=303)
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM articles WHERE id = %s", (article_id,))
+    else:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+    
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin/articles", status_code=303)
@@ -1778,20 +2015,38 @@ async def user_dashboard(request: Request) -> HTMLResponse:
             {"request": request, "message": "Votre inscription doit être validée pour accéder à cet espace."},
         )
     conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        # Regrouper par année-mois et compter
-        cur.execute(
-            "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
-            (user["id"],),
-        )
-        rows = cur.fetchall()
-    except Exception as e:
-        print(f"❌ Erreur dans la requête SQL de /espace: {e}")
-        # En cas d'erreur, retourner des données vides
-        rows = []
-    finally:
-        conn.close()
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        try:
+            # Regrouper par année-mois et compter
+            cur.execute(
+                "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month",
+                (user["id"],),
+            )
+            rows = cur.fetchall()
+        except Exception as e:
+            print(f"❌ Erreur dans la requête SQL de /espace: {e}")
+            # En cas d'erreur, retourner des données vides
+            rows = []
+        finally:
+            conn.close()
+    else:
+        cur = conn.cursor()
+        try:
+            # Regrouper par année-mois et compter
+            cur.execute(
+                "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
+                (user["id"],),
+            )
+            rows = cur.fetchall()
+        except Exception as e:
+            print(f"❌ Erreur dans la requête SQL de /espace: {e}")
+            # En cas d'erreur, retourner des données vides
+            rows = []
+        finally:
+            conn.close()
     # Transformer les résultats en listes pour Chart.js
     months: List[str] = []
     counts: List[int] = []
@@ -2075,11 +2330,11 @@ async def fix_admin_endpoint():
             # Corriger les permissions si nécessaire
             updates = []
             
-            if not admin_user['is_admin']:
+            if not admin_user[9]:  # is_admin est à l'index 9
                 cur.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
                 updates.append("droits admin ajoutés")
             
-            if not admin_user['validated']:
+            if not admin_user[10]:  # validated est à l'index 10
                 cur.execute("UPDATE users SET validated = 1 WHERE username = 'admin'")
                 updates.append("statut validé ajouté")
             
@@ -2087,8 +2342,8 @@ async def fix_admin_endpoint():
             admin_password = "admin"
             admin_password_hash = hash_password(admin_password)
             
-            if admin_user['password_hash'] != admin_password_hash:
-                cur.execute("UPDATE users SET password_hash = ? WHERE username = 'admin'", (admin_password_hash,))
+            if admin_user[2] != admin_password_hash:  # password_hash est à l'index 2
+                cur.execute("UPDATE users SET password_hash = %s WHERE username = 'admin'", (admin_password_hash,))
                 updates.append("mot de passe mis à jour")
             
             conn.commit()
@@ -2118,7 +2373,7 @@ async def fix_admin_endpoint():
             
             cur.execute("""
                 INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
             
             conn.commit()
