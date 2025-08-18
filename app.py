@@ -251,8 +251,14 @@ def auto_backup_system():
         print(f"❌ Erreur dans le système de sauvegarde automatique: {e}")
         # Ne pas bloquer le démarrage de l'application
 
-# Exécuter le système de sauvegarde automatique au démarrage
-auto_backup_system()
+# IMPORTANT : DÉSACTIVATION COMPLÈTE DU SYSTÈME DE SAUVEGARDE AUTOMATIQUE
+# Le système de sauvegarde automatique est DÉSACTIVÉ par défaut
+# pour éviter toute interférence avec les données existantes
+#
+# Si vous voulez l'activer, utilisez l'endpoint /enable-auto-backup
+# Si vous voulez le désactiver, utilisez l'endpoint /disable-auto-backup
+#
+# auto_backup_system()
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
@@ -2210,6 +2216,92 @@ async def enable_auto_backup_endpoint():
         return {
             "status": "error",
             "message": f"Erreur lors de la réactivation: {str(e)}"
+        }
+
+
+@app.get("/force-disable-backup")
+async def force_disable_backup_endpoint():
+    """Point de terminaison pour forcer la désactivation du système de sauvegarde."""
+    try:
+        # Créer le fichier de flag
+        flag_file = Path("DISABLE_AUTO_BACKUP")
+        flag_file.touch()
+        
+        # Vérifier l'état actuel de la base
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM articles")
+        articles_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM reservations")
+        reservations_count = cur.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "status": "success",
+            "message": "Système de sauvegarde FORCÉMENT désactivé",
+            "current_data": {
+                "users": users_count,
+                "articles": articles_count,
+                "reservations": reservations_count
+            },
+            "note": "Vos données actuelles sont préservées. Le système ne touchera plus à votre base."
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la désactivation forcée: {str(e)}"
+        }
+
+
+@app.get("/check-backup-status")
+async def check_backup_status_endpoint():
+    """Point de terminaison pour vérifier l'état du système de sauvegarde."""
+    try:
+        flag_file = Path("DISABLE_AUTO_BACKUP")
+        is_disabled = flag_file.exists()
+        
+        # Vérifier l'état de la base
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM articles")
+        articles_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM reservations")
+        reservations_count = cur.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "status": "success",
+            "backup_system": {
+                "disabled": is_disabled,
+                "auto_backup_disabled": True,  # Désactivé par défaut maintenant
+                "manual_control": True
+            },
+            "database": {
+                "users": users_count,
+                "articles": articles_count,
+                "reservations": reservations_count,
+                "has_data": users_count > 0 or articles_count > 0 or reservations_count > 0
+            },
+            "recommendation": "Système désactivé - vos données sont protégées"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la vérification: {str(e)}"
         }
 
 
