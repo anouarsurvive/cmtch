@@ -451,8 +451,15 @@ async def register(request: Request) -> HTMLResponse:
             
         # Vérifier que le nom d'utilisateur n'existe pas déjà
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+            
         if cur.fetchone():
             errors.append("Ce nom d'utilisateur est déjà utilisé.")
             
@@ -477,11 +484,19 @@ async def register(request: Request) -> HTMLResponse:
         pwd_hash = hash_password(password)
         is_trainer = 1 if role == "trainer" else 0
         
-        cur.execute(
-            "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
-            (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
-        )
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur.execute(
+                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, 0, %s)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
+            )
         conn.commit()
         conn.close()
         
@@ -537,9 +552,21 @@ async def login(request: Request) -> HTMLResponse:
         
         # Connexion à la base de données
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE username = ?", (username,))
-        user = cur.fetchone()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            # Utiliser le curseur MySQL avec noms de colonnes
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names("SELECT * FROM users WHERE username = %s", (username,))
+            user = cur.fetchone()
+            user = convert_mysql_result(user, column_names)
+        else:
+            # Connexion SQLite/PostgreSQL normale
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+            user = cur.fetchone()
+        
         conn.close()
         
         errors: List[str] = []
