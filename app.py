@@ -864,6 +864,7 @@ async def create_reservation(request: Request) -> HTMLResponse:
                 end_time,
             ),
         )
+        conflict = cur.fetchone()
     else:
         cur = conn.cursor()
         cur.execute(
