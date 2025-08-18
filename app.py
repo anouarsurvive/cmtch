@@ -1235,6 +1235,142 @@ async def admin_delete_reservation(request: Request) -> HTMLResponse:
     return RedirectResponse(url="/admin/reservations", status_code=303)
 
 
+@app.post("/admin/reservations/supprimer-lot", response_class=HTMLResponse)
+async def admin_delete_reservations_bulk(request: Request) -> HTMLResponse:
+    """Permet à un administrateur de supprimer plusieurs réservations en lot."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        form_data = await request.form()
+        booking_ids = form_data.getlist("booking_ids")
+        
+        if not booking_ids:
+            return RedirectResponse(url="/admin/reservations", status_code=303)
+        
+        # Convertir en entiers et valider
+        valid_ids = []
+        for booking_id in booking_ids:
+            try:
+                valid_ids.append(int(booking_id))
+            except ValueError:
+                continue
+        
+        if not valid_ids:
+            return RedirectResponse(url="/admin/reservations", status_code=303)
+        
+        # Supprimer les réservations
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Utiliser une requête avec IN pour supprimer en lot
+        placeholders = ','.join(['?' for _ in valid_ids])
+        cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
+        
+        deleted_count = cur.rowcount
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ {deleted_count} réservation(s) supprimée(s) en lot")
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la suppression en lot: {e}")
+    
+    return RedirectResponse(url="/admin/reservations", status_code=303)
+
+
+@app.post("/admin/reservations/annuler-lot", response_class=HTMLResponse)
+async def admin_cancel_reservations_bulk(request: Request) -> HTMLResponse:
+    """Permet à un administrateur d'annuler plusieurs réservations en lot (les supprime)."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        form_data = await request.form()
+        booking_ids = form_data.getlist("booking_ids")
+        
+        if not booking_ids:
+            return RedirectResponse(url="/admin/reservations", status_code=303)
+        
+        # Convertir en entiers et valider
+        valid_ids = []
+        for booking_id in booking_ids:
+            try:
+                valid_ids.append(int(booking_id))
+            except ValueError:
+                continue
+        
+        if not valid_ids:
+            return RedirectResponse(url="/admin/reservations", status_code=303)
+        
+        # Supprimer les réservations (annulation = suppression)
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Utiliser une requête avec IN pour supprimer en lot
+        placeholders = ','.join(['?' for _ in valid_ids])
+        cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
+        
+        cancelled_count = cur.rowcount
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ {cancelled_count} réservation(s) annulée(s) en lot")
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'annulation en lot: {e}")
+    
+    return RedirectResponse(url="/admin/reservations", status_code=303)
+
+
+@app.get("/admin/reservations/export")
+async def admin_export_reservations(request: Request):
+    """Exporte toutes les réservations au format CSV."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Récupérer toutes les réservations avec les informations utilisateur
+        cur.execute("""
+            SELECT r.id, r.date, r.start_time, r.end_time, r.court_number,
+                   u.username, u.full_name, u.email, u.phone
+            FROM reservations r 
+            JOIN users u ON r.user_id = u.id 
+            ORDER BY r.date DESC, r.start_time DESC
+        """)
+        reservations = cur.fetchall()
+        conn.close()
+        
+        # Créer le contenu CSV
+        csv_content = "ID,Date,Début,Fin,Court,Utilisateur,Nom complet,Email,Téléphone\n"
+        
+        for res in reservations:
+            csv_content += f"{res[0]},{res[1]},{res[2]},{res[3]},{res[4]},{res[5]},{res[6]},{res[7] or ''},{res[8] or ''}\n"
+        
+        # Générer le nom de fichier avec la date
+        from datetime import datetime
+        filename = f"reservations_cmtch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'export: {e}")
+        return RedirectResponse(url="/admin/reservations", status_code=303)
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLResponse:
     """Gestion personnalisée des exceptions HTTP pour les redirections.

@@ -382,9 +382,22 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('bulkCancel').addEventListener('click', function() {
         const selectedIds = Array.from(document.querySelectorAll('.booking-checkbox:checked')).map(cb => cb.value);
         if (selectedIds.length > 0) {
-            if (confirm(`Annuler ${selectedIds.length} réservation(s) ?`)) {
-                // Implémenter l'annulation en lot
-                console.log('Annulation en lot:', selectedIds);
+            if (confirm(`Annuler ${selectedIds.length} réservation(s) ? Cette action est irréversible.`)) {
+                // Créer un formulaire pour l'annulation en lot
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/admin/reservations/annuler-lot';
+                
+                selectedIds.forEach(id => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'booking_ids';
+                    input.value = id;
+                    form.appendChild(input);
+                });
+                
+                document.body.appendChild(form);
+                form.submit();
             }
         }
     });
@@ -393,17 +406,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedIds = Array.from(document.querySelectorAll('.booking-checkbox:checked')).map(cb => cb.value);
         if (selectedIds.length > 0) {
             if (confirm(`Supprimer définitivement ${selectedIds.length} réservation(s) ? Cette action est irréversible.`)) {
-                // Implémenter la suppression en lot
-                console.log('Suppression en lot:', selectedIds);
+                // Créer un formulaire pour la suppression en lot
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/admin/reservations/supprimer-lot';
+                
+                selectedIds.forEach(id => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'booking_ids';
+                    input.value = id;
+                    form.appendChild(input);
+                });
+                
+                document.body.appendChild(form);
+                form.submit();
             }
         }
     });
 
     // Export des données
     document.getElementById('exportData').addEventListener('click', function() {
-        // Implémenter l'export des données
-        console.log('Export des données');
-        alert('Fonctionnalité d\'export à implémenter');
+        // Rediriger vers la route d'export
+        window.location.href = '/admin/reservations/export';
     });
 });
 
