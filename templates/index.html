@@ -1,24 +1,53 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-<!-- Section héroïque sobre et professionnelle -->
-<div class="hero bg-primary text-white py-4">
+<!-- Section héroïque moderne et attrayante -->
+<div class="hero bg-gradient-primary text-white py-5">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-8 mx-auto text-center">
-                <h1 class="display-4 fw-bold mb-3">Club Municipal de Tennis Chihia</h1>
-                <p class="lead mb-3">Un club de tennis d'excellence au cœur de Chihia</p>
+                <div class="mb-4">
+                    <i class="fas fa-tennis-ball fa-3x mb-3"></i>
+                </div>
+                <h1 class="display-3 fw-bold mb-3">Club Municipal de Tennis Chihia</h1>
+                <p class="lead mb-4 fs-5">🎾 Votre passion du tennis, notre excellence depuis 1995</p>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-trophy text-warning me-2"></i>
+                            <span>3 Courts de tennis</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-users text-info me-2"></i>
+                            <span>+200 Membres actifs</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-star text-warning me-2"></i>
+                            <span>28 ans d'expérience</span>
+                        </div>
+                    </div>
+                </div>
                 {% if not user %}
-                    <a href="/inscription" class="btn btn-light btn-lg px-4">
-                        Rejoindre le club
+                    <a href="/inscription" class="btn btn-light btn-lg px-5 me-3">
+                        <i class="fas fa-user-plus me-2"></i>Rejoindre le club
+                    </a>
+                    <a href="/connexion" class="btn btn-outline-light btn-lg px-4">
+                        <i class="fas fa-sign-in-alt me-2"></i>Se connecter
                     </a>
                 {% elif user.validated %}
-                    <a href="/reservations" class="btn btn-light btn-lg px-4">
-                        Réserver un court
+                    <a href="/reservations" class="btn btn-light btn-lg px-5 me-3">
+                        <i class="fas fa-calendar-plus me-2"></i>Réserver un court
+                    </a>
+                    <a href="/espace" class="btn btn-outline-light btn-lg px-4">
+                        <i class="fas fa-user me-2"></i>Mon espace
                     </a>
                 {% else %}
                     <div class="alert alert-warning d-inline-block">
-                        Inscription en attente de validation
+                        <i class="fas fa-clock me-2"></i>Inscription en attente de validation
                     </div>
                 {% endif %}
             </div>
@@ -26,72 +55,225 @@
     </div>
 </div>
 
-<!-- Section Présentation sobre -->
-<section class="py-4">
+<!-- Section Présentation complète et moderne -->
+<section class="py-5">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-6">
-                <h2 class="h3 mb-3">À propos du club</h2>
-                <p class="text-muted mb-3">{{ description }}</p>
+                <h2 class="h2 mb-4 text-primary">🏆 Notre Club de Tennis</h2>
+                <p class="lead mb-4">Le Club Municipal de Tennis Chihia est un établissement sportif de référence dans la région de Sfax, dédié à la promotion et au développement du tennis pour tous les âges et tous les niveaux.</p>
+                
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="bg-primary text-white rounded-circle p-2 me-3">
+                                <i class="fas fa-tennis-ball"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold">3 Courts de tennis</h6>
+                                <p class="text-muted small mb-0">Courts en terre battue et dur, éclairés pour jouer le soir</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="bg-success text-white rounded-circle p-2 me-3">
+                                <i class="fas fa-user-graduate"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold">École de tennis</h6>
+                                <p class="text-muted small mb-0">Cours pour enfants, adolescents et adultes</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="bg-warning text-white rounded-circle p-2 me-3">
+                                <i class="fas fa-trophy"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold">Compétitions</h6>
+                                <p class="text-muted small mb-0">Tournois internes et participation aux championnats</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="bg-info text-white rounded-circle p-2 me-3">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold">Horaires flexibles</h6>
+                                <p class="text-muted small mb-0">Ouvert de 8h à 22h, 7j/7</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row g-3">
-                    <div class="col-6">
-                        <div class="d-flex align-items-center">
+                    <div class="col-12">
+                        <div class="d-flex align-items-center mb-2">
                             <i class="fas fa-map-marker-alt text-primary me-2"></i>
-                            <span class="small">{{ adresse }}</span>
+                            <span>{{ adresse }}</span>
                         </div>
                     </div>
-                    <div class="col-6">
-                        <div class="d-flex align-items-center">
+                    <div class="col-12">
+                        <div class="d-flex align-items-center mb-2">
                             <i class="fas fa-phone text-primary me-2"></i>
-                            <span class="small">{{ telephone }}</span>
+                            <span>{{ telephone }}</span>
                         </div>
                     </div>
-                    <div class="col-6">
-                        <div class="d-flex align-items-center">
+                    <div class="col-12">
+                        <div class="d-flex align-items-center mb-2">
                             <i class="fas fa-envelope text-primary me-2"></i>
-                            <span class="small">{{ email }}</span>
+                            <a href="mailto:{{ email }}" class="text-decoration-none">{{ email }}</a>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6 text-center">
-                <div class="bg-light rounded p-4" style="height: 250px;">
-                    <i class="fas fa-tennis-ball fa-3x text-muted"></i>
+            <div class="col-lg-6">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="card border-0 shadow-sm text-center p-4">
+                            <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                            <h4 class="fw-bold text-primary">+200</h4>
+                            <p class="text-muted small mb-0">Membres actifs</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 shadow-sm text-center p-4">
+                            <i class="fas fa-calendar-check fa-2x text-success mb-2"></i>
+                            <h4 class="fw-bold text-success">1500+</h4>
+                            <p class="text-muted small mb-0">Réservations/mois</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 shadow-sm text-center p-4">
+                            <i class="fas fa-star fa-2x text-warning mb-2"></i>
+                            <h4 class="fw-bold text-warning">28</h4>
+                            <p class="text-muted small mb-0">Années d'expérience</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-0 shadow-sm text-center p-4">
+                            <i class="fas fa-medal fa-2x text-info mb-2"></i>
+                            <h4 class="fw-bold text-info">50+</h4>
+                            <p class="text-muted small mb-0">Trophées gagnés</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Section Services épurée -->
-<section class="py-4 bg-light">
+<!-- Section Services et activités -->
+<section class="py-5 bg-light">
     <div class="container">
-        <h2 class="h3 text-center mb-4">Nos services</h2>
+        <div class="text-center mb-5">
+            <h2 class="h2 text-primary mb-3">🎾 Nos Services & Activités</h2>
+            <p class="lead">Découvrez tout ce que notre club vous propose pour vivre votre passion du tennis</p>
+        </div>
+        
         <div class="row g-4">
-            <div class="col-md-4">
+            <div class="col-lg-4 col-md-6">
                 <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body text-center p-3">
-                        <i class="fas fa-calendar-alt fa-2x text-primary mb-2"></i>
-                        <h5 class="card-title">Réservation en ligne</h5>
-                        <p class="card-text text-muted">Réservez vos créneaux de tennis en ligne, 24h/24.</p>
+                    <div class="card-body text-center p-4">
+                        <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                            <i class="fas fa-calendar-alt fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Réservation en ligne</h5>
+                        <p class="card-text text-muted">Réservez vos créneaux de tennis en ligne, 24h/24 et 7j/7. Système simple et rapide pour planifier vos parties.</p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>Réservation instantanée</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Annulation gratuite</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Historique des réservations</li>
+                        </ul>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            
+            <div class="col-lg-4 col-md-6">
                 <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body text-center p-3">
-                        <i class="fas fa-users fa-2x text-primary mb-2"></i>
-                        <h5 class="card-title">Communauté active</h5>
-                        <p class="card-text text-muted">Rejoignez une communauté passionnée de tennis.</p>
+                    <div class="card-body text-center p-4">
+                        <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                            <i class="fas fa-user-graduate fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">École de tennis</h5>
+                        <p class="card-text text-muted">Cours dispensés par des entraîneurs qualifiés pour tous les niveaux, de débutant à confirmé.</p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>Cours enfants (6-12 ans)</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Cours adolescents (13-17 ans)</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Cours adultes (tous niveaux)</li>
+                        </ul>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            
+            <div class="col-lg-4 col-md-6">
                 <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body text-center p-3">
-                        <i class="fas fa-shield-alt fa-2x text-primary mb-2"></i>
-                        <h5 class="card-title">Installations sécurisées</h5>
-                        <p class="card-text text-muted">Profitez de courts de tennis de qualité.</p>
+                    <div class="card-body text-center p-4">
+                        <div class="bg-warning text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                            <i class="fas fa-trophy fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Compétitions & Tournois</h5>
+                        <p class="card-text text-muted">Participez à nos tournois internes et représentez le club dans les compétitions régionales.</p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>Tournois mensuels</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Championnats régionaux</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Événements spéciaux</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4 col-md-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                            <i class="fas fa-users fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Communauté active</h5>
+                        <p class="card-text text-muted">Rejoignez une communauté passionnée de tennis et partagez votre passion avec d'autres joueurs.</p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>Rencontres amicales</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Événements sociaux</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Partage d'expérience</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4 col-md-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="bg-danger text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                            <i class="fas fa-shield-alt fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Installations modernes</h5>
+                        <p class="card-text text-muted">Profitez de courts de tennis de qualité avec des équipements modernes et bien entretenus.</p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>3 courts éclairés</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Vestiaires propres</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Parking sécurisé</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4 col-md-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                            <i class="fas fa-clock fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Horaires flexibles</h5>
+                        <p class="card-text text-muted">Jouez quand vous voulez avec nos horaires étendus et notre système de réservation 24h/24.</p>
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>Ouvert 7j/7</li>
+                            <li><i class="fas fa-check text-success me-2"></i>8h-22h</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Éclairage nocturne</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -145,37 +327,175 @@
     </div>
 </section>
 
-<!-- Section Contact sobre -->
-<section class="py-4 bg-light">
+<!-- Section Horaires et Tarifs -->
+<section class="py-5">
     <div class="container">
-        <div class="row">
-            <div class="col-lg-6 mb-3">
-                <h3 class="h4 mb-3">Contact</h3>
-                <div class="mb-2">
-                    <i class="fas fa-map-marker-alt text-primary me-2"></i>
-                    <span>{{ adresse }}</span>
-                </div>
-                <div class="mb-2">
-                    <i class="fas fa-phone text-primary me-2"></i>
-                    <span>{{ telephone }}</span>
-                </div>
-                <div class="mb-2">
-                    <i class="fas fa-envelope text-primary me-2"></i>
-                    <a href="mailto:{{ email }}" class="text-decoration-none">{{ email }}</a>
+        <div class="text-center mb-5">
+            <h2 class="h2 text-primary mb-3">⏰ Horaires & Tarifs</h2>
+            <p class="lead">Informations pratiques pour planifier vos séances de tennis</p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-primary text-white text-center">
+                        <h4 class="mb-0"><i class="fas fa-clock me-2"></i>Horaires d'ouverture</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                    <span class="fw-bold">Lundi - Dimanche</span>
+                                    <span class="badge bg-success">8h00 - 22h00</span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                    <span class="fw-bold">Éclairage nocturne</span>
+                                    <span class="badge bg-info">18h00 - 22h00</span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                    <span class="fw-bold">Réservation en ligne</span>
+                                    <span class="badge bg-primary">24h/24</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <p class="text-muted small mb-0">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Le club est ouvert tous les jours de l'année, sauf jours fériés
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
+            
             <div class="col-lg-6">
-                <h3 class="h4 mb-3">Suivez-nous</h3>
-                <div class="d-flex gap-3">
-                    <a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="btn btn-outline-primary">
-                        <i class="fab fa-facebook-f"></i>
-                    </a>
-                    <a href="#" class="btn btn-outline-primary">
-                        <i class="fab fa-instagram"></i>
-                    </a>
-                    <a href="#" class="btn btn-outline-primary">
-                        <i class="fab fa-twitter"></i>
-                    </a>
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-success text-white text-center">
+                        <h4 class="mb-0"><i class="fas fa-tags me-2"></i>Tarifs 2024</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                    <span class="fw-bold">Adhésion annuelle</span>
+                                    <span class="badge bg-primary">150 DT</span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                    <span class="fw-bold">Location court (1h)</span>
+                                    <span class="badge bg-success">25 DT</span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                    <span class="fw-bold">Cours particulier</span>
+                                    <span class="badge bg-warning">40 DT</span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                    <span class="fw-bold">Cours collectif (mois)</span>
+                                    <span class="badge bg-info">80 DT</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <p class="text-muted small mb-0">
+                                <i class="fas fa-percent me-1"></i>
+                                Réductions disponibles pour les étudiants et familles nombreuses
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Section Contact améliorée -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="h2 text-primary mb-3">📞 Contact & Réseaux sociaux</h2>
+            <p class="lead">Restez connecté avec notre communauté tennis</p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="fas fa-map-marker-alt fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Notre adresse</h5>
+                        <p class="card-text">{{ adresse }}</p>
+                        <a href="https://maps.google.com/?q={{ adresse }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-directions me-1"></i>Itinéraire
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="fas fa-phone fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Téléphone</h5>
+                        <p class="card-text">{{ telephone }}</p>
+                        <a href="tel:{{ telephone }}" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-phone me-1"></i>Appeler
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                            <i class="fas fa-envelope fa-2x"></i>
+                        </div>
+                        <h5 class="card-title fw-bold">Email</h5>
+                        <p class="card-text">{{ email }}</p>
+                        <a href="mailto:{{ email }}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-envelope me-1"></i>Écrire
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <h4 class="mb-4">Suivez-nous sur les réseaux sociaux</h4>
+                        <div class="d-flex justify-content-center gap-3">
+                            <a href="https://www.facebook.com/ClubTennischihia" target="_blank" class="btn btn-primary btn-lg">
+                                <i class="fab fa-facebook-f me-2"></i>Facebook
+                            </a>
+                            <a href="#" class="btn btn-danger btn-lg">
+                                <i class="fab fa-instagram me-2"></i>Instagram
+                            </a>
+                            <a href="#" class="btn btn-info btn-lg">
+                                <i class="fab fa-twitter me-2"></i>Twitter
+                            </a>
+                            <a href="#" class="btn btn-success btn-lg">
+                                <i class="fab fa-whatsapp me-2"></i>WhatsApp
+                            </a>
+                        </div>
+                        <p class="text-muted mt-3 mb-0">
+                            <i class="fas fa-bell me-1"></i>
+                            Restez informé de nos actualités, tournois et événements spéciaux
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

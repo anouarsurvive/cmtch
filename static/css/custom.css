@@ -1,0 +1,344 @@
+/* Styles personnalisés pour CMTCH */
+
+/* Gradient pour le hero */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+
+/* Animation pour les cartes */
+.card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+}
+
+/* Animation pour les icônes */
+.fa-tennis-ball {
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-10px);
+    }
+    60% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Styles pour les badges */
+.badge {
+    font-size: 0.9em;
+    padding: 0.5em 1em;
+}
+
+/* Styles pour les boutons réseaux sociaux */
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+/* Animation pour les statistiques */
+.card .fw-bold {
+    transition: color 0.3s ease;
+}
+
+.card:hover .fw-bold {
+    color: #007bff !important;
+}
+
+/* Styles pour les sections */
+section {
+    position: relative;
+}
+
+/* Effet de parallaxe léger */
+.hero {
+    background-attachment: fixed;
+    background-size: cover;
+}
+
+/* Styles pour les icônes circulaires */
+.rounded-circle {
+    transition: transform 0.3s ease;
+}
+
+.card:hover .rounded-circle {
+    transform: scale(1.1);
+}
+
+/* Styles pour les listes */
+.list-unstyled li {
+    padding: 0.25rem 0;
+    transition: padding-left 0.3s ease;
+}
+
+.list-unstyled li:hover {
+    padding-left: 0.5rem;
+}
+
+/* Styles pour les liens */
+a {
+    transition: all 0.3s ease;
+}
+
+a:hover {
+    text-decoration: none;
+}
+
+/* Styles pour les boutons d'action */
+.btn {
+    transition: all 0.3s ease;
+    border-radius: 25px;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+/* Styles pour les cartes de statistiques */
+.card .text-primary,
+.card .text-success,
+.card .text-warning,
+.card .text-info {
+    transition: all 0.3s ease;
+}
+
+.card:hover .text-primary {
+    color: #0056b3 !important;
+}
+
+.card:hover .text-success {
+    color: #155724 !important;
+}
+
+.card:hover .text-warning {
+    color: #856404 !important;
+}
+
+.card:hover .text-info {
+    color: #0c5460 !important;
+}
+
+/* Styles pour les horaires et tarifs */
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+}
+
+/* Styles pour les réseaux sociaux */
+.btn-outline-primary:hover,
+.btn-outline-success:hover,
+.btn-outline-info:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .display-3 {
+        font-size: 2.5rem;
+    }
+    
+    .btn-lg {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+    }
+    
+    .d-flex.gap-3 {
+        flex-direction: column;
+        gap: 1rem !important;
+    }
+    
+    .d-flex.gap-3 .btn {
+        width: 100%;
+    }
+}
+
+/* Animation d'entrée pour les sections */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+section {
+    animation: fadeInUp 0.8s ease-out;
+}
+
+/* Styles pour les emojis */
+.emoji {
+    font-size: 1.2em;
+    margin-right: 0.5rem;
+}
+
+/* Styles pour les cartes de contact */
+.card-body .btn-sm {
+    border-radius: 20px;
+    padding: 0.375rem 1rem;
+}
+
+/* Effet de survol pour les liens de contact */
+.card-body a:hover {
+    color: #007bff !important;
+    text-decoration: underline;
+}
+
+/* Styles pour les badges de prix */
+.badge.bg-primary,
+.badge.bg-success,
+.badge.bg-warning,
+.badge.bg-info {
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Animation pour les icônes de services */
+.card .fa-2x {
+    transition: transform 0.3s ease;
+}
+
+.card:hover .fa-2x {
+    transform: scale(1.1);
+}
+
+/* Styles pour le texte de présentation */
+.lead {
+    line-height: 1.8;
+    font-weight: 400;
+}
+
+/* Styles pour les titres */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+}
+
+/* Styles pour les cartes de statistiques */
+.card .h4 {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+/* Effet de profondeur pour les cartes */
+.shadow-sm {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+/* Styles pour les sections avec fond coloré */
+.bg-light {
+    background-color: #f8f9fa !important;
+}
+
+/* Styles pour les boutons d'action principale */
+.btn-light {
+    background-color: #fff;
+    border-color: #fff;
+    color: #007bff;
+    font-weight: 600;
+}
+
+.btn-light:hover {
+    background-color: #f8f9fa;
+    border-color: #f8f9fa;
+    color: #0056b3;
+}
+
+/* Styles pour les boutons outline */
+.btn-outline-light {
+    border-color: #fff;
+    color: #fff;
+    font-weight: 600;
+}
+
+.btn-outline-light:hover {
+    background-color: #fff;
+    color: #007bff;
+}
+
+/* Animation pour les éléments de la liste des services */
+.list-unstyled li i {
+    transition: transform 0.3s ease;
+}
+
+.list-unstyled li:hover i {
+    transform: scale(1.2);
+}
+
+/* Styles pour les cartes d'horaires et tarifs */
+.card .bg-light {
+    background-color: #e9ecef !important;
+    border-radius: 8px;
+}
+
+/* Styles pour les liens de réseaux sociaux */
+.btn-primary,
+.btn-danger,
+.btn-info,
+.btn-success {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.9rem;
+}
+
+/* Effet de pulsation pour les icônes importantes */
+.fa-tennis-ball,
+.fa-trophy,
+.fa-users {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Styles pour les sections de présentation */
+.text-primary {
+    color: #007bff !important;
+}
+
+/* Styles pour les cartes de statistiques au survol */
+.card:hover {
+    border-color: #007bff;
+}
+
+/* Styles pour les boutons de contact */
+.btn-outline-primary,
+.btn-outline-success,
+.btn-outline-info {
+    font-weight: 600;
+    border-width: 2px;
+}
+
+/* Animation pour les éléments de la page */
+.fade-in {
+    animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
