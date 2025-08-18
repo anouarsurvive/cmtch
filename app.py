@@ -1697,24 +1697,39 @@ async def user_dashboard(request: Request) -> HTMLResponse:
         )
     conn = get_db_connection()
     cur = conn.cursor()
-    # Regrouper par année-mois et compter
-    cur.execute(
-        "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
-        (user["id"],),
-    )
-    rows = cur.fetchall()
-    conn.close()
+    try:
+        # Regrouper par année-mois et compter
+        cur.execute(
+            "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
+            (user["id"],),
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        print(f"❌ Erreur dans la requête SQL de /espace: {e}")
+        # En cas d'erreur, retourner des données vides
+        rows = []
+    finally:
+        conn.close()
     # Transformer les résultats en listes pour Chart.js
     months: List[str] = []
     counts: List[int] = []
-    for row in rows:
-        months.append(row["month"])
-        counts.append(row["count"])
-    # Préparer les versions JSON des listes pour Chart.js
-    months_js = json.dumps(months)
-    counts_js = json.dumps(counts)
-    # Préparer les paires pour itération dans le template (mois, count)
-    data_pairs = list(zip(months, counts))
+    try:
+        for row in rows:
+            months.append(row["month"])
+            counts.append(row["count"])
+        # Préparer les versions JSON des listes pour Chart.js
+        months_js = json.dumps(months)
+        counts_js = json.dumps(counts)
+        # Préparer les paires pour itération dans le template (mois, count)
+        data_pairs = list(zip(months, counts))
+    except Exception as e:
+        print(f"❌ Erreur dans la transformation des données de /espace: {e}")
+        # En cas d'erreur, utiliser des listes vides
+        months = []
+        counts = []
+        months_js = json.dumps([])
+        counts_js = json.dumps([])
+        data_pairs = []
     return templates.TemplateResponse(
         "user_dashboard.html",
         {
