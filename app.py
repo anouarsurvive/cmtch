@@ -1511,6 +1511,15 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             bookings = cur.fetchall()
         conn.close()
         
+        # Convertir les dates en chaînes pour la compatibilité avec le template
+        for booking in bookings:
+            if hasattr(booking.date, 'isoformat'):
+                booking.date = booking.date.isoformat()
+            if hasattr(booking.start_time, 'strftime'):
+                booking.start_time = booking.start_time.strftime('%H:%M')
+            if hasattr(booking.end_time, 'strftime'):
+                booking.end_time = booking.end_time.strftime('%H:%M')
+        
         # Calcul de la pagination
         total_pages = max(1, (total_bookings + per_page - 1) // per_page)
         has_prev = page > 1
