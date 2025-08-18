@@ -29,6 +29,7 @@ import os
 import sqlite3
 from datetime import datetime, date, time, timedelta
 from typing import Optional, List, Dict, Any, Tuple
+from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -198,19 +199,53 @@ def auto_backup_system():
     try:
         print("🔄 Démarrage du système de sauvegarde automatique...")
         
+        # Vérifier si le système est désactivé
+        flag_file = Path("DISABLE_AUTO_BACKUP")
+        if flag_file.exists():
+            print("🚫 Système de sauvegarde automatique désactivé par l'utilisateur")
+            return
+        
         # Vérifier si on est sur Render (présence de DATABASE_URL)
         if not os.getenv('DATABASE_URL'):
             print("ℹ️ Pas sur Render - système de sauvegarde ignoré")
             return
         
-        # Importer et exécuter le script de sauvegarde automatique
-        from backup_auto import main as backup_main
-        backup_success = backup_main()
+        # Vérifier d'abord si la base de données contient des données
+        conn = get_db_connection()
+        cur = conn.cursor()
         
-        if backup_success:
-            print("✅ Système de sauvegarde automatique terminé avec succès")
-        else:
-            print("⚠️ Système de sauvegarde automatique terminé avec des avertissements")
+        try:
+            # Vérifier si la table users existe et contient des données
+            cur.execute("SELECT COUNT(*) FROM users")
+            users_count = cur.fetchone()[0]
+            
+            if users_count > 0:
+                print(f"✅ Base de données contient {users_count} utilisateur(s) - Sauvegarde uniquement")
+                # Si des données existent, faire seulement une sauvegarde
+                from backup_auto import backup_database
+                backup_file = backup_database()
+                if backup_file:
+                    print(f"✅ Sauvegarde créée: {backup_file}")
+                else:
+                    print("⚠️ Échec de la sauvegarde")
+            else:
+                print("📭 Base de données vide - Tentative de restauration")
+                # Si la base est vide, essayer de restaurer
+                from backup_auto import find_latest_backup, restore_database
+                latest_backup = find_latest_backup()
+                if latest_backup:
+                    print(f"🔄 Restauration depuis {latest_backup}")
+                    if restore_database(latest_backup):
+                        print("✅ Restauration réussie")
+                    else:
+                        print("❌ Échec de la restauration")
+                else:
+                    print("📭 Aucune sauvegarde trouvée")
+                    
+        except Exception as e:
+            print(f"❌ Erreur lors de la vérification de la base: {e}")
+        finally:
+            conn.close()
             
     except Exception as e:
         print(f"❌ Erreur dans le système de sauvegarde automatique: {e}")
@@ -2134,6 +2169,47 @@ async def test_espace_endpoint():
         return {
             "status": "error",
             "message": f"Erreur dans le test /espace: {str(e)}"
+        }
+
+
+@app.get("/disable-auto-backup")
+async def disable_auto_backup_endpoint():
+    """Point de terminaison pour désactiver le système de sauvegarde automatique."""
+    try:
+        # Créer un fichier de flag pour désactiver la sauvegarde automatique
+        flag_file = Path("DISABLE_AUTO_BACKUP")
+        flag_file.touch()
+        
+        return {
+            "status": "success",
+            "message": "Système de sauvegarde automatique désactivé. Redémarrez l'application pour appliquer."
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la désactivation: {str(e)}"
+        }
+
+
+@app.get("/enable-auto-backup")
+async def enable_auto_backup_endpoint():
+    """Point de terminaison pour réactiver le système de sauvegarde automatique."""
+    try:
+        # Supprimer le fichier de flag pour réactiver la sauvegarde automatique
+        flag_file = Path("DISABLE_AUTO_BACKUP")
+        if flag_file.exists():
+            flag_file.unlink()
+        
+        return {
+            "status": "success",
+            "message": "Système de sauvegarde automatique réactivé. Redémarrez l'application pour appliquer."
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la réactivation: {str(e)}"
         }
 
 

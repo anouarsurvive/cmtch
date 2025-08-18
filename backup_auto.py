@@ -152,9 +152,9 @@ def main():
         else:
             print("📭 Aucune sauvegarde trouvée")
     else:
-        print("✅ Base de données contient des données")
+        print("✅ Base de données contient des données - Sauvegarde uniquement")
         
-        # Créer une sauvegarde
+        # Créer une sauvegarde (sans toucher aux données existantes)
         backup_file = backup_database()
         if backup_file:
             print("✅ Sauvegarde automatique créée")
