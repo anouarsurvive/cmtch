@@ -11,7 +11,7 @@
 ## 🔧 **URL de Connexion MySQL :**
 
 ```
-mysql://imprimer_cmtch_user:Anouar881984?@localhost:3306/imprimer_cmtch_tennis
+mysql://imprimer_cmtch_user:Anouar881984?@gator3060.hostgator.com:3306/imprimer_cmtch_tennis
 ```
 
 ## 📋 **Étapes de Configuration :**
@@ -22,7 +22,7 @@ Dans votre projet Render :
 - **Settings** → Environment Variables
 - **Ajoutez** :
   - **Key** : `DATABASE_URL`
-  - **Value** : `mysql://imprimer_cmtch_user:Anouar881984?@localhost:3306/imprimer_cmtch_tennis`
+  - **Value** : `mysql://imprimer_cmtch_user:Anouar881984?@gator3060.hostgator.com:3306/imprimer_cmtch_tennis`
 
 ### **2. Redéployer l'application**
 

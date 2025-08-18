@@ -17,7 +17,7 @@ def setup_hostgator_database():
         "user": "imprimer_cmtch_user",
         "password": "Anouar881984?",
         "database": "imprimer_cmtch_tennis",
-        "host": "localhost",
+        "host": "gator3060.hostgator.com",
         "port": 3306
     }
     
@@ -72,7 +72,7 @@ def create_env_file():
     """Crée un fichier .env avec la configuration HostGator."""
     
     env_content = """# Configuration HostGator MySQL
-DATABASE_URL=mysql://imprimer_cmtch_user:Anouar881984?@localhost:3306/imprimer_cmtch_tennis
+DATABASE_URL=mysql://imprimer_cmtch_user:Anouar881984?@gator3060.hostgator.com:3306/imprimer_cmtch_tennis
 DATABASE_TYPE=mysql
 """
     
