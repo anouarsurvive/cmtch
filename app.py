@@ -368,11 +368,23 @@ async def home(request: Request) -> HTMLResponse:
     )
     # Récupérer les trois derniers articles pour les mettre en avant sur l'accueil
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
-    )
-    latest_articles = cur.fetchall()
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
+        cur, column_names = execute_with_names(
+            "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
+        )
+        latest_articles = cur.fetchall()
+        # Convertir les tuples MySQL en objets avec attributs nommés
+        latest_articles = [convert_mysql_result(article, column_names) for article in latest_articles]
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
+        )
+        latest_articles = cur.fetchall()
     conn.close()
     return templates.TemplateResponse(
         "index.html",
@@ -854,18 +866,23 @@ async def admin_members(request: Request) -> HTMLResponse:
     
     # Récupérer les membres pour la page courante
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
-        cur.execute(
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
+        cur, column_names = execute_with_names(
             "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
             "FROM users ORDER BY id LIMIT %s OFFSET %s",
             (per_page, offset)
         )
+        members = cur.fetchall()
+        # Convertir les tuples MySQL en objets avec attributs nommés
+        members = [convert_mysql_result(member, column_names) for member in members]
     else:
         cur.execute(
             "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
             "FROM users ORDER BY id LIMIT ? OFFSET ?",
             (per_page, offset)
         )
-    members = cur.fetchall()
+        members = cur.fetchall()
     conn.close()
     
     # Calcul de la pagination
@@ -1382,20 +1399,25 @@ async def admin_reservations(request: Request) -> HTMLResponse:
         
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
-            cur = conn.cursor()
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
             
             # Compter le nombre total de réservations
+            cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM reservations")
             total_bookings = cur.fetchone()[0]
             
             # Récupérer les réservations pour la page courante avec informations utilisateur
-            cur.execute("""
+            cur, column_names = execute_with_names("""
                 SELECT r.*, u.username, u.full_name as user_full_name 
                 FROM reservations r 
                 JOIN users u ON r.user_id = u.id 
                 ORDER BY r.date DESC, r.start_time DESC 
                 LIMIT %s OFFSET %s
             """, (per_page, offset))
+            bookings = cur.fetchall()
+            # Convertir les tuples MySQL en objets avec attributs nommés
+            bookings = [convert_mysql_result(booking, column_names) for booking in bookings]
         else:
             cur = conn.cursor()
             
@@ -1411,8 +1433,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
                 ORDER BY r.date DESC, r.start_time DESC 
                 LIMIT ? OFFSET ?
             """, (per_page, offset))
-        
-        bookings = cur.fetchall()
+            bookings = cur.fetchall()
         conn.close()
         
         # Calcul de la pagination
@@ -1695,20 +1716,25 @@ async def articles_list(request: Request) -> HTMLResponse:
         
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
-            cur = conn.cursor()
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
             
             # Compter le nombre total d'articles
+            cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM articles")
             total_articles = cur.fetchone()[0]
             
             # Récupérer les articles pour la page courante
-            cur.execute("""
+            cur, column_names = execute_with_names("""
                 SELECT id, title, content, image_path, created_at, 
                        COALESCE(image_path, '') as image_path_clean
                 FROM articles 
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
             """, (per_page, offset))
+            articles = cur.fetchall()
+            # Convertir les tuples MySQL en objets avec attributs nommés
+            articles = [convert_mysql_result(article, column_names) for article in articles]
         else:
             cur = conn.cursor()
             
@@ -1724,8 +1750,8 @@ async def articles_list(request: Request) -> HTMLResponse:
                 ORDER BY datetime(created_at) DESC
                 LIMIT ? OFFSET ?
             """, (per_page, offset))
+            articles = cur.fetchall()
         
-        articles = cur.fetchall()
         conn.close()
         user = get_current_user(request)
         
@@ -1797,13 +1823,17 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
     
     # Vérifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
-        cur = conn.cursor()
-        cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
+        cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
+        article = cur.fetchone()
+        # Convertir le tuple MySQL en objet avec attributs nommés
+        article = convert_mysql_result(article, column_names)
     else:
         cur = conn.cursor()
         cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+        article = cur.fetchone()
     
-    article = cur.fetchone()
     conn.close()
     if article is None:
         raise HTTPException(status_code=404, detail="Article introuvable")
@@ -1838,13 +1868,16 @@ async def admin_articles(request: Request) -> HTMLResponse:
     
     # Vérifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
-        cur = conn.cursor()
-        cur.execute("SELECT id, title, created_at FROM articles ORDER BY created_at DESC")
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
+        cur, column_names = execute_with_names("SELECT id, title, created_at FROM articles ORDER BY created_at DESC")
+        articles = cur.fetchall()
+        # Convertir les tuples MySQL en objets avec attributs nommés
+        articles = [convert_mysql_result(article, column_names) for article in articles]
     else:
         cur = conn.cursor()
         cur.execute("SELECT id, title, created_at FROM articles ORDER BY datetime(created_at) DESC")
-    
-    articles = cur.fetchall()
+        articles = cur.fetchall()
     conn.close()
     return templates.TemplateResponse(
         "admin_articles.html",
@@ -2018,14 +2051,17 @@ async def user_dashboard(request: Request) -> HTMLResponse:
     
     # Vérifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
-        cur = conn.cursor()
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
         try:
             # Regrouper par année-mois et compter
-            cur.execute(
+            cur, column_names = execute_with_names(
                 "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month",
                 (user["id"],),
             )
             rows = cur.fetchall()
+            # Convertir les tuples MySQL en objets avec attributs nommés
+            rows = [convert_mysql_result(row, column_names) for row in rows]
         except Exception as e:
             print(f"❌ Erreur dans la requête SQL de /espace: {e}")
             # En cas d'erreur, retourner des données vides
