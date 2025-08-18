@@ -1890,6 +1890,34 @@ footer p {
     justify-content: center;
     gap: 0.5rem;
     opacity: 0.8;
+    transition: all 0.3s ease;
+}
+
+.slot-own-reservation {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: 2px solid #fff;
+    box-shadow: var(--shadow-md);
+    opacity: 1;
+}
+
+.reservation-details {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+}
+
+.reserved-by {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.username-display {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    font-weight: 400;
 }
 
 .schedule-footer {

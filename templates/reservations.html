@@ -75,12 +75,23 @@
                                         </div>
                                     </th>
                                     {% for court in (1, 2, 3) %}
-                                        {% set is_reserved = availability[court][slot] %}
+                                        {% set slot_info = availability[court][slot] %}
+                                        {% set is_reserved = slot_info.reserved %}
                                         <td class="court-cell">
                                             {% if is_reserved %}
-                                                <div class="slot-reserved">
+                                                {% set reservation_info = slot_info.reservation_info %}
+                                                <div class="slot-reserved {% if reservation_info.is_current_user %}slot-own-reservation{% endif %}">
                                                     <i class="fas fa-lock me-2"></i>
-                                                    <span>Réservé</span>
+                                                    <div class="reservation-details">
+                                                        <span class="reserved-by">
+                                                            {% if reservation_info.is_current_user %}
+                                                                <strong>Vous</strong>
+                                                            {% else %}
+                                                                {{ reservation_info.user_full_name }}
+                                                            {% endif %}
+                                                        </span>
+                                                        <small class="username-display">@{{ reservation_info.username }}</small>
+                                                    </div>
                                                 </div>
                                             {% else %}
                                                 <button type="button" 

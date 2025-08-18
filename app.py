@@ -549,7 +549,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT r.*, u.full_name AS user_full_name FROM reservations r JOIN users u ON r.user_id = u.id "
+        "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
         "WHERE date = ? ORDER BY start_time",
         (selected_date,),
     )
@@ -567,18 +567,19 @@ async def reservations_page(request: Request) -> HTMLResponse:
         start_slot = time(hour, 0)
         end_slot = time(hour + 1, 0) if hour < 21 else time(22, 0)
         time_slots.append((start_slot.strftime("%H:%M"), end_slot.strftime("%H:%M")))
-    # Préparer la disponibilité pour chaque court
-    availability: Dict[int, Dict[Tuple[str, str], bool]] = {1: {}, 2: {}, 3: {}}
+    # Préparer la disponibilité pour chaque court avec informations utilisateur
+    availability: Dict[int, Dict[Tuple[str, str], dict]] = {1: {}, 2: {}, 3: {}}
     # Convertir la liste de réservations en dictionnaire par court pour vérifier rapidement
     reservations_by_court = {1: [], 2: [], 3: []}
     for res in reservations:
         reservations_by_court[res["court_number"]].append(res)
-    # Pour chaque court et chaque créneau, déterminer si réservé
+    # Pour chaque court et chaque créneau, déterminer si réservé et par qui
     for court in (1, 2, 3):
         court_reservations = reservations_by_court.get(court, [])
         for start_str, end_str in time_slots:
             # On considère le créneau réservé s'il existe une réservation qui chevauche l'intervalle [start, end)
             reserved = False
+            reservation_info = None
             for res in court_reservations:
                 # res.start_time/res.end_time sont des chaînes HH:MM
                 res_start = datetime.strptime(res["start_time"], "%H:%M").time()
@@ -588,8 +589,16 @@ async def reservations_page(request: Request) -> HTMLResponse:
                 # Si les intervalles se chevauchent
                 if (slot_start < res_end and slot_end > res_start):
                     reserved = True
+                    reservation_info = {
+                        "user_full_name": res["user_full_name"],
+                        "username": res.get("username", "Utilisateur"),
+                        "is_current_user": res["user_id"] == user["id"]
+                    }
                     break
-            availability[court][(start_str, end_str)] = reserved
+            availability[court][(start_str, end_str)] = {
+                "reserved": reserved,
+                "reservation_info": reservation_info
+            }
     return templates.TemplateResponse(
         "reservations.html",
         {
