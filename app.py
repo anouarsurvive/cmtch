@@ -2049,6 +2049,175 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
     conn.close()
     return RedirectResponse(url="/admin/articles", status_code=303)
 
+
+@app.get("/admin/articles/modifier/{article_id}", response_class=HTMLResponse)
+async def admin_edit_article_form(request: Request, article_id: int) -> HTMLResponse:
+    """Affiche le formulaire de modification d'un article pour les administrateurs."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    conn = get_db_connection()
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
+        cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
+        article = cur.fetchone()
+        # Convertir le tuple MySQL en objet avec attributs nommés
+        article = convert_mysql_result(article, column_names) if article else None
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+        article = cur.fetchone()
+    
+    conn.close()
+    
+    if not article:
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "message": "Article introuvable."},
+        )
+    
+    return templates.TemplateResponse(
+        "admin_edit_article.html",
+        {"request": request, "user": user, "article": article, "errors": []},
+    )
+
+
+@app.post("/admin/articles/modifier/{article_id}", response_class=HTMLResponse)
+async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
+    """Traite la soumission du formulaire de modification d'article."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    # Déterminer le type de contenu
+    content_type = request.headers.get("content-type", "")
+    errors: List[str] = []
+    title = ""
+    content_text = ""
+    image_path: str = ""
+    
+    if "multipart/form-data" in content_type:
+        # Analyse du corps multipart
+        body = await request.body()
+        form = parse_multipart_form(body, content_type)
+        title = str(form.get("title", "")).strip()
+        content_text = str(form.get("content", "")).strip()
+        # Gestion du fichier image s'il existe
+        file_field = form.get("image_file")
+        if file_field and isinstance(file_field, dict):
+            filename = file_field.get("filename")
+            file_content = file_field.get("content", b"")
+            if filename and file_content:
+                # Créer un dossier pour les images si nécessaire
+                images_dir = os.path.join(BASE_DIR, "static", "article_images")
+                os.makedirs(images_dir, exist_ok=True)
+                # Générer un nom unique pour éviter les collisions
+                ext = os.path.splitext(filename)[1] or ".bin"
+                unique_name = f"{uuid.uuid4().hex}{ext}"
+                file_path = os.path.join(images_dir, unique_name)
+                with open(file_path, "wb") as f:
+                    f.write(file_content)
+                # Stocker le chemin relatif pour utilisation dans les templates
+                image_path = f"/static/article_images/{unique_name}"
+    else:
+        # Formulaire standard urlencoded (image_url fourni par l'utilisateur)
+        raw_body = await request.body()
+        form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+        title = form.get("title", [""])[0].strip()
+        content_text = form.get("content", [""])[0].strip()
+        image_path = form.get("image_url", [""])[0].strip()
+    
+    # Vérifications
+    if not title:
+        errors.append("Le titre est obligatoire.")
+    if not content_text:
+        errors.append("Le contenu est obligatoire.")
+    
+    # Si erreurs, récupérer l'article et renvoyer le formulaire avec les champs saisis
+    if errors:
+        conn = get_db_connection()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
+            article = cur.fetchone()
+            # Convertir le tuple MySQL en objet avec attributs nommés
+            article = convert_mysql_result(article, column_names) if article else None
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+            article = cur.fetchone()
+        
+        conn.close()
+        
+        if not article:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "message": "Article introuvable."},
+            )
+        
+        # Mettre à jour les valeurs avec celles saisies par l'utilisateur
+        article.title = title
+        article.content = content_text
+        if image_path:
+            article.image_path = image_path
+        
+        return templates.TemplateResponse(
+            "admin_edit_article.html",
+            {
+                "request": request,
+                "user": user,
+                "article": article,
+                "errors": errors,
+            },
+        )
+    
+    # Mettre à jour dans la base de données
+    conn = get_db_connection()
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        if image_path:
+            # Si une nouvelle image est fournie, mettre à jour l'image aussi
+            cur.execute(
+                "UPDATE articles SET title = %s, content = %s, image_path = %s WHERE id = %s",
+                (title, content_text, image_path, article_id),
+            )
+        else:
+            # Sinon, garder l'image existante
+            cur.execute(
+                "UPDATE articles SET title = %s, content = %s WHERE id = %s",
+                (title, content_text, article_id),
+            )
+    else:
+        cur = conn.cursor()
+        if image_path:
+            # Si une nouvelle image est fournie, mettre à jour l'image aussi
+            cur.execute(
+                "UPDATE articles SET title = ?, content = ?, image_path = ? WHERE id = ?",
+                (title, content_text, image_path, article_id),
+            )
+        else:
+            # Sinon, garder l'image existante
+            cur.execute(
+                "UPDATE articles SET title = ?, content = ? WHERE id = ?",
+                (title, content_text, article_id),
+            )
+    
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin/articles", status_code=303)
+
+
 # -----------------------------------------------------------------------------
 #  Espace utilisateur : statistiques de séances
 # -----------------------------------------------------------------------------

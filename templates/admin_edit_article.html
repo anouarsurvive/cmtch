@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h2 class="mb-4">Modifier l'article</h2>
+{% if errors and errors|length > 0 %}
+  <div class="alert alert-danger">
+    <ul class="mb-0">
+      {% for error in errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+<form action="/admin/articles/modifier/{{ article.id }}" method="post" enctype="multipart/form-data">
+  <div class="mb-3">
+    <label for="title" class="form-label">Titre</label>
+    <input type="text" class="form-control" id="title" name="title" value="{{ article.title|default('') }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="content" class="form-label">Contenu</label>
+    <textarea class="form-control" id="content" name="content" rows="8" required>{{ article.content|default('') }}</textarea>
+  </div>
+  <div class="mb-3">
+    <label for="image_file" class="form-label">Nouvelle image à télécharger (optionnel)</label>
+    <input type="file" class="form-control" id="image_file" name="image_file" accept="image/*">
+    <div class="form-text">Choisissez une nouvelle image à envoyer depuis votre ordinateur. Si vous utilisez ce champ, l'URL ci-dessous peut rester vide.</div>
+  </div>
+  <div class="mb-3">
+    <label for="image_url" class="form-label">URL de l'image (optionnel)</label>
+    <input type="text" class="form-control" id="image_url" name="image_url" value="{{ article.image_path|default('') }}" placeholder="https://exemple.com/image.jpg">
+    <div class="form-text">Indiquez un lien absolu vers l'image qui illustrera l'article si vous ne téléchargez pas de fichier.</div>
+  </div>
+  {% if article.image_path %}
+  <div class="mb-3">
+    <label class="form-label">Image actuelle</label>
+    <div>
+      <img src="{{ article.image_path }}" alt="Image actuelle" style="max-width: 200px; max-height: 200px;" class="img-thumbnail">
+      <div class="form-text">Image actuellement associée à cet article</div>
+    </div>
+  </div>
+  {% endif %}
+  <button type="submit" class="btn btn-primary">Mettre à jour</button>
+  <a href="/admin/articles" class="btn btn-secondary">Annuler</a>
+</form>
+{% endblock %}
