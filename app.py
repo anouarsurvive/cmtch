@@ -356,7 +356,7 @@ async def home(request: Request) -> HTMLResponse:
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, title, content, image_path, created_at FROM articles ORDER BY datetime(created_at) DESC LIMIT 3"
+        "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
     )
     latest_articles = cur.fetchall()
     conn.close()
