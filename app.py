@@ -537,11 +537,11 @@ async def register(request: Request) -> HTMLResponse:
                 (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
             )
         else:
-        cur.execute(
-            "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
-            (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
-        )
+            cur.execute(
+                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
+            )
         conn.commit()
         conn.close()
         
@@ -608,9 +608,9 @@ async def login(request: Request) -> HTMLResponse:
             user = convert_mysql_result(user, column_names)
         else:
             # Connexion SQLite/PostgreSQL normale
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE username = ?", (username,))
-        user = cur.fetchone()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+            user = cur.fetchone()
         
         conn.close()
         
@@ -711,19 +711,19 @@ async def reservations_page(request: Request) -> HTMLResponse:
         # Convertir les tuples MySQL en objets avec attributs nommés
         user_reservations = [convert_mysql_result(res, column_names) for res in user_reservations]
     else:
-    cur = conn.cursor()
-    cur.execute(
+        cur = conn.cursor()
+        cur.execute(
             "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
-        "WHERE date = ? ORDER BY start_time",
-        (selected_date,),
-    )
-    reservations = cur.fetchall()
-    # Récupérer les réservations de l'utilisateur connecté
-    cur.execute(
-        "SELECT * FROM reservations WHERE user_id = ? ORDER BY date, start_time",
-        (user["id"],),
-    )
-    user_reservations = cur.fetchall()
+            "WHERE date = ? ORDER BY start_time",
+            (selected_date,),
+        )
+        reservations = cur.fetchall()
+        # Récupérer les réservations de l'utilisateur connecté
+        cur.execute(
+            "SELECT * FROM reservations WHERE user_id = ? ORDER BY date, start_time",
+            (user["id"],),
+        )
+        user_reservations = cur.fetchall()
     
     conn.close()
     # Générer des créneaux horaires d'une heure de 8h00 à 22h00 (dernier créneau 21h-22h)
@@ -865,22 +865,22 @@ async def create_reservation(request: Request) -> HTMLResponse:
             ),
         )
     else:
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT * FROM reservations WHERE court_number = ? AND date = ? AND "
-        "((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))",
-        (
-            court_number,
-            _date.isoformat(),
-            end_time,
-            end_time,
-            start_time,
-            start_time,
-            start_time,
-            end_time,
-        ),
-    )
-    conflict = cur.fetchone()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM reservations WHERE court_number = ? AND date = ? AND "
+            "((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))",
+            (
+                court_number,
+                _date.isoformat(),
+                end_time,
+                end_time,
+                start_time,
+                start_time,
+                start_time,
+                end_time,
+            ),
+        )
+        conflict = cur.fetchone()
     if conflict:
         conn.close()
         return templates.TemplateResponse(
@@ -902,11 +902,11 @@ async def create_reservation(request: Request) -> HTMLResponse:
             (user["id"], court_number, _date.isoformat(), start_time, end_time),
         )
     else:
-    cur.execute(
-        "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (user["id"], court_number, _date.isoformat(), start_time, end_time),
-    )
+        cur.execute(
+            "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user["id"], court_number, _date.isoformat(), start_time, end_time),
+        )
     conn.commit()
     conn.close()
     redirect_url = f"/reservations?date={_date.isoformat()}"
@@ -952,12 +952,12 @@ async def admin_members(request: Request) -> HTMLResponse:
         # Convertir les tuples MySQL en objets avec attributs nommés
         members = [convert_mysql_result(member, column_names) for member in members]
     else:
-    cur.execute(
-        "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
-        "FROM users ORDER BY id LIMIT ? OFFSET ?",
-        (per_page, offset)
-    )
-    members = cur.fetchall()
+        cur.execute(
+            "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
+            "FROM users ORDER BY id LIMIT ? OFFSET ?",
+            (per_page, offset)
+        )
+        members = cur.fetchall()
     conn.close()
     
     # Calcul de la pagination
@@ -1025,14 +1025,14 @@ async def validate_member(request: Request) -> HTMLResponse:
         new_state = 0 if row[0] else 1  # MySQL retourne un tuple
         cur.execute("UPDATE users SET validated = %s WHERE id = %s", (new_state, user_id))
     else:
-    cur = conn.cursor()
-    cur.execute("SELECT validated FROM users WHERE id = ?", (user_id,))
-    row = cur.fetchone()
-    if row is None:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
-    new_state = 0 if row["validated"] else 1
-    cur.execute("UPDATE users SET validated = ? WHERE id = ?", (new_state, user_id))
+        cur = conn.cursor()
+        cur.execute("SELECT validated FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
+        if row is None:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        new_state = 0 if row["validated"] else 1
+        cur.execute("UPDATE users SET validated = ? WHERE id = ?", (new_state, user_id))
     
     conn.commit()
     conn.close()
@@ -1075,22 +1075,22 @@ async def admin_delete_member(request: Request) -> HTMLResponse:
             # Supprimer l'utilisateur
             cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
         else:
-        cur = conn.cursor()
-        
-        # Vérifier que l'utilisateur existe et n'est pas admin
-        cur.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
-        member = cur.fetchone()
-        
-        if not member:
-            conn.close()
-            return RedirectResponse(url="/admin/membres", status_code=303)
-        
-        if member['is_admin']:
-            conn.close()
-            return RedirectResponse(url="/admin/membres", status_code=303)
-        
-        # Supprimer l'utilisateur
-        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            cur = conn.cursor()
+            
+            # Vérifier que l'utilisateur existe et n'est pas admin
+            cur.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
+            member = cur.fetchone()
+            
+            if not member:
+                conn.close()
+                return RedirectResponse(url="/admin/membres", status_code=303)
+            
+            if member['is_admin']:
+                conn.close()
+                return RedirectResponse(url="/admin/membres", status_code=303)
+            
+            # Supprimer l'utilisateur
+            cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
         
         conn.commit()
         conn.close()
@@ -1153,24 +1153,24 @@ async def admin_delete_members_bulk(request: Request) -> HTMLResponse:
                 
                 print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
         else:
-        cur = conn.cursor()
-        
-        # Vérifier que les utilisateurs existent et ne sont pas admin
-        placeholders = ','.join(['?' for _ in valid_user_ids])
-        cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
-        members = cur.fetchall()
-        
-        # Filtrer les membres non-admin
-        non_admin_members = [m for m in members if not m['is_admin']]
-        non_admin_ids = [m['id'] for m in non_admin_members]
-        
-        if non_admin_ids:
-            # Supprimer les membres non-admin
-            placeholders = ','.join(['?' for _ in non_admin_ids])
-            cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
-            conn.commit()
+            cur = conn.cursor()
             
-            print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
+            # Vérifier que les utilisateurs existent et ne sont pas admin
+            placeholders = ','.join(['?' for _ in valid_user_ids])
+            cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
+            members = cur.fetchall()
+            
+            # Filtrer les membres non-admin
+            non_admin_members = [m for m in members if not m['is_admin']]
+            non_admin_ids = [m['id'] for m in non_admin_members]
+            
+            if non_admin_ids:
+                # Supprimer les membres non-admin
+                placeholders = ','.join(['?' for _ in non_admin_ids])
+                cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
+                conn.commit()
+                
+                print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
         
         conn.close()
         
@@ -1200,9 +1200,9 @@ async def admin_member_details(request: Request, member_id: int):
             member = cur.fetchone()
             member = convert_mysql_result(member, column_names)
         else:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
-        member = cur.fetchone()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+            member = cur.fetchone()
         
         conn.close()
         
@@ -1256,9 +1256,9 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
             member = cur.fetchone()
             member = convert_mysql_result(member, column_names)
         else:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
-        member = cur.fetchone()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE id = ?", (member_id,))
+            member = cur.fetchone()
         
         conn.close()
         
@@ -1283,9 +1283,9 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
 @app.post("/admin/membres/{member_id}/edit", response_class=HTMLResponse)
 async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
     """Traite la soumission du formulaire d'édition d'un membre."""
-        user = get_current_user(request)
-        if not user:
-            return RedirectResponse(url="/connexion", status_code=303)
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
     check_admin(user)
     
     try:
@@ -1430,7 +1430,7 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         
         cur.execute(query, update_values)
         conn.commit()
-                conn.close()
+        conn.close()
         
         print(f"✅ Membre {username} mis à jour avec succès")
         
@@ -1468,9 +1468,9 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             
         # Calcul des offsets
         offset = (page - 1) * per_page
-            
-                conn = get_db_connection()
-                cur = conn.cursor()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
                 
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
@@ -1493,7 +1493,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             bookings = cur.fetchall()
             # Convertir les tuples MySQL en objets avec attributs nommés
             bookings = [convert_mysql_result(booking, column_names) for booking in bookings]
-                    else:
+        else:
             cur = conn.cursor()
             
             # Compter le nombre total de réservations
@@ -1509,7 +1509,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
                 LIMIT ? OFFSET ?
             """, (per_page, offset))
             bookings = cur.fetchall()
-                conn.close()
+        conn.close()
         
         # Calcul de la pagination
         total_pages = max(1, (total_bookings + per_page - 1) // per_page)
@@ -1529,11 +1529,11 @@ async def admin_reservations(request: Request) -> HTMLResponse:
                     'url': f"/admin/reservations?page={p}&per_page={per_page}"
                 })
             
-            return templates.TemplateResponse(
-                "admin_reservations.html",
-                {
-                    "request": request,
-                    "user": user,
+        return templates.TemplateResponse(
+            "admin_reservations.html",
+            {
+                "request": request,
+                "user": user,
                 "bookings": bookings,
                 "pagination": {
                     "current_page": page,
@@ -1583,8 +1583,8 @@ async def admin_delete_reservation(request: Request) -> HTMLResponse:
         cur = conn.cursor()
         cur.execute("DELETE FROM reservations WHERE id = %s", (booking_id,))
     else:
-    cur = conn.cursor()
-    cur.execute("DELETE FROM reservations WHERE id = ?", (booking_id,))
+        cur = conn.cursor()
+        cur.execute("DELETE FROM reservations WHERE id = ?", (booking_id,))
     
     conn.commit()
     conn.close()
@@ -1795,19 +1795,19 @@ async def articles_list(request: Request) -> HTMLResponse:
             execute_with_names = get_mysql_cursor_with_names(conn)
             
             # Compter le nombre total d'articles
-        cur = conn.cursor()
+            cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM articles")
             total_articles = cur.fetchone()[0]
         
             # Récupérer les articles pour la page courante
             cur, column_names = execute_with_names("""
-            SELECT id, title, content, image_path, created_at, 
-                   COALESCE(image_path, '') as image_path_clean
-            FROM articles 
+                SELECT id, title, content, image_path, created_at, 
+                       COALESCE(image_path, '') as image_path_clean
+                FROM articles 
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
             """, (per_page, offset))
-        articles = cur.fetchall()
+            articles = cur.fetchall()
             # Convertir les tuples MySQL en objets avec attributs nommés
             articles = [convert_mysql_result(article, column_names) for article in articles]
         else:
@@ -1895,7 +1895,7 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
         Page HTML avec le contenu de l'article ou page d'erreur si introuvable.
     """
     try:
-    conn = get_db_connection()
+        conn = get_db_connection()
         
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
@@ -1907,29 +1907,29 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
             if article:
                 article = convert_mysql_result(article, column_names)
         else:
-    cur = conn.cursor()
-    cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
-    article = cur.fetchone()
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+            article = cur.fetchone()
         
-    conn.close()
+        conn.close()
         
-    if article is None:
-        raise HTTPException(status_code=404, detail="Article introuvable")
-        
-    user = get_current_user(request)
-    # Construire une URL absolue pour le partage sur Facebook. Si l'application est
-    # hébergée derrière un proxy, request.url donnera l'URL complète.
-    article_url = str(request.url)
-        
-    return templates.TemplateResponse(
-        "article_detail.html",
-        {
-            "request": request,
-            "user": user,
-            "article": article,
-            "share_url": f"https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(article_url, safe='')}",
-        },
-    )
+        if article is None:
+            raise HTTPException(status_code=404, detail="Article introuvable")
+            
+        user = get_current_user(request)
+        # Construire une URL absolue pour le partage sur Facebook. Si l'application est
+        # hébergée derrière un proxy, request.url donnera l'URL complète.
+        article_url = str(request.url)
+            
+        return templates.TemplateResponse(
+            "article_detail.html",
+            {
+                "request": request,
+                "user": user,
+                "article": article,
+                "share_url": f"https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(article_url, safe='')}",
+            },
+        )
     except Exception as e:
         print(f"❌ Erreur dans article_detail: {e}")
         # En cas d'erreur, retourner une page d'erreur
@@ -1968,9 +1968,9 @@ async def admin_articles(request: Request) -> HTMLResponse:
         # Convertir les tuples MySQL en objets avec attributs nommés
         articles = [convert_mysql_result(article, column_names) for article in articles]
     else:
-    cur = conn.cursor()
-    cur.execute("SELECT id, title, created_at FROM articles ORDER BY datetime(created_at) DESC")
-    articles = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT id, title, created_at FROM articles ORDER BY datetime(created_at) DESC")
+        articles = cur.fetchall()
     conn.close()
     return templates.TemplateResponse(
         "admin_articles.html",
@@ -2081,12 +2081,12 @@ async def admin_new_article(request: Request) -> HTMLResponse:
             (title, content_text, image_path, now_str),
         )
     else:
-    cur = conn.cursor()
-    now_str = datetime.utcnow().isoformat()
-    cur.execute(
-        "INSERT INTO articles (title, content, image_path, created_at) VALUES (?, ?, ?, ?)",
-        (title, content_text, image_path, now_str),
-    )
+        cur = conn.cursor()
+        now_str = datetime.utcnow().isoformat()
+        cur.execute(
+            "INSERT INTO articles (title, content, image_path, created_at) VALUES (?, ?, ?, ?)",
+            (title, content_text, image_path, now_str),
+        )
     
     conn.commit()
     conn.close()
@@ -2113,8 +2113,8 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
         cur = conn.cursor()
         cur.execute("DELETE FROM articles WHERE id = %s", (article_id,))
     else:
-    cur = conn.cursor()
-    cur.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+        cur = conn.cursor()
+        cur.execute("DELETE FROM articles WHERE id = ?", (article_id,))
     
     conn.commit()
     conn.close()
@@ -2331,32 +2331,32 @@ async def user_dashboard(request: Request) -> HTMLResponse:
         finally:
             conn.close()
     else:
-    cur = conn.cursor()
+        cur = conn.cursor()
         try:
-    # Regrouper par année-mois et compter
-    cur.execute(
-        "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
-        (user["id"],),
-    )
-    rows = cur.fetchall()
+            # Regrouper par année-mois et compter
+            cur.execute(
+                "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
+                (user["id"],),
+            )
+            rows = cur.fetchall()
         except Exception as e:
             print(f"❌ Erreur dans la requête SQL de /espace: {e}")
             # En cas d'erreur, retourner des données vides
             rows = []
         finally:
-    conn.close()
+            conn.close()
     # Transformer les résultats en listes pour Chart.js
     months: List[str] = []
     counts: List[int] = []
     try:
-    for row in rows:
-        months.append(row["month"])
-        counts.append(row["count"])
-    # Préparer les versions JSON des listes pour Chart.js
-    months_js = json.dumps(months)
-    counts_js = json.dumps(counts)
-    # Préparer les paires pour itération dans le template (mois, count)
-    data_pairs = list(zip(months, counts))
+        for row in rows:
+            months.append(row["month"])
+            counts.append(row["count"])
+        # Préparer les versions JSON des listes pour Chart.js
+        months_js = json.dumps(months)
+        counts_js = json.dumps(counts)
+        # Préparer les paires pour itération dans le template (mois, count)
+        data_pairs = list(zip(months, counts))
     except Exception as e:
         print(f"❌ Erreur dans la transformation des données de /espace: {e}")
         # En cas d'erreur, utiliser des listes vides
@@ -2474,10 +2474,10 @@ async def init_articles_endpoint():
                     VALUES (%s, %s, %s)
                 """, (article["title"], article["content"], article["created_at"]))
             else:
-            cur.execute("""
-                INSERT INTO articles (title, content, created_at)
-                VALUES (?, ?, ?)
-            """, (article["title"], article["content"], article["created_at"]))
+                cur.execute("""
+                    INSERT INTO articles (title, content, created_at)
+                    VALUES (?, ?, ?)
+                """, (article["title"], article["content"], article["created_at"]))
         
         conn.commit()
         conn.close()
@@ -2683,10 +2683,10 @@ async def fix_admin_endpoint():
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
             else:
-            cur.execute("""
-                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+                cur.execute("""
+                    INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
             
             conn.commit()
             
@@ -2949,10 +2949,10 @@ async def create_admin_endpoint():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
         else:
-        cur.execute("""
-            INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+            cur.execute("""
+                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
         
         conn.commit()
         conn.close()
