@@ -24,7 +24,7 @@ except ImportError as e:
     MYSQL_AVAILABLE = False
     mysql = None
 
-from typing import Union
+from typing import Union, Dict, Any
 
 def get_db_connection():
     """Retourne une connexion à la base de données (SQLite, PostgreSQL ou MySQL)"""
@@ -55,6 +55,8 @@ def get_db_connection():
                 password=password,
                 database=database
             )
+            # Marquer la connexion comme MySQL pour le traitement des résultats
+            conn._is_mysql = True
             return conn
         except Exception as e:
             print(f"❌ Erreur de connexion MySQL: {e}")
@@ -80,6 +82,38 @@ def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+def convert_mysql_result(row, column_names):
+    """Convertit un résultat MySQL en objet compatible avec SQLite.Row"""
+    if row is None:
+        return None
+    
+    # Créer un objet avec des attributs nommés
+    class MySQLRow:
+        def __init__(self, values, names):
+            for i, name in enumerate(names):
+                setattr(self, name, values[i])
+        
+        def __getitem__(self, key):
+            return getattr(self, key)
+        
+        def get(self, key, default=None):
+            return getattr(self, key, default)
+    
+    return MySQLRow(row, column_names)
+
+def get_mysql_cursor_with_names(conn):
+    """Retourne un curseur MySQL qui retourne des objets avec des noms de colonnes"""
+    cursor = conn.cursor()
+    
+    def execute_with_names(query, params=None):
+        cursor.execute(query, params)
+        if cursor.description:
+            column_names = [desc[0] for desc in cursor.description]
+            return cursor, column_names
+        return cursor, []
+    
+    return execute_with_names
 
 def init_db():
     """Initialise la base de données (SQLite, PostgreSQL ou MySQL)"""

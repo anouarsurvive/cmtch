@@ -276,9 +276,21 @@ def get_current_user(request: Request) -> Optional[sqlite3.Row]:
     if not user_id:
         return None
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-    user = cur.fetchone()
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        # Utiliser le curseur MySQL avec noms de colonnes
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
+        cur, column_names = execute_with_names("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+        user = convert_mysql_result(user, column_names)
+    else:
+        # Connexion SQLite/PostgreSQL normale
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        user = cur.fetchone()
+    
     conn.close()
     return user
 
