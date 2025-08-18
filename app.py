@@ -1823,37 +1823,55 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
     Returns:
         Page HTML avec le contenu de l'article ou page d'erreur si introuvable.
     """
-    conn = get_db_connection()
-    
-    # Vérifier si c'est une connexion MySQL
-    if hasattr(conn, '_is_mysql') and conn._is_mysql:
-        from database import get_mysql_cursor_with_names, convert_mysql_result
-        execute_with_names = get_mysql_cursor_with_names(conn)
-        cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
-        article = cur.fetchone()
-        # Convertir le tuple MySQL en objet avec attributs nommés
-        article = convert_mysql_result(article, column_names)
-    else:
-        cur = conn.cursor()
-        cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
-        article = cur.fetchone()
-    
-    conn.close()
-    if article is None:
-        raise HTTPException(status_code=404, detail="Article introuvable")
-    user = get_current_user(request)
-    # Construire une URL absolue pour le partage sur Facebook. Si l'application est
-    # hébergée derrière un proxy, request.url donnera l'URL complète.
-    article_url = str(request.url)
-    return templates.TemplateResponse(
-        "article_detail.html",
-        {
-            "request": request,
-            "user": user,
-            "article": article,
-            "share_url": f"https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(article_url, safe='')}",
-        },
-    )
+    try:
+        conn = get_db_connection()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
+            article = cur.fetchone()
+            # Convertir le tuple MySQL en objet avec attributs nommés
+            if article:
+                article = convert_mysql_result(article, column_names)
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
+            article = cur.fetchone()
+        
+        conn.close()
+        
+        if article is None:
+            raise HTTPException(status_code=404, detail="Article introuvable")
+        
+        user = get_current_user(request)
+        # Construire une URL absolue pour le partage sur Facebook. Si l'application est
+        # hébergée derrière un proxy, request.url donnera l'URL complète.
+        article_url = str(request.url)
+        
+        return templates.TemplateResponse(
+            "article_detail.html",
+            {
+                "request": request,
+                "user": user,
+                "article": article,
+                "share_url": f"https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(article_url, safe='')}",
+            },
+        )
+    except Exception as e:
+        print(f"❌ Erreur dans article_detail: {e}")
+        # En cas d'erreur, retourner une page d'erreur
+        user = get_current_user(request)
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "status_code": 500,
+                "detail": f"Erreur lors du chargement de l'article: {str(e)}"
+            },
+            status_code=500
+        )
 
 
 @app.get("/admin/articles", response_class=HTMLResponse)
