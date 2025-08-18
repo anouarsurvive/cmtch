@@ -189,11 +189,21 @@ def get_db_connection():
     return get_db_conn()
 
 
-# IMPORTANT : Les fonctions d'initialisation automatique ont été supprimées
-# pour éviter la perte de données lors des redémarrages
-# 
-# Si vous devez créer l'utilisateur admin, utilisez l'endpoint /fix-admin
-# Si vous devez créer des articles de test, utilisez l'endpoint /init-articles
+# Initialisation automatique de la base de données au démarrage
+def init_database_on_startup():
+    """Initialise la base de données au démarrage de l'application"""
+    try:
+        from database import init_db, migrate_data_from_sqlite
+        print("🔄 Initialisation de la base de données...")
+        init_db()
+        print("🔄 Tentative de migration des données SQLite vers PostgreSQL...")
+        migrate_data_from_sqlite()
+        print("✅ Base de données initialisée avec succès")
+    except Exception as e:
+        print(f"❌ Erreur lors de l'initialisation de la base de données: {e}")
+
+# Initialiser la base de données au démarrage
+init_database_on_startup()
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
@@ -1514,6 +1524,42 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
+@app.get("/health")
+async def health_check():
+    """Point de terminaison de santé pour vérifier l'état de l'application et de la base de données."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Vérifier les tables
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM reservations")
+        reservations_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM articles")
+        articles_count = cur.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "status": "healthy",
+            "database": {
+                "users": users_count,
+                "reservations": reservations_count,
+                "articles": articles_count
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.get("/debug-auth")
 async def debug_auth(request: Request):
     """Point de terminaison de débogage pour vérifier l'état de l'authentification."""
@@ -1670,6 +1716,54 @@ async def create_admin_endpoint():
         return {
             "status": "error",
             "message": f"Erreur lors de la création: {str(e)}"
+        }
+
+@app.get("/backup-database")
+async def backup_database_endpoint(request: Request):
+    """Endpoint pour créer une sauvegarde de la base de données."""
+    try:
+        user = get_current_user(request)
+        
+        if not user or not user["is_admin"]:
+            return {
+                "status": "error",
+                "message": "Accès refusé - droits administrateur requis"
+            }
+        
+        # Importer et exécuter la sauvegarde
+        from backup_database import backup_postgresql_db
+        result = backup_postgresql_db()
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la sauvegarde: {str(e)}"
+        }
+
+@app.get("/list-backups")
+async def list_backups_endpoint(request: Request):
+    """Endpoint pour lister les sauvegardes disponibles."""
+    try:
+        user = get_current_user(request)
+        
+        if not user or not user["is_admin"]:
+            return {
+                "status": "error",
+                "message": "Accès refusé - droits administrateur requis"
+            }
+        
+        # Importer et exécuter la liste des sauvegardes
+        from backup_database import list_backups
+        result = list_backups()
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la liste des sauvegardes: {str(e)}"
         }
 
 @app.get("/test-admin-reservations")

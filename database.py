@@ -127,11 +127,15 @@ def init_postgresql_db():
     database_url = os.getenv('DATABASE_URL')
     
     if not database_url:
+        print("⚠️ DATABASE_URL non définie, initialisation PostgreSQL ignorée")
         return
     
     try:
+        print("🔄 Connexion à PostgreSQL...")
         conn = psycopg2.connect(database_url)
         cur = conn.cursor()
+        
+        print("🔄 Création des tables...")
         
         # Table des utilisateurs
         cur.execute("""
@@ -176,10 +180,13 @@ def init_postgresql_db():
         """)
         
         conn.commit()
+        print("✅ Tables créées avec succès")
         
         # Créer l'utilisateur admin par défaut
+        print("🔄 Vérification de l'utilisateur admin...")
         cur.execute("SELECT id FROM users WHERE username = %s", ("admin",))
         if not cur.fetchone():
+            print("🔄 Création de l'utilisateur admin...")
             from app import hash_password
             admin_pwd = hash_password("admin")
             cur.execute("""
@@ -187,12 +194,21 @@ def init_postgresql_db():
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, ("admin", admin_pwd, "Administrateur", "admin@example.com", "", True, True))
             conn.commit()
+            print("✅ Utilisateur admin créé avec succès")
+        else:
+            print("✅ Utilisateur admin déjà existant")
         
         conn.close()
         print("✅ Base de données PostgreSQL initialisée avec succès")
         
     except Exception as e:
         print(f"❌ Erreur lors de l'initialisation PostgreSQL: {e}")
+        # En cas d'erreur, on essaie de se connecter à nouveau pour voir si c'est un problème temporaire
+        try:
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
 
 def migrate_data_from_sqlite():
     """Migre les données de SQLite vers PostgreSQL (si nécessaire)"""
@@ -203,15 +219,19 @@ def migrate_data_from_sqlite():
     database_url = os.getenv('DATABASE_URL')
     
     if not database_url:
+        print("⚠️ DATABASE_URL non définie, migration ignorée")
         return
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DB_PATH = os.path.join(BASE_DIR, "database.db")
     
     if not os.path.exists(DB_PATH):
+        print("⚠️ Fichier SQLite non trouvé, migration ignorée")
         return
     
     try:
+        print("🔄 Début de la migration SQLite vers PostgreSQL...")
+        
         # Connexion SQLite
         sqlite_conn = sqlite3.connect(DB_PATH)
         sqlite_cur = sqlite_conn.cursor()
@@ -230,6 +250,7 @@ def migrate_data_from_sqlite():
             pg_conn.close()
             return
         
+        print("🔄 Migration des utilisateurs...")
         # Migrer les utilisateurs
         sqlite_cur.execute("SELECT * FROM users")
         users = sqlite_cur.fetchall()
@@ -241,6 +262,7 @@ def migrate_data_from_sqlite():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, user[1:])  # Exclure l'ID auto-incrémenté
         
+        print("🔄 Migration des réservations...")
         # Migrer les réservations
         sqlite_cur.execute("SELECT * FROM reservations")
         reservations = sqlite_cur.fetchall()
@@ -251,6 +273,7 @@ def migrate_data_from_sqlite():
                 VALUES (%s, %s, %s, %s, %s)
             """, reservation[1:])
         
+        print("🔄 Migration des articles...")
         # Migrer les articles
         sqlite_cur.execute("SELECT * FROM articles")
         articles = sqlite_cur.fetchall()
@@ -265,11 +288,14 @@ def migrate_data_from_sqlite():
         sqlite_conn.close()
         pg_conn.close()
         
-        print(f"✅ Migration terminée : {len(users)} utilisateurs, {len(reservations)} réservations, {len(articles)} articles")
+        print(f"✅ Migration terminée avec succès : {len(users)} utilisateurs, {len(reservations)} réservations, {len(articles)} articles")
         
     except Exception as e:
         print(f"❌ Erreur lors de la migration: {e}")
-        if 'sqlite_conn' in locals():
-            sqlite_conn.close()
-        if 'pg_conn' in locals():
-            pg_conn.close()
+        try:
+            if 'sqlite_conn' in locals():
+                sqlite_conn.close()
+            if 'pg_conn' in locals():
+                pg_conn.close()
+        except:
+            pass
