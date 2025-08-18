@@ -38,11 +38,11 @@
                                     <div class="article-meta">
                                         <span class="article-date">
                                             <i class="fas fa-calendar me-1"></i>
-                                            {% if article['created_at'] %}
-                                                {% if article['created_at'] is string %}
-                                                    {{ article['created_at'][:10] }}
+                                            {% if article.created_at %}
+                                                {% if article.created_at is string %}
+                                                    {{ article.created_at[:10] }}
                                                 {% else %}
-                                                    {{ article['created_at'].strftime('%d/%m/%Y') }}
+                                                    {{ article.created_at.strftime('%d/%m/%Y') }}
                                                 {% endif %}
                                             {% else %}
                                                 Date inconnue
@@ -53,17 +53,17 @@
                             </div>
                             
                             <div class="article-content">
-                                <h3 class="article-title">{{ article['title'] }}</h3>
+                                <h3 class="article-title">{{ article.title }}</h3>
                                 <p class="article-excerpt">
-                                    {% if article['content'] %}
-                                        {{ article['content'][:150] }}{% if article['content']|length > 150 %}...{% endif %}
+                                    {% if article.content %}
+                                        {{ article.content[:150] }}{% if article.content|length > 150 %}...{% endif %}
                                     {% else %}
                                         Aucun contenu disponible
                                     {% endif %}
                                 </p>
                                 
                                 <div class="article-footer">
-                                    <a href="/articles/{{ article['id'] }}" class="btn btn-primary btn-sm">
+                                    <a href="/articles/{{ article.id }}" class="btn btn-primary btn-sm">
                                         <i class="fas fa-arrow-right me-2"></i>Lire la suite
                                     </a>
                                     <div class="article-stats">

@@ -873,9 +873,9 @@ async def admin_members(request: Request) -> HTMLResponse:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
         cur, column_names = execute_with_names(
-            "SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
-            "FROM users ORDER BY id LIMIT %s OFFSET %s",
-            (per_page, offset)
+            f"SELECT id, username, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer "
+            f"FROM users ORDER BY id LIMIT {per_page} OFFSET {offset}",
+            ()
         )
         members = cur.fetchall()
         # Convertir les tuples MySQL en objets avec attributs nommés
@@ -1412,13 +1412,13 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             total_bookings = cur.fetchone()[0]
             
             # Récupérer les réservations pour la page courante avec informations utilisateur
-            cur, column_names = execute_with_names("""
+            cur, column_names = execute_with_names(f"""
                 SELECT r.*, u.username, u.full_name as user_full_name 
                 FROM reservations r 
                 JOIN users u ON r.user_id = u.id 
                 ORDER BY r.date DESC, r.start_time DESC 
-                LIMIT %s OFFSET %s
-            """, (per_page, offset))
+                LIMIT {per_page} OFFSET {offset}
+            """, ())
             bookings = cur.fetchall()
             # Convertir les tuples MySQL en objets avec attributs nommés
             bookings = [convert_mysql_result(booking, column_names) for booking in bookings]
@@ -1751,7 +1751,7 @@ async def articles_list(request: Request) -> HTMLResponse:
                 SELECT id, title, content, image_path, created_at, 
                        COALESCE(image_path, '') as image_path_clean
                 FROM articles 
-                ORDER BY datetime(created_at) DESC
+                ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
             """, (per_page, offset))
             articles = cur.fetchall()

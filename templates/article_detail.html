@@ -25,11 +25,11 @@
                 <article class="article-detail-card">
                     <!-- En-tête de l'article -->
                     <header class="article-header">
-                        <h1 class="article-title">{{ article['title'] }}</h1>
+                        <h1 class="article-title">{{ article.title }}</h1>
                         <div class="article-meta">
                             <div class="meta-item">
                                 <i class="fas fa-calendar me-2"></i>
-                                <span>Publié le {{ article['created_at'][:10] }}</span>
+                                <span>Publié le {{ article.created_at.strftime('%d/%m/%Y') if article.created_at else 'Date inconnue' }}</span>
                             </div>
                             <div class="meta-item">
                                 <i class="fas fa-user me-2"></i>
@@ -43,18 +43,18 @@
                     </header>
 
                     <!-- Image de l'article -->
-{% if article['image_path'] %}
+{% if article.image_path %}
                         <div class="article-image-container">
-                            <img src="{{ article['image_path'] }}" 
+                            <img src="{{ article.image_path }}" 
                                  class="article-featured-image" 
-                                 alt="Image de l'article {{ article['title'] }}">
+                                 alt="Image de l'article {{ article.title }}">
                         </div>
 {% endif %}
 
                     <!-- Contenu de l'article -->
                     <div class="article-content">
                         <div class="content-text">
-  {{ article['content'] | replace('\n', '<br>') | safe }}
+  {{ article.content | replace('\n', '<br>') | safe }}
 </div>
                     </div>
 
@@ -69,7 +69,7 @@
                                    title="Partager sur Facebook">
                                     <i class="fab fa-facebook-f"></i>
                                 </a>
-                                <a href="https://twitter.com/intent/tweet?text={{ article['title'] | urlencode }}&url={{ request.url | urlencode }}" 
+                                <a href="https://twitter.com/intent/tweet?text={{ article.title | urlencode }}&url={{ request.url | urlencode }}" 
                                    target="_blank" 
                                    class="btn btn-outline-info btn-sm"
                                    title="Partager sur Twitter">

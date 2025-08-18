@@ -17,13 +17,13 @@
       <tbody>
         {% for article in articles %}
         <tr>
-          <td>{{ article['id'] }}</td>
-          <td>{{ article['title'] }}</td>
-          <td>{{ article['created_at'][:10] }}</td>
+          <td>{{ article.id }}</td>
+          <td>{{ article.title }}</td>
+          <td>{{ article.created_at.strftime('%Y-%m-%d') if article.created_at else '' }}</td>
           <td>
-            <a href="/articles/{{ article['id'] }}" class="btn btn-sm btn-info">Voir</a>
+            <a href="/articles/{{ article.id }}" class="btn btn-sm btn-info">Voir</a>
             <form action="/admin/articles/supprimer" method="post" class="d-inline">
-              <input type="hidden" name="article_id" value="{{ article['id'] }}">
+              <input type="hidden" name="article_id" value="{{ article.id }}">
               <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet article ?');">Supprimer</button>
             </form>
           </td>

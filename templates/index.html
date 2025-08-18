@@ -300,11 +300,11 @@
                     <div class="card-body">
                         <small class="text-muted d-block mb-2">
                             <i class="fas fa-calendar me-1"></i>
-                            {{ article['created_at'][:10] if article['created_at'] else 'Date inconnue' }}
+                            {{ article.created_at.strftime('%d/%m/%Y') if article.created_at else 'Date inconnue' }}
                         </small>
-                        <h6 class="card-title">{{ article['title'] }}</h6>
-                        <p class="card-text text-muted small">{{ article['content'][:100] }}{% if article['content']|length > 100 %}...{% endif %}</p>
-                        <a href="/articles/{{ article['id'] }}" class="btn btn-outline-primary btn-sm">
+                        <h6 class="card-title">{{ article.title }}</h6>
+                        <p class="card-text text-muted small">{{ article.content[:100] }}{% if article.content|length > 100 %}...{% endif %}</p>
+                        <a href="/articles/{{ article.id }}" class="btn btn-outline-primary btn-sm">
                             Lire la suite
                         </a>
                     </div>
