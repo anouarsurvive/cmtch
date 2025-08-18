@@ -189,26 +189,35 @@ def get_db_connection():
     return get_db_conn()
 
 
-# IMPORTANT : L'initialisation automatique de la base de données est DÉSACTIVÉE
-# pour éviter la perte de données lors des redémarrages
-# 
-# Si vous devez créer l'utilisateur admin, utilisez l'endpoint /fix-admin
-# Si vous devez créer des articles de test, utilisez l'endpoint /init-articles
-# 
-# def init_database_on_startup():
-#     """Initialise la base de données au démarrage de l'application"""
-#     try:
-#         from database import init_db, migrate_data_from_sqlite
-#         print("🔄 Initialisation de la base de données...")
-#         init_db()
-#         print("🔄 Tentative de migration des données SQLite vers PostgreSQL...")
-#         migrate_data_from_sqlite()
-#         print("✅ Base de données initialisée avec succès")
-#     except Exception as e:
-#         print(f"❌ Erreur lors de l'initialisation de la base de données: {e}")
+# SYSTÈME DE SAUVEGARDE AUTOMATIQUE POUR RENDER
+# Ce système sauvegarde et restaure automatiquement les données
+# pour éviter la perte lors des redémarrages de Render
 
-# L'initialisation automatique est DÉSACTIVÉE pour préserver les données
-# init_database_on_startup()
+def auto_backup_system():
+    """Système de sauvegarde automatique pour préserver les données sur Render."""
+    try:
+        print("🔄 Démarrage du système de sauvegarde automatique...")
+        
+        # Vérifier si on est sur Render (présence de DATABASE_URL)
+        if not os.getenv('DATABASE_URL'):
+            print("ℹ️ Pas sur Render - système de sauvegarde ignoré")
+            return
+        
+        # Importer et exécuter le script de sauvegarde automatique
+        from backup_auto import main as backup_main
+        backup_success = backup_main()
+        
+        if backup_success:
+            print("✅ Système de sauvegarde automatique terminé avec succès")
+        else:
+            print("⚠️ Système de sauvegarde automatique terminé avec des avertissements")
+            
+    except Exception as e:
+        print(f"❌ Erreur dans le système de sauvegarde automatique: {e}")
+        # Ne pas bloquer le démarrage de l'application
+
+# Exécuter le système de sauvegarde automatique au démarrage
+auto_backup_system()
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
@@ -1954,6 +1963,10 @@ async def debug_auth(request: Request):
 async def fix_admin_endpoint():
     """Point de terminaison pour créer/corriger l'utilisateur admin UNIQUEMENT si nécessaire."""
     try:
+        # D'abord, initialiser la base de données si nécessaire
+        from database import init_db
+        init_db()
+        
         conn = get_db_connection()
         cur = conn.cursor()
         
@@ -2029,6 +2042,40 @@ async def fix_admin_endpoint():
         }
     finally:
         conn.close()
+
+
+@app.get("/restore-backup")
+async def restore_backup_endpoint():
+    """Point de terminaison pour forcer la restauration depuis une sauvegarde."""
+    try:
+        from backup_auto import find_latest_backup, restore_database
+        
+        # Trouver la sauvegarde la plus récente
+        latest_backup = find_latest_backup()
+        
+        if not latest_backup:
+            return {
+                "status": "error",
+                "message": "Aucune sauvegarde trouvée"
+            }
+        
+        # Restaurer la base de données
+        if restore_database(latest_backup):
+            return {
+                "status": "success",
+                "message": f"Base de données restaurée depuis {latest_backup}"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Échec de la restauration"
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la restauration: {str(e)}"
+        }
 
 
 @app.get("/create-admin")

@@ -5,6 +5,7 @@
 
 # Fichiers de sauvegarde
 backup_cmtch_*.sql
+backups/
 
 # Fichiers Python
 __pycache__/
