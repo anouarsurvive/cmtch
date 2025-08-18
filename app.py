@@ -1467,8 +1467,39 @@ async def user_dashboard(request: Request) -> HTMLResponse:
 
 @app.get("/health")
 async def health_check():
-    """Point de terminaison de vérification de santé pour Render."""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    """Point de terminaison de santé pour vérifier l'état de l'application et de la base de données."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Vérifier les tables
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM reservations")
+        reservations_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM articles")
+        articles_count = cur.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "status": "healthy",
+            "database": {
+                "users": users_count,
+                "reservations": reservations_count,
+                "articles": articles_count
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 
 @app.get("/init-articles")
@@ -1564,39 +1595,67 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-
-@app.get("/health")
-async def health_check():
-    """Point de terminaison de santé pour vérifier l'état de l'application et de la base de données."""
+@app.get("/diagnostic-db")
+async def diagnostic_db():
+    """Point de terminaison de diagnostic pour vérifier l'état de la base de données."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier les tables
-        cur.execute("SELECT COUNT(*) FROM users")
-        users_count = cur.fetchone()[0]
+        # Vérifier si les tables existent
+        tables_info = {}
         
-        cur.execute("SELECT COUNT(*) FROM reservations")
-        reservations_count = cur.fetchone()[0]
+        try:
+            cur.execute("SELECT COUNT(*) FROM users")
+            users_count = cur.fetchone()[0]
+            tables_info["users"] = {"exists": True, "count": users_count}
+        except Exception as e:
+            tables_info["users"] = {"exists": False, "error": str(e)}
         
-        cur.execute("SELECT COUNT(*) FROM articles")
-        articles_count = cur.fetchone()[0]
+        try:
+            cur.execute("SELECT COUNT(*) FROM reservations")
+            reservations_count = cur.fetchone()[0]
+            tables_info["reservations"] = {"exists": True, "count": reservations_count}
+        except Exception as e:
+            tables_info["reservations"] = {"exists": False, "error": str(e)}
+        
+        try:
+            cur.execute("SELECT COUNT(*) FROM articles")
+            articles_count = cur.fetchone()[0]
+            tables_info["articles"] = {"exists": True, "count": articles_count}
+        except Exception as e:
+            tables_info["articles"] = {"exists": False, "error": str(e)}
+        
+        # Vérifier l'utilisateur admin
+        admin_info = {}
+        try:
+            cur.execute("SELECT * FROM users WHERE username = 'admin'")
+            admin_user = cur.fetchone()
+            if admin_user:
+                admin_info = {
+                    "exists": True,
+                    "is_admin": bool(admin_user['is_admin']),
+                    "validated": bool(admin_user['validated'])
+                }
+            else:
+                admin_info = {"exists": False}
+        except Exception as e:
+            admin_info = {"exists": False, "error": str(e)}
         
         conn.close()
         
         return {
-            "status": "healthy",
-            "database": {
-                "users": users_count,
-                "reservations": reservations_count,
-                "articles": articles_count
+            "status": "success",
+            "database_info": {
+                "tables": tables_info,
+                "admin_user": admin_info
             },
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
         return {
-            "status": "unhealthy",
+            "status": "error",
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
