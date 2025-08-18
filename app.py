@@ -189,21 +189,26 @@ def get_db_connection():
     return get_db_conn()
 
 
-# Initialisation automatique de la base de données au démarrage
-def init_database_on_startup():
-    """Initialise la base de données au démarrage de l'application"""
-    try:
-        from database import init_db, migrate_data_from_sqlite
-        print("🔄 Initialisation de la base de données...")
-        init_db()
-        print("🔄 Tentative de migration des données SQLite vers PostgreSQL...")
-        migrate_data_from_sqlite()
-        print("✅ Base de données initialisée avec succès")
-    except Exception as e:
-        print(f"❌ Erreur lors de l'initialisation de la base de données: {e}")
+# IMPORTANT : L'initialisation automatique de la base de données est DÉSACTIVÉE
+# pour éviter la perte de données lors des redémarrages
+# 
+# Si vous devez créer l'utilisateur admin, utilisez l'endpoint /fix-admin
+# Si vous devez créer des articles de test, utilisez l'endpoint /init-articles
+# 
+# def init_database_on_startup():
+#     """Initialise la base de données au démarrage de l'application"""
+#     try:
+#         from database import init_db, migrate_data_from_sqlite
+#         print("🔄 Initialisation de la base de données...")
+#         init_db()
+#         print("🔄 Tentative de migration des données SQLite vers PostgreSQL...")
+#         migrate_data_from_sqlite()
+#         print("✅ Base de données initialisée avec succès")
+#     except Exception as e:
+#         print(f"❌ Erreur lors de l'initialisation de la base de données: {e}")
 
-# Initialiser la base de données au démarrage
-init_database_on_startup()
+# L'initialisation automatique est DÉSACTIVÉE pour préserver les données
+# init_database_on_startup()
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
@@ -1468,13 +1473,20 @@ async def health_check():
 
 @app.get("/init-articles")
 async def init_articles_endpoint():
-    """Point de terminaison pour réinitialiser les articles (débogage uniquement)."""
+    """Point de terminaison pour créer des articles de test (débogage uniquement)."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Supprimer tous les articles existants
-        cur.execute("DELETE FROM articles")
+        # Vérifier s'il y a déjà des articles
+        cur.execute("SELECT COUNT(*) FROM articles")
+        existing_articles = cur.fetchone()[0]
+        
+        if existing_articles > 0:
+            return {
+                "status": "info", 
+                "message": f"Il y a déjà {existing_articles} article(s) dans la base de données. Utilisez /clear-articles pour les supprimer d'abord."
+            }
         
         # Articles de test avec des dates récentes
         test_articles = [
@@ -1523,6 +1535,26 @@ async def init_articles_endpoint():
         
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/init-database")
+async def init_database_endpoint():
+    """Point de terminaison pour initialiser manuellement la base de données."""
+    try:
+        from database import init_db
+        
+        print("🔄 Initialisation manuelle de la base de données...")
+        init_db()
+        
+        return {
+            "status": "success",
+            "message": "Base de données initialisée avec succès"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de l'initialisation: {str(e)}"
+        }
 
 # -----------------------------------------------------------------------------
 #  Démarrage de l'application

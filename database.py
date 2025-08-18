@@ -105,9 +105,13 @@ def init_sqlite_db():
     
     conn.commit()
     
-    # Créer l'utilisateur admin par défaut
-    cur.execute("SELECT id FROM users WHERE username = ?", ("admin",))
-    if not cur.fetchone():
+    # Vérifier si la base de données est vide
+    cur.execute("SELECT COUNT(*) FROM users")
+    users_count = cur.fetchone()[0]
+    
+    if users_count == 0:
+        # Créer l'utilisateur admin seulement si la base est vide
+        print("🔄 Base de données vide - Création de l'utilisateur admin...")
         from app import hash_password
         admin_pwd = hash_password("admin")
         cur.execute("""
@@ -115,6 +119,9 @@ def init_sqlite_db():
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, ("admin", admin_pwd, "Administrateur", "admin@example.com", "", 1, 1))
         conn.commit()
+        print("✅ Utilisateur admin créé avec succès")
+    else:
+        print(f"✅ Base de données contient déjà {users_count} utilisateur(s) - Aucune initialisation automatique")
     
     conn.close()
 
@@ -182,11 +189,13 @@ def init_postgresql_db():
         conn.commit()
         print("✅ Tables créées avec succès")
         
-        # Créer l'utilisateur admin par défaut
-        print("🔄 Vérification de l'utilisateur admin...")
-        cur.execute("SELECT id FROM users WHERE username = %s", ("admin",))
-        if not cur.fetchone():
-            print("🔄 Création de l'utilisateur admin...")
+        # Vérifier si la base de données est vide
+        cur.execute("SELECT COUNT(*) FROM users")
+        users_count = cur.fetchone()[0]
+        
+        if users_count == 0:
+            # Créer l'utilisateur admin seulement si la base est vide
+            print("🔄 Base de données vide - Création de l'utilisateur admin...")
             from app import hash_password
             admin_pwd = hash_password("admin")
             cur.execute("""
@@ -196,7 +205,7 @@ def init_postgresql_db():
             conn.commit()
             print("✅ Utilisateur admin créé avec succès")
         else:
-            print("✅ Utilisateur admin déjà existant")
+            print(f"✅ Base de données contient déjà {users_count} utilisateur(s) - Aucune initialisation automatique")
         
         conn.close()
         print("✅ Base de données PostgreSQL initialisée avec succès")
