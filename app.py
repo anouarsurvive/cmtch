@@ -276,7 +276,9 @@ def get_current_user(request: Request) -> Optional[sqlite3.Row]:
     if not user_id:
         return None
     conn = get_db_connection()
-    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+    user = cur.fetchone()
     conn.close()
     return user
 
