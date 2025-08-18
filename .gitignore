@@ -1,4 +1,12 @@
-# Python
+# Base de données SQLite locale
+*.db
+*.sqlite
+*.sqlite3
+
+# Fichiers de sauvegarde
+backup_cmtch_*.sql
+
+# Fichiers Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -19,47 +27,24 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
 # Environnements virtuels
-venv/
+.env
+.venv
 env/
+venv/
 ENV/
 env.bak/
 venv.bak/
-
-# Base de données
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-logs/
-
-# Fichiers temporaires
-*.tmp
-*.temp
-.DS_Store
-Thumbs.db
-
-# Fichiers de configuration sensibles
-.env
-.env.local
-.env.production
-config.py
-
-# Fichiers de déploiement
-*.zip
-*.tar.gz
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# Système
+# OS
 .DS_Store
 .DS_Store?
 ._*
@@ -67,3 +52,10 @@ config.py
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Logs
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.temp

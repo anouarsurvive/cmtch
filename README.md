@@ -1,141 +1,117 @@
-# 🎾 Club Municipal de Tennis Chihia
+# Club Municipal de Tennis Chihia (CMTCH)
 
-Site web moderne pour le Club Municipal de Tennis Chihia avec système de réservation, gestion des membres et espace d'administration.
+Application web pour la gestion du Club Municipal de Tennis Chihia.
 
-## 🚀 Déploiement avec GitHub + Render
+## 🎾 Description
 
-### Configuration rapide Render
+Cette application web permet de gérer :
+- Les inscriptions des membres
+- Les réservations de courts de tennis
+- La publication d'articles et actualités
+- L'administration des membres et réservations
 
-1. **Créer un compte Render**
-   - Allez sur [render.com](https://render.com)
-   - Créez un compte avec votre GitHub
-   - Autorisez l'accès à votre repository
+## 🚀 Technologies utilisées
 
-2. **Déploiement automatique**
-   - Cliquez sur "New" → "Web Service"
-   - Sélectionnez votre repository `cmtch`
-   - Render détectera automatiquement le fichier `render.yaml`
-   - Cliquez sur "Create Web Service"
+- **Backend** : FastAPI (Python)
+- **Base de données** : PostgreSQL (production) / SQLite (développement)
+- **Frontend** : HTML, CSS, JavaScript avec Jinja2 templates
+- **Déploiement** : Render
 
-3. **Configuration GitHub Actions**
-   - Dans votre repository GitHub → `Settings` → `Secrets and variables` → `Actions`
-   - Ajoutez les secrets Render :
-     - `RENDER_SERVICE_ID` : `srv-XXXXXXXXXXXX` (depuis le dashboard Render)
-     - `RENDER_API_KEY` : `rnd_XXXXXXXXXXXXXXXXXXXX` (depuis Account Settings → API Keys)
+## 📋 Fonctionnalités
 
-4. **Déploiement automatique**
-   - Chaque push sur `CMTCH` déclenchera un déploiement automatique
-   - Le workflow GitHub Actions gère les tests et le déploiement
+### Espace public
+- Présentation du club
+- Formulaire d'inscription
+- Liste des articles et actualités
+- Connexion des membres
 
-### URL de votre site
-```
-https://cmtch.onrender.com
-```
+### Espace membres
+- Réservation de courts de tennis
+- Consultation des réservations personnelles
+- Statistiques de fréquentation
 
-## 🔧 Configuration GitHub Actions
+### Espace administration
+- Validation des inscriptions
+- Gestion des membres
+- Gestion des réservations
+- Publication d'articles
+- Sauvegarde de la base de données
 
-Le repository inclut un workflow GitHub Actions automatique :
-
-### Workflow automatique
-Le workflow `.github/workflows/deploy.yml` :
-1. ✅ Exécute les tests à chaque push
-2. 🚀 Déploie automatiquement sur Render
-3. 📧 Envoie des notifications de déploiement
-
-## 🛠️ Développement local
+## 🛠️ Installation locale
 
 ### Prérequis
 - Python 3.11+
 - pip
 
 ### Installation
+
+1. Cloner le repository :
 ```bash
-# Cloner le repository
-git clone https://github.com/anouarsurve/cmtch.git
+git clone https://github.com/anouarsurvive/cmtch.git
 cd cmtch
+```
 
-# Créer un environnement virtuel
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# ou
-venv\Scripts\activate     # Windows
-
-# Installer les dépendances
+2. Installer les dépendances :
+```bash
 pip install -r requirements.txt
+```
 
-# Lancer l'application
+3. Lancer l'application :
+```bash
 python app.py
 ```
 
-### Accès
-- 🌐 Site web : http://localhost:8000
-- 👤 Admin : admin / admin
+4. Accéder à l'application : http://localhost:8000
 
-## 📁 Structure du projet
+## 🔧 Configuration
 
-```
-cmtch/
-├── app.py                 # Application FastAPI principale
-├── requirements.txt       # Dépendances Python
-├── render.yaml           # Configuration Render
-├── .github/
-│   └── workflows/
-│       └── deploy.yml    # Workflow GitHub Actions
-├── static/               # Fichiers statiques
-│   ├── css/
-│   ├── js/
-│   └── images/
-├── templates/            # Templates Jinja2
-└── database.db          # Base de données SQLite
-```
+### Variables d'environnement
+
+- `DATABASE_URL` : URL de connexion PostgreSQL (pour la production)
+- `SECRET_KEY` : Clé secrète pour les sessions (générée automatiquement sur Render)
+
+### Utilisateur administrateur par défaut
+
+- **Nom d'utilisateur** : `admin`
+- **Mot de passe** : `admin`
+
+⚠️ **Important** : Changez ces identifiants après le premier déploiement !
+
+## 🌐 Déploiement
+
+### Sur Render
+
+1. Connectez votre repository GitHub à Render
+2. Créez un nouveau service web
+3. Configurez les variables d'environnement
+4. Déployez !
+
+L'application se configure automatiquement avec :
+- Initialisation automatique de la base de données
+- Création des tables si nécessaire
+- Migration des données SQLite vers PostgreSQL
+
+## 📊 Endpoints utiles
+
+- `/health` - État de santé de l'application
+- `/fix-admin` - Correction/création de l'utilisateur admin
+- `/debug-auth` - Diagnostic de l'authentification
+- `/backup-database` - Sauvegarde de la base de données (admin)
+- `/list-backups` - Liste des sauvegardes (admin)
 
 ## 🔒 Sécurité
 
-### Variables d'environnement
-- ✅ `SECRET_KEY` : Générée automatiquement par Render
-- ✅ `PORT` : Définie automatiquement par Render
+- Mots de passe hachés avec SHA-256
+- Sessions sécurisées avec cookies signés
+- Validation des données côté serveur
+- Protection CSRF
 
-### Identifiants par défaut
-- **Admin** : admin / admin
-- ⚠️ **Important** : Changez ces identifiants en production !
-
-## 📊 Fonctionnalités
-
-- 🏠 **Page d'accueil** moderne avec animations
-- 👥 **Gestion des membres** avec validation
-- 📅 **Système de réservation** des courts
-- 📰 **Articles de presse** avec images
-- 📊 **Tableau de bord** avec statistiques
-- 🔧 **Interface d'administration** complète
-- 📱 **Design responsive** mobile-first
-- ⚡ **Optimisations de performance** avancées
-
-## 🚀 Performance
-
-Le site inclut des optimisations avancées :
-- ⚡ CSS critique inline
-- 🖼️ Lazy loading des images
-- 🔄 Service Worker pour le cache
-- 📊 Monitoring des Web Vitals
-- 🎯 Animations optimisées
-
-## 📚 Documentation
-
-- 📖 **Guide complet** : `RENDER_DEPLOYMENT.md`
-- 🚀 **Performance** : `PERFORMANCE.md`
-- 🔧 **Déploiement général** : `DEPLOYMENT.md`
-
-## 📞 Support
-
-Pour toute question ou problème :
-1. Vérifiez les [Issues GitHub](https://github.com/anouarsurve/cmtch/issues)
-2. Créez une nouvelle issue si nécessaire
-3. Consultez la documentation de déploiement Render
-
-## 📄 Licence
+## 📝 Licence
 
 Ce projet est développé pour le Club Municipal de Tennis Chihia.
 
----
+## 👥 Contact
 
-**Développé avec ❤️ pour le tennis à Chihia**
+- **Email** : club.tennis.chihia@gmail.com
+- **Téléphone** : +216 29 60 03 40
+- **Adresse** : Route Teboulbi km 6, 3041 Sfax sud
