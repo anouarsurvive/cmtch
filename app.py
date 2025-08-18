@@ -465,19 +465,48 @@ async def register(request: Request) -> HTMLResponse:
         if len(password) < 6:
             errors.append("Le mot de passe doit contenir au moins 6 caractères.")
             
-        # Vérifier que le nom d'utilisateur n'existe pas déjà
+        # Vérifier que le nom d'utilisateur, l'email et le téléphone n'existent pas déjà
         conn = get_db_connection()
         
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
-            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+            # Vérifier le nom d'utilisateur
+            cur.execute("SELECT id, username FROM users WHERE username = %s", (username,))
+            existing_user = cur.fetchone()
+            if existing_user:
+                errors.append("Ce nom d'utilisateur est déjà utilisé.")
+            
+            # Vérifier l'email
+            cur.execute("SELECT id, username, email FROM users WHERE email = %s", (email,))
+            existing_email = cur.fetchone()
+            if existing_email:
+                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+            
+            # Vérifier le téléphone
+            cur.execute("SELECT id, username, phone FROM users WHERE phone = %s", (phone,))
+            existing_phone = cur.fetchone()
+            if existing_phone:
+                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
         else:
             cur = conn.cursor()
-            cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+            # Vérifier le nom d'utilisateur
+            cur.execute("SELECT id, username FROM users WHERE username = ?", (username,))
+            existing_user = cur.fetchone()
+            if existing_user:
+                errors.append("Ce nom d'utilisateur est déjà utilisé.")
             
-        if cur.fetchone():
-            errors.append("Ce nom d'utilisateur est déjà utilisé.")
+            # Vérifier l'email
+            cur.execute("SELECT id, username, email FROM users WHERE email = ?", (email,))
+            existing_email = cur.fetchone()
+            if existing_email:
+                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+            
+            # Vérifier le téléphone
+            cur.execute("SELECT id, username, phone FROM users WHERE phone = ?", (phone,))
+            existing_phone = cur.fetchone()
+            if existing_phone:
+                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
             
         if errors:
             conn.close()
@@ -659,19 +688,43 @@ async def reservations_page(request: Request) -> HTMLResponse:
     selected_date = request.query_params.get("date", today_str)
     # Récupérer les réservations pour cette date
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
-        "WHERE date = ? ORDER BY start_time",
-        (selected_date,),
-    )
-    reservations = cur.fetchall()
-    # Récupérer les réservations de l'utilisateur connecté
-    cur.execute(
-        "SELECT * FROM reservations WHERE user_id = ? ORDER BY date, start_time",
-        (user["id"],),
-    )
-    user_reservations = cur.fetchall()
+    
+    # Vérifier si c'est une connexion MySQL
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        from database import get_mysql_cursor_with_names, convert_mysql_result
+        execute_with_names = get_mysql_cursor_with_names(conn)
+        cur, column_names = execute_with_names(
+            "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+            "WHERE date = %s ORDER BY start_time",
+            (selected_date,),
+        )
+        reservations = cur.fetchall()
+        # Convertir les tuples MySQL en objets avec attributs nommés
+        reservations = [convert_mysql_result(res, column_names) for res in reservations]
+        
+        # Récupérer les réservations de l'utilisateur connecté
+        cur, column_names = execute_with_names(
+            "SELECT * FROM reservations WHERE user_id = %s ORDER BY date, start_time",
+            (user.id,),
+        )
+        user_reservations = cur.fetchall()
+        # Convertir les tuples MySQL en objets avec attributs nommés
+        user_reservations = [convert_mysql_result(res, column_names) for res in user_reservations]
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+            "WHERE date = ? ORDER BY start_time",
+            (selected_date,),
+        )
+        reservations = cur.fetchall()
+        # Récupérer les réservations de l'utilisateur connecté
+        cur.execute(
+            "SELECT * FROM reservations WHERE user_id = ? ORDER BY date, start_time",
+            (user["id"],),
+        )
+        user_reservations = cur.fetchall()
+    
     conn.close()
     # Générer des créneaux horaires d'une heure de 8h00 à 22h00 (dernier créneau 21h-22h)
     time_slots: List[Tuple[str, str]] = []
@@ -684,7 +737,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
     # Convertir la liste de réservations en dictionnaire par court pour vérifier rapidement
     reservations_by_court = {1: [], 2: [], 3: []}
     for res in reservations:
-        reservations_by_court[res["court_number"]].append(res)
+        reservations_by_court[res.court_number].append(res)
     # Pour chaque court et chaque créneau, déterminer si réservé et par qui
     for court in (1, 2, 3):
         court_reservations = reservations_by_court.get(court, [])
@@ -694,29 +747,30 @@ async def reservations_page(request: Request) -> HTMLResponse:
             reservation_info = None
             for res in court_reservations:
                 # res.start_time/res.end_time sont des chaînes HH:MM
-                res_start = datetime.strptime(res["start_time"], "%H:%M").time()
-                res_end = datetime.strptime(res["end_time"], "%H:%M").time()
+                res_start = datetime.strptime(res.start_time, "%H:%M").time()
+                res_end = datetime.strptime(res.end_time, "%H:%M").time()
                 slot_start = datetime.strptime(start_str, "%H:%M").time()
                 slot_end = datetime.strptime(end_str, "%H:%M").time()
                 # Si les intervalles se chevauchent
                 if (slot_start < res_end and slot_end > res_start):
                     reserved = True
                     reservation_info = {
-                        "user_full_name": res["user_full_name"],
-                        "username": res.get("username", "Utilisateur"),
-                        "is_current_user": res["user_id"] == user["id"]
+                        "user_full_name": res.user_full_name,
+                        "username": getattr(res, 'username', "Utilisateur"),
+                        "is_current_user": res.user_id == user.id
                     }
                     break
             availability[court][(start_str, end_str)] = {
                 "reserved": reserved,
                 "reservation_info": reservation_info
             }
+    
     return templates.TemplateResponse(
         "reservations.html",
         {
             "request": request,
             "user": user,
-            "is_admin": bool(user["is_admin"]),
+            "is_admin": bool(user.is_admin),
             "reservations": reservations,
             "user_reservations": user_reservations,
             "selected_date": selected_date,
@@ -2396,10 +2450,17 @@ async def init_articles_endpoint():
         
         # Insérer les articles
         for article in test_articles:
-            cur.execute("""
-                INSERT INTO articles (title, content, created_at)
-                VALUES (?, ?, ?)
-            """, (article["title"], article["content"], article["created_at"]))
+            # Vérifier si c'est une connexion MySQL
+            if hasattr(conn, '_is_mysql') and conn._is_mysql:
+                cur.execute("""
+                    INSERT INTO articles (title, content, created_at)
+                    VALUES (%s, %s, %s)
+                """, (article["title"], article["content"], article["created_at"]))
+            else:
+                cur.execute("""
+                    INSERT INTO articles (title, content, created_at)
+                    VALUES (?, ?, ?)
+                """, (article["title"], article["content"], article["created_at"]))
         
         conn.commit()
         conn.close()
@@ -2598,10 +2659,17 @@ async def fix_admin_endpoint():
             admin_password = "admin"
             admin_password_hash = hash_password(admin_password)
             
-            cur.execute("""
-                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+            # Vérifier si c'est une connexion MySQL
+            if hasattr(conn, '_is_mysql') and conn._is_mysql:
+                cur.execute("""
+                    INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+            else:
+                cur.execute("""
+                    INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
             
             conn.commit()
             
@@ -2669,10 +2737,17 @@ async def test_espace_endpoint():
         users_count = cur.fetchone()[0]
         
         # Test de la requête de réservations (pour l'utilisateur 1)
-        cur.execute(
-            "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
-            (1,),
-        )
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur.execute(
+                "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month",
+                (1,),
+            )
+        else:
+            cur.execute(
+                "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
+                (1,),
+            )
         rows = cur.fetchall()
         
         conn.close()
@@ -2850,10 +2925,17 @@ async def create_admin_endpoint():
         admin_password = "admin"
         admin_password_hash = hash_password(admin_password)
         
-        cur.execute("""
-            INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur.execute("""
+                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
+        else:
+            cur.execute("""
+                INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("admin", admin_password_hash, "Administrateur", "admin@cmtch.tn", "+21612345678", "ADMIN001", "1990-01-01", 1, 1, 0))
         
         conn.commit()
         conn.close()
