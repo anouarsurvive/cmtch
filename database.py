@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import hashlib
 
 # Tentative d'import de psycopg2 avec gestion d'erreur
 try:
@@ -25,6 +26,10 @@ except ImportError as e:
     mysql = None
 
 from typing import Union, Dict, Any
+
+def hash_password(password: str) -> str:
+    """Retourne l'empreinte SHA‑256 d'un mot de passe en clair."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 def get_db_connection():
     """Retourne une connexion à la base de données (SQLite, PostgreSQL ou MySQL)"""
@@ -186,7 +191,6 @@ def init_mysql_db():
     if users_count == 0:
         # Créer l'utilisateur admin seulement si la base est vide
         print("🔄 Base de données vide - Création de l'utilisateur admin...")
-        from app import hash_password
         admin_pwd = hash_password("admin")
         cur.execute("""
             INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated)

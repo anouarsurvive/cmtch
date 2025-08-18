@@ -105,21 +105,13 @@ def parse_session_token(token: Optional[str]) -> Optional[int]:
     return None
 
 
-def hash_password(password: str) -> str:
-    """Retourne l'empreinte SHA‑256 d'un mot de passe en clair.
 
-    Args:
-        password: Mot de passe en clair.
-
-    Returns:
-        Chaîne hexadécimale représentant l'empreinte.
-    """
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Vérifie qu'un mot de passe correspond à une empreinte enregistrée."""
-    return hash_password(password) == password_hash
+    from database import hash_password as hash_pwd
+    return hash_pwd(password) == password_hash
 
 
 # Utilitaire pour analyser les formulaires multipart/form-data sans dépendance
@@ -188,6 +180,18 @@ def get_db_connection():
     """
     from database import get_db_connection as get_db_conn
     return get_db_conn()
+
+def hash_password(password: str) -> str:
+    """Retourne l'empreinte SHA‑256 d'un mot de passe en clair.
+
+    Args:
+        password: Mot de passe en clair.
+
+    Returns:
+        Chaîne hexadécimale représentant l'empreinte.
+    """
+    from database import hash_password as hash_pwd
+    return hash_pwd(password)
 
 
 # SYSTÈME DE SAUVEGARDE AUTOMATIQUE POUR RENDER
