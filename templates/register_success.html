@@ -1,53 +1,81 @@
-{% extends 'layout.html' %}
+{% extends "layout.html" %}
+
 {% block content %}
-<!-- Section de succès d'inscription -->
-<section class="auth-section py-5">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-6 col-md-8">
-                <div class="auth-card text-center">
-                    <div class="auth-header mb-4">
-                        <div class="auth-icon-wrapper mb-3">
-                            <i class="fas fa-check-circle fa-3x text-success"></i>
-                        </div>
-                        <h2 class="auth-title text-success">Inscription réussie !</h2>
-                        <p class="auth-subtitle">Bienvenue dans notre club de tennis</p>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg border-0">
+                <div class="card-body text-center p-5">
+                    <div class="mb-4">
+                        <i class="fas fa-envelope-open-text fa-4x text-success"></i>
                     </div>
-
-                    <div class="alert alert-success">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Félicitations {{ username }} !</strong><br>
-                        Votre compte a été créé avec succès.
+                    
+                    <h2 class="card-title text-success mb-3">Inscription réussie !</h2>
+                    
+                    <p class="card-text mb-4">
+                        Félicitations <strong>{{ username }}</strong> ! Votre compte a été créé avec succès.
+                    </p>
+                    
+                    <div class="alert alert-info" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-info-circle me-2"></i>Validation de votre email requise
+                        </h5>
+                        <p class="mb-3">
+                            Pour activer votre compte, vous devez valider votre adresse email : <strong>{{ email }}</strong>
+                        </p>
+                        <p class="mb-0">
+                            <strong>Cliquez sur le lien ci-dessous pour valider votre email :</strong>
+                        </p>
                     </div>
-
-                    <div class="alert alert-info">
-                        <i class="fas fa-clock me-2"></i>
-                        <strong>Prochaine étape :</strong><br>
-                        Votre compte sera validé par un administrateur dans les plus brefs délais.<br>
-                        Vous recevrez un email de confirmation une fois validé.
+                    
+                    <div class="mb-4">
+                        <a href="{{ verification_url }}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-check-circle me-2"></i>Valider mon email
+                        </a>
                     </div>
-
-                    <div class="auth-footer mt-4">
-                        <p class="mb-3">En attendant la validation, vous pouvez :</p>
-                        <div class="d-grid gap-2">
-                            <a href="/" class="btn btn-primary">
-                                <i class="fas fa-home me-2"></i>Retour à l'accueil
-                            </a>
-                            <a href="/connexion" class="btn btn-outline-primary">
-                                <i class="fas fa-sign-in-alt me-2"></i>Se connecter (après validation)
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="mt-4">
-                        <small class="text-muted">
-                            <i class="fas fa-question-circle me-1"></i>
-                            Questions ? Contactez-nous à contact@tennis-chihia.tn
+                    
+                    <div class="alert alert-warning" role="alert">
+                        <small>
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <strong>Important :</strong> Si vous ne recevez pas d'email, vérifiez votre dossier spam.
+                            Vous pouvez également copier et coller ce lien dans votre navigateur :
                         </small>
+                        <div class="mt-2">
+                            <code class="small">{{ verification_url }}</code>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Prochaines étapes :</h6>
+                            <ul class="list-unstyled text-start">
+                                <li><i class="fas fa-check text-success me-2"></i>Cliquez sur le lien de validation</li>
+                                <li><i class="fas fa-clock text-warning me-2"></i>Attendez la validation admin</li>
+                                <li><i class="fas fa-sign-in-alt text-info me-2"></i>Connectez-vous</li>
+                                <li><i class="fas fa-calendar-check text-primary me-2"></i>Réservez vos créneaux</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Besoin d'aide ?</h6>
+                            <p class="small text-muted">
+                                Si vous rencontrez des problèmes, contactez l'administration du club.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="/connexion" class="btn btn-outline-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>Aller à la connexion
+                        </a>
+                        <a href="/" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-home me-2"></i>Retour à l'accueil
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</section>
+</div>
 {% endblock %}

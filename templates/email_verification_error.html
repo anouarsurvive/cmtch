@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg border-0">
+                <div class="card-body text-center p-5">
+                    <div class="mb-4">
+                        <i class="fas fa-exclamation-triangle fa-4x text-warning"></i>
+                    </div>
+                    
+                    <h2 class="card-title text-warning mb-3">Erreur de validation</h2>
+                    
+                    <div class="alert alert-warning" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-exclamation-circle me-2"></i>Problème de validation
+                        </h5>
+                        <p class="mb-0">
+                            {{ error }}
+                        </p>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Causes possibles :</h6>
+                            <ul class="list-unstyled text-start">
+                                <li><i class="fas fa-clock text-warning me-2"></i>Lien expiré</li>
+                                <li><i class="fas fa-times text-danger me-2"></i>Lien invalide</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Email déjà validé</li>
+                                <li><i class="fas fa-user-times text-muted me-2"></i>Compte supprimé</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Solutions :</h6>
+                            <ul class="list-unstyled text-start">
+                                <li><i class="fas fa-envelope text-info me-2"></i>Vérifiez votre email</li>
+                                <li><i class="fas fa-redo text-primary me-2"></i>Demandez un nouveau lien</li>
+                                <li><i class="fas fa-sign-in-alt text-success me-2"></i>Essayez de vous connecter</li>
+                                <li><i class="fas fa-question-circle text-muted me-2"></i>Contactez l'admin</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="alert alert-info" role="alert">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Besoin d'aide ?</strong> Si vous pensez qu'il s'agit d'une erreur, 
+                            contactez l'administration du club pour obtenir de l'aide.
+                        </small>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="/connexion" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>Page de connexion
+                        </a>
+                        <a href="/inscription" class="btn btn-outline-primary ms-2">
+                            <i class="fas fa-user-plus me-2"></i>Nouvelle inscription
+                        </a>
+                        <a href="/" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-home me-2"></i>Accueil
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

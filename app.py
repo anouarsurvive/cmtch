@@ -454,8 +454,9 @@ async def register(request: Request) -> HTMLResponse:
             errors.append("L'adresse e‑mail est obligatoire.")
         if not phone:
             errors.append("Le téléphone est obligatoire.")
-        if not ijin_number:
-            errors.append("Le numéro IJIN est obligatoire.")
+        # Le numéro IJIN n'est plus obligatoire
+        # if not ijin_number:
+        #     errors.append("Le numéro IJIN est obligatoire.")
         if not birth_date:
             errors.append("La date de naissance est obligatoire.")
         if not password:
@@ -529,27 +530,40 @@ async def register(request: Request) -> HTMLResponse:
         pwd_hash = hash_password(password)
         is_trainer = 1 if role == "trainer" else 0
         
+        # Générer un token de validation par email
+        import secrets
+        email_verification_token = secrets.token_urlsafe(32)
+        
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute(
-                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, 0, %s)",
-                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
+                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, 0, %s, %s, 0)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer, email_verification_token),
             )
         else:
             cur.execute(
-                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
-                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer),
+                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer, email_verification_token),
             )
         conn.commit()
         conn.close()
         
         print(f"✅ Utilisateur créé avec succès: {username}")
         
+        # Construire l'URL de validation
+        base_url = str(request.base_url).rstrip('/')
+        verification_url = f"{base_url}/verifier-email/{email_verification_token}"
+        
         return templates.TemplateResponse(
             "register_success.html",
-            {"request": request, "username": username},
+            {
+                "request": request, 
+                "username": username,
+                "email": email,
+                "verification_url": verification_url
+            },
         )
         
     except Exception as e:
@@ -567,6 +581,85 @@ async def register(request: Request) -> HTMLResponse:
                 "ijin_number": ijin_number if 'ijin_number' in locals() else "",
                 "birth_date": birth_date if 'birth_date' in locals() else "",
             },
+        )
+
+
+@app.get("/verifier-email/{token}", response_class=HTMLResponse)
+async def verify_email(request: Request, token: str) -> HTMLResponse:
+    """Valide l'adresse email d'un utilisateur via un token."""
+    try:
+        conn = get_db_connection()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, username, email, email_verified FROM users WHERE email_verification_token = %s",
+                (token,)
+            )
+        else:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, username, email, email_verified FROM users WHERE email_verification_token = ?",
+                (token,)
+            )
+        
+        user = cur.fetchone()
+        
+        if not user:
+            conn.close()
+            return templates.TemplateResponse(
+                "email_verification_error.html",
+                {
+                    "request": request,
+                    "error": "Token de validation invalide ou expiré."
+                }
+            )
+        
+        user_id, username, email, email_verified = user
+        
+        if email_verified:
+            conn.close()
+            return templates.TemplateResponse(
+                "email_verification_error.html",
+                {
+                    "request": request,
+                    "error": "Cette adresse email a déjà été validée."
+                }
+            )
+        
+        # Marquer l'email comme vérifié
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur.execute(
+                "UPDATE users SET email_verified = 1, email_verification_token = NULL WHERE id = %s",
+                (user_id,)
+            )
+        else:
+            cur.execute(
+                "UPDATE users SET email_verified = 1, email_verification_token = NULL WHERE id = ?",
+                (user_id,)
+            )
+        
+        conn.commit()
+        conn.close()
+        
+        return templates.TemplateResponse(
+            "email_verification_success.html",
+            {
+                "request": request,
+                "username": username,
+                "email": email
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la validation email: {e}")
+        return templates.TemplateResponse(
+            "email_verification_error.html",
+            {
+                "request": request,
+                "error": f"Une erreur s'est produite lors de la validation: {str(e)}"
+            }
         )
 
 
@@ -623,6 +716,8 @@ async def login(request: Request) -> HTMLResponse:
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
         elif not user["validated"]:
             errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
+        elif not user.get("email_verified", True):  # Par défaut True pour compatibilité avec l'ancienne base
+            errors.append("Votre adresse email n'a pas encore été validée. Veuillez vérifier votre boîte mail et cliquer sur le lien de confirmation.")
         
         # Si erreurs, afficher le formulaire avec les erreurs
         if errors:
@@ -998,6 +1093,178 @@ async def admin_members(request: Request) -> HTMLResponse:
             }
         },
     )
+
+
+@app.get("/admin/membres/ajouter", response_class=HTMLResponse)
+async def admin_add_member_form(request: Request) -> HTMLResponse:
+    """Affiche le formulaire d'ajout de membre pour les administrateurs."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    return templates.TemplateResponse(
+        "admin_add_member.html",
+        {"request": request, "user": user},
+    )
+
+
+@app.post("/admin/membres/ajouter", response_class=HTMLResponse)
+async def admin_add_member(request: Request) -> HTMLResponse:
+    """Traite l'ajout d'un nouveau membre par un administrateur."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    try:
+        # Utiliser Form pour une gestion plus robuste des données
+        form_data = await request.form()
+        
+        # Récupération des données du formulaire
+        username = str(form_data.get("username", "")).strip()
+        full_name = str(form_data.get("full_name", "")).strip()
+        email = str(form_data.get("email", "")).strip()
+        phone = str(form_data.get("phone", "")).strip()
+        ijin_number = str(form_data.get("ijin_number", "")).strip()
+        birth_date = str(form_data.get("birth_date", "")).strip()
+        password = str(form_data.get("password", ""))
+        confirm_password = str(form_data.get("confirm_password", ""))
+        role = str(form_data.get("role", "member"))
+        validated = form_data.get("validated", "0") == "1"
+        email_verified = form_data.get("email_verified", "0") == "1"
+        
+        # Vérifications de base
+        errors: List[str] = []
+        
+        if not username:
+            errors.append("Le nom d'utilisateur est obligatoire.")
+        if not full_name:
+            errors.append("Le nom complet est obligatoire.")
+        if not email:
+            errors.append("L'adresse e‑mail est obligatoire.")
+        if not phone:
+            errors.append("Le téléphone est obligatoire.")
+        if not birth_date:
+            errors.append("La date de naissance est obligatoire.")
+        if not password:
+            errors.append("Le mot de passe est obligatoire.")
+        if password != confirm_password:
+            errors.append("Les mots de passe ne correspondent pas.")
+        if len(password) < 6:
+            errors.append("Le mot de passe doit contenir au moins 6 caractères.")
+            
+        # Vérifier que le nom d'utilisateur, l'email et le téléphone n'existent pas déjà
+        conn = get_db_connection()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            # Vérifier le nom d'utilisateur
+            cur.execute("SELECT id, username FROM users WHERE username = %s", (username,))
+            existing_user = cur.fetchone()
+            if existing_user:
+                errors.append("Ce nom d'utilisateur est déjà utilisé.")
+            
+            # Vérifier l'email
+            cur.execute("SELECT id, username, email FROM users WHERE email = %s", (email,))
+            existing_email = cur.fetchone()
+            if existing_email:
+                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'.")
+            
+            # Vérifier le téléphone
+            cur.execute("SELECT id, username, phone FROM users WHERE phone = %s", (phone,))
+            existing_phone = cur.fetchone()
+            if existing_phone:
+                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'.")
+        else:
+            cur = conn.cursor()
+            # Vérifier le nom d'utilisateur
+            cur.execute("SELECT id, username FROM users WHERE username = ?", (username,))
+            existing_user = cur.fetchone()
+            if existing_user:
+                errors.append("Ce nom d'utilisateur est déjà utilisé.")
+            
+            # Vérifier l'email
+            cur.execute("SELECT id, username, email FROM users WHERE email = ?", (email,))
+            existing_email = cur.fetchone()
+            if existing_email:
+                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'.")
+            
+            # Vérifier le téléphone
+            cur.execute("SELECT id, username, phone FROM users WHERE phone = ?", (phone,))
+            existing_phone = cur.fetchone()
+            if existing_phone:
+                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'.")
+            
+        if errors:
+            conn.close()
+            return templates.TemplateResponse(
+                "admin_add_member.html",
+                {
+                    "request": request,
+                    "user": user,
+                    "errors": errors,
+                    "username": username,
+                    "full_name": full_name,
+                    "email": email,
+                    "phone": phone,
+                    "role": role,
+                    "ijin_number": ijin_number,
+                    "birth_date": birth_date,
+                    "validated": validated,
+                    "email_verified": email_verified,
+                },
+            )
+            
+        # Création de l'utilisateur
+        pwd_hash = hash_password(password)
+        is_trainer = 1 if role == "trainer" else 0
+        is_admin = 1 if role == "admin" else 0
+        
+        # Générer un token de validation par email si nécessaire
+        import secrets
+        email_verification_token = secrets.token_urlsafe(32) if not email_verified else None
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur.execute(
+                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_admin, validated, is_trainer, email_verification_token, email_verified),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_admin, validated, is_trainer, email_verification_token, email_verified),
+            )
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ Membre ajouté avec succès par l'admin: {username}")
+        
+        return RedirectResponse(url="/admin/membres", status_code=303)
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'ajout du membre: {e}")
+        return templates.TemplateResponse(
+            "admin_add_member.html",
+            {
+                "request": request,
+                "user": user,
+                "errors": [f"Une erreur s'est produite lors de l'ajout du membre: {str(e)}"],
+                "username": username if 'username' in locals() else "",
+                "full_name": full_name if 'full_name' in locals() else "",
+                "email": email if 'email' in locals() else "",
+                "phone": phone if 'phone' in locals() else "",
+                "role": role if 'role' in locals() else "member",
+                "ijin_number": ijin_number if 'ijin_number' in locals() else "",
+                "birth_date": birth_date if 'birth_date' in locals() else "",
+                "validated": validated if 'validated' in locals() else False,
+                "email_verified": email_verified if 'email_verified' in locals() else False,
+            },
+        )
 
 
 @app.post("/admin/membres/valider", response_class=HTMLResponse)

@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg border-0">
+                <div class="card-body text-center p-5">
+                    <div class="mb-4">
+                        <i class="fas fa-check-circle fa-4x text-success"></i>
+                    </div>
+                    
+                    <h2 class="card-title text-success mb-3">Email validé avec succès !</h2>
+                    
+                    <p class="card-text mb-4">
+                        Félicitations <strong>{{ username }}</strong> ! Votre adresse email <strong>{{ email }}</strong> a été validée avec succès.
+                    </p>
+                    
+                    <div class="alert alert-success" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-envelope-check me-2"></i>Validation terminée
+                        </h5>
+                        <p class="mb-0">
+                            Votre compte est maintenant prêt. Il ne vous reste plus qu'à attendre la validation par un administrateur pour pouvoir vous connecter.
+                        </p>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Statut de votre compte :</h6>
+                            <ul class="list-unstyled text-start">
+                                <li><i class="fas fa-check text-success me-2"></i>Email validé</li>
+                                <li><i class="fas fa-clock text-warning me-2"></i>En attente de validation admin</li>
+                                <li><i class="fas fa-lock text-muted me-2"></i>Connexion temporairement bloquée</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Prochaines étapes :</h6>
+                            <ul class="list-unstyled text-start">
+                                <li><i class="fas fa-user-check text-info me-2"></i>Validation par l'admin</li>
+                                <li><i class="fas fa-sign-in-alt text-primary me-2"></i>Connexion possible</li>
+                                <li><i class="fas fa-calendar-check text-success me-2"></i>Réservations</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="alert alert-info" role="alert">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Information :</strong> La validation par l'administrateur peut prendre quelques heures. 
+                            Vous recevrez un email de confirmation une fois votre compte validé.
+                        </small>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>Retour à l'accueil
+                        </a>
+                        <a href="/connexion" class="btn btn-outline-primary ms-2">
+                            <i class="fas fa-sign-in-alt me-2"></i>Page de connexion
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

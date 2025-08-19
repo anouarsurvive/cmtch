@@ -1,0 +1,183 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-user-plus fa-2x me-3"></i>
+                        <div>
+                            <h3 class="mb-0">Ajouter un nouveau membre</h3>
+                            <p class="mb-0 opacity-75">Formulaire d'ajout de membre par l'administrateur</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body p-4">
+                    {% if errors and errors|length > 0 %}
+                        <div class="alert alert-danger">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Erreurs détectées
+                            </h5>
+                            <ul class="mb-0">
+                                {% for error in errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                    
+                    <form method="post" action="/admin/membres/ajouter">
+                        <div class="row">
+                            <!-- Informations de base -->
+                            <div class="col-md-6">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fas fa-user me-2"></i>Informations personnelles
+                                </h5>
+                                
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">Nom d'utilisateur *</label>
+                                    <input type="text" class="form-control" id="username" name="username" 
+                                           value="{{ username|default('') }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="full_name" class="form-label">Nom complet *</label>
+                                    <input type="text" class="form-control" id="full_name" name="full_name" 
+                                           value="{{ full_name|default('') }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Adresse email *</label>
+                                    <input type="email" class="form-control" id="email" name="email" 
+                                           value="{{ email|default('') }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">Numéro de téléphone *</label>
+                                    <input type="tel" class="form-control" id="phone" name="phone" 
+                                           value="{{ phone|default('') }}" required>
+                                </div>
+                            </div>
+                            
+                            <!-- Informations supplémentaires -->
+                            <div class="col-md-6">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fas fa-id-card me-2"></i>Informations supplémentaires
+                                </h5>
+                                
+                                <div class="mb-3">
+                                    <label for="ijin_number" class="form-label">Numéro IJIN</label>
+                                    <input type="text" class="form-control" id="ijin_number" name="ijin_number" 
+                                           value="{{ ijin_number|default('') }}">
+                                    <div class="form-text">Optionnel</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="birth_date" class="form-label">Date de naissance *</label>
+                                    <input type="date" class="form-control" id="birth_date" name="birth_date" 
+                                           value="{{ birth_date|default('') }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="role" class="form-label">Rôle *</label>
+                                    <select class="form-select" id="role" name="role" required>
+                                        <option value="member" {% if role|default('member') == 'member' %}selected{% endif %}>Membre</option>
+                                        <option value="trainer" {% if role|default('member') == 'trainer' %}selected{% endif %}>Entraîneur</option>
+                                        <option value="admin" {% if role|default('member') == 'admin' %}selected{% endif %}>Administrateur</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <!-- Sécurité -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fas fa-lock me-2"></i>Sécurité
+                                </h5>
+                                
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Mot de passe *</label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                    <div class="form-text">Minimum 6 caractères</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="confirm_password" class="form-label">Confirmer le mot de passe *</label>
+                                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fas fa-cog me-2"></i>Paramètres du compte
+                                </h5>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="validated" name="validated" value="1" 
+                                               {% if validated|default(False) %}checked{% endif %}>
+                                        <label class="form-check-label" for="validated">
+                                            Compte validé
+                                        </label>
+                                        <div class="form-text">Permet l'accès immédiat aux réservations</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="email_verified" name="email_verified" value="1" 
+                                               {% if email_verified|default(False) %}checked{% endif %}>
+                                        <label class="form-check-label" for="email_verified">
+                                            Email vérifié
+                                        </label>
+                                        <div class="form-text">Marque l'email comme déjà validé</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <!-- Actions -->
+                        <div class="d-flex justify-content-between">
+                            <a href="/admin/membres" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-user-plus me-2"></i>Ajouter le membre
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Validation en temps réel
+document.getElementById('confirm_password').addEventListener('input', function() {
+    const password = document.getElementById('password').value;
+    const confirmPassword = this.value;
+    
+    if (password !== confirmPassword) {
+        this.setCustomValidity('Les mots de passe ne correspondent pas');
+    } else {
+        this.setCustomValidity('');
+    }
+});
+
+document.getElementById('password').addEventListener('input', function() {
+    const confirmPassword = document.getElementById('confirm_password');
+    if (confirmPassword.value) {
+        confirmPassword.dispatchEvent(new Event('input'));
+    }
+});
+</script>
+{% endblock %}
