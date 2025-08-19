@@ -1043,47 +1043,91 @@ def check_admin(user: sqlite3.Row) -> None:
 
 @app.get("/reservations", response_class=HTMLResponse)
 async def reservations_page(request: Request) -> HTMLResponse:
-    """Affiche la page de réservation pour les membres validés.
+    """Affiche la page de réservation améliorée pour les membres validés.
 
-    Montre les réservations existantes pour le jour sélectionné et permet
-    d'effectuer une nouvelle réservation si l'horaire est libre.
+    Fonctionnalités améliorées :
+    - Vue calendrier avec navigation
+    - Statistiques utilisateur
+    - Réservations récurrentes
+    - Notifications intelligentes
+    - Système de favoris
     """
     user = get_current_user(request)
     if not user:
-        # Redirection vers la connexion si l'utilisateur n'est pas connecté
         return RedirectResponse(url="/connexion", status_code=303)
     if not user["validated"]:
         return templates.TemplateResponse(
             "not_validated.html",
             {"request": request, "message": "Votre inscription doit être validée pour accéder aux réservations."},
         )
-    # Date sélectionnée (par défaut la date du jour)
+    
+    # Paramètres de la requête
     today_str = date.today().isoformat()
     selected_date = request.query_params.get("date", today_str)
-    # Récupérer les réservations pour cette date
+    view_type = request.query_params.get("view", "day")  # day, week, month
+    
+    # Calculer les dates pour la vue semaine/mois
+    selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
+    week_start = selected_date_obj - timedelta(days=selected_date_obj.weekday())
+    week_end = week_start + timedelta(days=6)
+    month_start = selected_date_obj.replace(day=1)
+    if month_start.month == 12:
+        month_end = month_start.replace(year=month_start.year + 1, month=1) - timedelta(days=1)
+    else:
+        month_end = month_start.replace(month=month_start.month + 1) - timedelta(days=1)
+    
+    # Récupérer les réservations
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
+        
+        # Réservations pour la date sélectionnée
         cur, column_names = execute_with_names(
             "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
             "WHERE date = %s ORDER BY start_time",
             (selected_date,),
         )
         reservations = cur.fetchall()
-        # Convertir les tuples MySQL en objets avec attributs nommés
         reservations = [convert_mysql_result(res, column_names) for res in reservations]
         
-        # Récupérer les réservations de l'utilisateur connecté
+        # Réservations de l'utilisateur (toutes)
         cur, column_names = execute_with_names(
-            "SELECT * FROM reservations WHERE user_id = %s ORDER BY date, start_time",
+            "SELECT * FROM reservations WHERE user_id = %s ORDER BY date DESC, start_time",
             (user.id,),
         )
         user_reservations = cur.fetchall()
-        # Convertir les tuples MySQL en objets avec attributs nommés
         user_reservations = [convert_mysql_result(res, column_names) for res in user_reservations]
+        
+        # Réservations pour la semaine (si vue semaine)
+        if view_type == "week":
+            cur, column_names = execute_with_names(
+                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+                "WHERE date BETWEEN %s AND %s ORDER BY date, start_time",
+                (week_start.isoformat(), week_end.isoformat()),
+            )
+            week_reservations = cur.fetchall()
+            week_reservations = [convert_mysql_result(res, column_names) for res in week_reservations]
+        else:
+            week_reservations = []
+        
+        # Statistiques utilisateur
+        cur, column_names = execute_with_names(
+            "SELECT COUNT(*) as total_reservations, COUNT(DISTINCT date) as days_played FROM reservations WHERE user_id = %s",
+            (user.id,),
+        )
+        stats = cur.fetchone()
+        user_stats = convert_mysql_result(stats, column_names) if stats else {"total_reservations": 0, "days_played": 0}
+        
+        # Réservations récurrentes de l'utilisateur
+        cur, column_names = execute_with_names(
+            "SELECT * FROM recurring_reservations WHERE user_id = %s AND active = 1",
+            (user.id,),
+        )
+        recurring_reservations = cur.fetchall()
+        recurring_reservations = [convert_mysql_result(res, column_names) for res in recurring_reservations]
+        
     else:
         cur = conn.cursor()
         cur.execute(
@@ -1092,40 +1136,66 @@ async def reservations_page(request: Request) -> HTMLResponse:
             (selected_date,),
         )
         reservations = cur.fetchall()
-        # Récupérer les réservations de l'utilisateur connecté
+        
         cur.execute(
-            "SELECT * FROM reservations WHERE user_id = ? ORDER BY date, start_time",
+            "SELECT * FROM reservations WHERE user_id = ? ORDER BY date DESC, start_time",
             (user["id"],),
         )
         user_reservations = cur.fetchall()
+        
+        if view_type == "week":
+            cur.execute(
+                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+                "WHERE date BETWEEN ? AND ? ORDER BY date, start_time",
+                (week_start.isoformat(), week_end.isoformat()),
+            )
+            week_reservations = cur.fetchall()
+        else:
+            week_reservations = []
+        
+        # Statistiques utilisateur
+        cur.execute(
+            "SELECT COUNT(*) as total_reservations, COUNT(DISTINCT date) as days_played FROM reservations WHERE user_id = ?",
+            (user["id"],),
+        )
+        stats = cur.fetchone()
+        user_stats = {"total_reservations": stats[0], "days_played": stats[1]} if stats else {"total_reservations": 0, "days_played": 0}
+        
+        # Réservations récurrentes
+        cur.execute(
+            "SELECT * FROM recurring_reservations WHERE user_id = ? AND active = 1",
+            (user["id"],),
+        )
+        recurring_reservations = cur.fetchall()
     
     conn.close()
-    # Générer des créneaux horaires d'une heure de 8h00 à 22h00 (dernier créneau 21h-22h)
+    
+    # Générer des créneaux horaires améliorés (6h-23h)
     time_slots: List[Tuple[str, str]] = []
-    for hour in range(8, 22):
+    for hour in range(6, 23):
         start_slot = time(hour, 0)
-        end_slot = time(hour + 1, 0) if hour < 21 else time(22, 0)
+        end_slot = time(hour + 1, 0) if hour < 22 else time(23, 0)
         time_slots.append((start_slot.strftime("%H:%M"), end_slot.strftime("%H:%M")))
-    # Préparer la disponibilité pour chaque court avec informations utilisateur
+    
+    # Préparer la disponibilité avec informations enrichies
     availability: Dict[int, Dict[Tuple[str, str], dict]] = {1: {}, 2: {}, 3: {}}
-    # Convertir la liste de réservations en dictionnaire par court pour vérifier rapidement
     reservations_by_court = {1: [], 2: [], 3: []}
+    
     for res in reservations:
         reservations_by_court[res.court_number].append(res)
-    # Pour chaque court et chaque créneau, déterminer si réservé et par qui
+    
+    # Pour chaque court et chaque créneau, déterminer la disponibilité
     for court in (1, 2, 3):
         court_reservations = reservations_by_court.get(court, [])
         for start_str, end_str in time_slots:
-            # On considère le créneau réservé s'il existe une réservation qui chevauche l'intervalle [start, end)
             reserved = False
             reservation_info = None
+            
             for res in court_reservations:
-                # res.start_time/res.end_time peuvent être des timedelta (MySQL) ou des chaînes (SQLite)
-                # Convertir en chaîne si nécessaire
+                # Gestion des timedelta MySQL
                 start_time_str = str(res.start_time) if hasattr(res.start_time, 'total_seconds') else res.start_time
                 end_time_str = str(res.end_time) if hasattr(res.end_time, 'total_seconds') else res.end_time
                 
-                # Si c'est un timedelta, convertir en format HH:MM
                 if hasattr(res.start_time, 'total_seconds'):
                     total_seconds = int(res.start_time.total_seconds())
                     hours = total_seconds // 3600
@@ -1148,7 +1218,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
                     reservation_info = {
                         "user_full_name": res.user_full_name,
                         "username": getattr(res, 'username', "Utilisateur"),
-                        "is_current_user": res.user_id == user.id
+                        "is_current_user": res.user_id == user.id if hasattr(user, 'id') else res.user_id == user["id"]
                     }
                     break
             availability[court][(start_str, end_str)] = {
@@ -1156,19 +1226,28 @@ async def reservations_page(request: Request) -> HTMLResponse:
                 "reservation_info": reservation_info
             }
     
-    return templates.TemplateResponse(
-        "reservations.html",
-        {
-            "request": request,
-            "user": user,
-            "is_admin": bool(user.is_admin),
-            "reservations": reservations,
-            "user_reservations": user_reservations,
-            "selected_date": selected_date,
-            "time_slots": time_slots,
-            "availability": availability,
-        },
-    )
+    # Préparer les données pour le template
+    template_data = {
+        "request": request,
+        "user": user,
+        "is_admin": bool(user.is_admin),
+        "reservations": reservations,
+        "user_reservations": user_reservations,
+        "week_reservations": week_reservations,
+        "recurring_reservations": recurring_reservations,
+        "user_stats": user_stats,
+        "selected_date": selected_date,
+        "view_type": view_type,
+        "time_slots": time_slots,
+        "availability": availability,
+        "today_date": today_str,
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "month_start": month_start.isoformat(),
+        "month_end": month_end.isoformat(),
+    }
+    
+    return templates.TemplateResponse("reservations_improved.html", template_data)
 
 
 @app.post("/reservations", response_class=HTMLResponse)
@@ -1422,6 +1501,279 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
         media_type="text/calendar",
         headers={"Content-Disposition": f"attachment; filename=reservation_tennis_court_{court_number}_{date_str}.ics"}
     )
+
+
+# ===== NOUVELLES ROUTES POUR LES FONCTIONNALITÉS AMÉLIORÉES =====
+
+@app.post("/reservations/recurring", response_class=HTMLResponse)
+async def create_recurring_reservation(request: Request) -> HTMLResponse:
+    """Crée une réservation récurrente."""
+    user = get_current_user(request)
+    if not user or not user["validated"]:
+        return RedirectResponse(url="/connexion", status_code=303)
+    
+    form = await request.form()
+    court_number = int(form.get("court_number"))
+    start_time = form.get("start_time")
+    end_time = form.get("end_time")
+    frequency = form.get("frequency")  # weekly, biweekly, monthly
+    start_date = form.get("start_date")
+    end_date = form.get("end_date")
+    
+    conn = get_db_connection()
+    
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO recurring_reservations (user_id, court_number, start_time, end_time, frequency, start_date, end_date, active) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, 1)",
+            (user["id"], court_number, start_time, end_time, frequency, start_date, end_date)
+        )
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO recurring_reservations (user_id, court_number, start_time, end_time, frequency, start_date, end_date, active) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+            (user["id"], court_number, start_time, end_time, frequency, start_date, end_date)
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    return RedirectResponse(url=f"/reservations?date={start_date}", status_code=303)
+
+
+@app.delete("/reservations/{reservation_id}")
+async def cancel_reservation(request: Request, reservation_id: int) -> JSONResponse:
+    """Annule une réservation."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    
+    conn = get_db_connection()
+    
+    # Vérifier que l'utilisateur est propriétaire de la réservation
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM reservations WHERE id = %s", (reservation_id,))
+        reservation = cur.fetchone()
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM reservations WHERE id = ?", (reservation_id,))
+        reservation = cur.fetchone()
+    
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Réservation introuvable")
+    
+    reservation_user_id = reservation[0] if hasattr(conn, '_is_mysql') and conn._is_mysql else reservation['user_id']
+    
+    if reservation_user_id != user["id"] and not user["is_admin"]:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    
+    # Supprimer la réservation
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur.execute("DELETE FROM reservations WHERE id = %s", (reservation_id,))
+    else:
+        cur.execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return JSONResponse({"success": True, "message": "Réservation annulée"})
+
+
+@app.get("/reservations/calendar")
+async def get_calendar_data(request: Request) -> JSONResponse:
+    """Retourne les données du calendrier pour l'API."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    
+    start_date = request.query_params.get("start")
+    end_date = request.query_params.get("end")
+    
+    conn = get_db_connection()
+    
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT r.*, u.full_name FROM reservations r JOIN users u ON r.user_id = u.id "
+            "WHERE date BETWEEN %s AND %s",
+            (start_date, end_date)
+        )
+        reservations = cur.fetchall()
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT r.*, u.full_name FROM reservations r JOIN users u ON r.user_id = u.id "
+            "WHERE date BETWEEN ? AND ?",
+            (start_date, end_date)
+        )
+        reservations = cur.fetchall()
+    
+    conn.close()
+    
+    # Formater les données pour le calendrier
+    calendar_events = []
+    for res in reservations:
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            event = {
+                "id": res[0],
+                "title": f"Court {res[2]} - {res[5]}",
+                "start": f"{res[3]}T{res[4]}:00",
+                "end": f"{res[3]}T{res[5]}:00",
+                "backgroundColor": "#007bff" if res[1] == user["id"] else "#6c757d"
+            }
+        else:
+            event = {
+                "id": res['id'],
+                "title": f"Court {res['court_number']} - {res['full_name']}",
+                "start": f"{res['date']}T{res['start_time']}:00",
+                "end": f"{res['date']}T{res['end_time']}:00",
+                "backgroundColor": "#007bff" if res['user_id'] == user["id"] else "#6c757d"
+            }
+        calendar_events.append(event)
+    
+    return JSONResponse(calendar_events)
+
+
+@app.get("/reservations/notifications")
+async def get_notifications(request: Request) -> JSONResponse:
+    """Retourne les notifications de l'utilisateur."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    
+    conn = get_db_connection()
+    
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM notifications WHERE user_id = %s ORDER BY created_at DESC LIMIT 10",
+            (user["id"],)
+        )
+        notifications = cur.fetchall()
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 10",
+            (user["id"],)
+        )
+        notifications = cur.fetchall()
+    
+    conn.close()
+    
+    return JSONResponse({"notifications": notifications})
+
+
+@app.post("/reservations/favorites")
+async def add_favorite_slot(request: Request) -> JSONResponse:
+    """Ajoute un créneau favori."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    
+    form = await request.form()
+    court_number = int(form.get("court_number"))
+    start_time = form.get("start_time")
+    end_time = form.get("end_time")
+    day_of_week = form.get("day_of_week")
+    
+    conn = get_db_connection()
+    
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO favorite_slots (user_id, court_number, start_time, end_time, day_of_week) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (user["id"], court_number, start_time, end_time, day_of_week)
+        )
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO favorite_slots (user_id, court_number, start_time, end_time, day_of_week) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user["id"], court_number, start_time, end_time, day_of_week)
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    return JSONResponse({"success": True, "message": "Créneau favori ajouté"})
+
+
+@app.get("/reservations/stats")
+async def get_user_stats(request: Request) -> JSONResponse:
+    """Retourne les statistiques de l'utilisateur."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    
+    conn = get_db_connection()
+    
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        # Statistiques générales
+        cur.execute(
+            "SELECT COUNT(*) as total, COUNT(DISTINCT date) as days, "
+            "COUNT(DISTINCT court_number) as courts FROM reservations WHERE user_id = %s",
+            (user["id"],)
+        )
+        general_stats = cur.fetchone()
+        
+        # Statistiques par mois
+        cur.execute(
+            "SELECT DATE_FORMAT(date, '%%Y-%%m') as month, COUNT(*) as count "
+            "FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month DESC LIMIT 12",
+            (user["id"],)
+        )
+        monthly_stats = cur.fetchall()
+        
+        # Court préféré
+        cur.execute(
+            "SELECT court_number, COUNT(*) as count FROM reservations WHERE user_id = %s "
+            "GROUP BY court_number ORDER BY count DESC LIMIT 1",
+            (user["id"],)
+        )
+        favorite_court = cur.fetchone()
+        
+    else:
+        cur = conn.cursor()
+        # Statistiques générales
+        cur.execute(
+            "SELECT COUNT(*) as total, COUNT(DISTINCT date) as days, "
+            "COUNT(DISTINCT court_number) as courts FROM reservations WHERE user_id = ?",
+            (user["id"],)
+        )
+        general_stats = cur.fetchone()
+        
+        # Statistiques par mois
+        cur.execute(
+            "SELECT strftime('%Y-%m', date) as month, COUNT(*) as count "
+            "FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month DESC LIMIT 12",
+            (user["id"],)
+        )
+        monthly_stats = cur.fetchall()
+        
+        # Court préféré
+        cur.execute(
+            "SELECT court_number, COUNT(*) as count FROM reservations WHERE user_id = ? "
+            "GROUP BY court_number ORDER BY count DESC LIMIT 1",
+            (user["id"],)
+        )
+        favorite_court = cur.fetchone()
+    
+    conn.close()
+    
+    stats = {
+        "total_reservations": general_stats[0] if hasattr(conn, '_is_mysql') and conn._is_mysql else general_stats['total'],
+        "days_played": general_stats[1] if hasattr(conn, '_is_mysql') and conn._is_mysql else general_stats['days'],
+        "courts_used": general_stats[2] if hasattr(conn, '_is_mysql') and conn._is_mysql else general_stats['courts'],
+        "monthly_stats": monthly_stats,
+        "favorite_court": favorite_court[0] if favorite_court else None
+    }
+    
+    return JSONResponse(stats)
 
 
 @app.get("/admin/membres", response_class=HTMLResponse)

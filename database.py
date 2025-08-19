@@ -167,6 +167,52 @@ def init_mysql_db():
             date VARCHAR(20) NOT NULL,
             start_time VARCHAR(10) NOT NULL,
             end_time VARCHAR(10) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Table des réservations récurrentes
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_reservations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            court_number INT NOT NULL,
+            start_time VARCHAR(10) NOT NULL,
+            end_time VARCHAR(10) NOT NULL,
+            frequency VARCHAR(20) NOT NULL,
+            start_date VARCHAR(20) NOT NULL,
+            end_date VARCHAR(20) NOT NULL,
+            active TINYINT DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Table des créneaux favoris
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS favorite_slots (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            court_number INT NOT NULL,
+            start_time VARCHAR(10) NOT NULL,
+            end_time VARCHAR(10) NOT NULL,
+            day_of_week INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Table des notifications
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            type VARCHAR(50) DEFAULT 'info',
+            read_at TIMESTAMP NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
@@ -238,6 +284,52 @@ def init_sqlite_db():
             date TEXT NOT NULL,
             start_time TEXT NOT NULL,
             end_time TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Table des réservations récurrentes
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            court_number INTEGER NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            frequency TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Table des créneaux favoris
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS favorite_slots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            court_number INTEGER NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            day_of_week INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Table des notifications
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            type TEXT DEFAULT 'info',
+            read_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
