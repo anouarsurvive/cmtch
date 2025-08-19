@@ -1043,14 +1043,10 @@ def check_admin(user: sqlite3.Row) -> None:
 
 @app.get("/reservations", response_class=HTMLResponse)
 async def reservations_page(request: Request) -> HTMLResponse:
-    """Affiche la page de réservation améliorée pour les membres validés.
+    """Affiche la page de réservation pour les membres validés.
 
-    Fonctionnalités améliorées :
-    - Vue calendrier avec navigation
-    - Statistiques utilisateur
-    - Réservations récurrentes
-    - Notifications intelligentes
-    - Système de favoris
+    Montre les réservations existantes pour le jour sélectionné et permet
+    d'effectuer une nouvelle réservation si l'horaire est libre.
     """
     user = get_current_user(request)
     if not user:
@@ -1064,17 +1060,6 @@ async def reservations_page(request: Request) -> HTMLResponse:
     # Paramètres de la requête
     today_str = date.today().isoformat()
     selected_date = request.query_params.get("date", today_str)
-    view_type = request.query_params.get("view", "day")  # day, week, month
-    
-    # Calculer les dates pour la vue semaine/mois
-    selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
-    week_start = selected_date_obj - timedelta(days=selected_date_obj.weekday())
-    week_end = week_start + timedelta(days=6)
-    month_start = selected_date_obj.replace(day=1)
-    if month_start.month == 12:
-        month_end = month_start.replace(year=month_start.year + 1, month=1) - timedelta(days=1)
-    else:
-        month_end = month_start.replace(month=month_start.month + 1) - timedelta(days=1)
     
     # Récupérer les réservations
     conn = get_db_connection()
@@ -1100,37 +1085,6 @@ async def reservations_page(request: Request) -> HTMLResponse:
         user_reservations = cur.fetchall()
         user_reservations = [convert_mysql_result(res, column_names) for res in user_reservations]
         
-        # Réservations pour la semaine (si vue semaine)
-        if view_type == "week":
-            cur, column_names = execute_with_names(
-                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
-                "WHERE date BETWEEN %s AND %s ORDER BY date, start_time",
-                (week_start.isoformat(), week_end.isoformat()),
-            )
-            week_reservations = cur.fetchall()
-            week_reservations = [convert_mysql_result(res, column_names) for res in week_reservations]
-        else:
-            week_reservations = []
-        
-        # Statistiques utilisateur
-        cur, column_names = execute_with_names(
-            "SELECT COUNT(*) as total_reservations, COUNT(DISTINCT date) as days_played FROM reservations WHERE user_id = %s",
-            (user.id,),
-        )
-        stats = cur.fetchone()
-        user_stats = convert_mysql_result(stats, column_names) if stats else {"total_reservations": 0, "days_played": 0}
-        
-        # Réservations récurrentes de l'utilisateur
-        try:
-            cur, column_names = execute_with_names(
-                "SELECT * FROM recurring_reservations WHERE user_id = %s AND active = 1",
-                (user.id,),
-            )
-            recurring_reservations = cur.fetchall()
-            recurring_reservations = [convert_mysql_result(res, column_names) for res in recurring_reservations]
-        except:
-            recurring_reservations = []
-        
     else:
         cur = conn.cursor()
         cur.execute(
@@ -1145,34 +1099,6 @@ async def reservations_page(request: Request) -> HTMLResponse:
             (user["id"],),
         )
         user_reservations = cur.fetchall()
-        
-        if view_type == "week":
-            cur.execute(
-                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
-                "WHERE date BETWEEN ? AND ? ORDER BY date, start_time",
-                (week_start.isoformat(), week_end.isoformat()),
-            )
-            week_reservations = cur.fetchall()
-        else:
-            week_reservations = []
-        
-        # Statistiques utilisateur
-        cur.execute(
-            "SELECT COUNT(*) as total_reservations, COUNT(DISTINCT date) as days_played FROM reservations WHERE user_id = ?",
-            (user["id"],),
-        )
-        stats = cur.fetchone()
-        user_stats = {"total_reservations": stats[0], "days_played": stats[1]} if stats else {"total_reservations": 0, "days_played": 0}
-        
-        # Réservations récurrentes
-        try:
-            cur.execute(
-                "SELECT * FROM recurring_reservations WHERE user_id = ? AND active = 1",
-                (user["id"],),
-            )
-            recurring_reservations = cur.fetchall()
-        except:
-            recurring_reservations = []
     
     conn.close()
     
@@ -1218,8 +1144,8 @@ async def reservations_page(request: Request) -> HTMLResponse:
                 res_end = datetime.strptime(end_time_str, "%H:%M").time()
                 slot_start = datetime.strptime(start_str, "%H:%M").time()
                 slot_end = datetime.strptime(end_str, "%H:%M").time()
-                # Si les intervalles se chevauchent
-                if (slot_start < res_end and slot_end > res_start):
+                
+                if (res_start < slot_end and res_end > slot_start):
                     reserved = True
                     reservation_info = {
                         "user_full_name": res.user_full_name,
@@ -1239,22 +1165,12 @@ async def reservations_page(request: Request) -> HTMLResponse:
         "is_admin": bool(user.is_admin),
         "reservations": reservations,
         "user_reservations": user_reservations,
-        "week_reservations": week_reservations,
-        "recurring_reservations": recurring_reservations,
-        "user_stats": user_stats,
         "selected_date": selected_date,
-        "selected_date_obj": selected_date_obj,
-        "view_type": view_type,
         "time_slots": time_slots,
         "availability": availability,
-        "today_date": today_str,
-        "week_start": week_start.isoformat(),
-        "week_end": week_end.isoformat(),
-        "month_start": month_start.isoformat(),
-        "month_end": month_end.isoformat(),
     }
     
-    return templates.TemplateResponse("reservations_improved.html", template_data)
+    return templates.TemplateResponse("reservations.html", template_data)
 
 
 @app.post("/reservations", response_class=HTMLResponse)
@@ -1944,13 +1860,13 @@ async def admin_add_member(request: Request) -> HTMLResponse:
             cur.execute("SELECT id, username, email FROM users WHERE email = %s", (email,))
             existing_email = cur.fetchone()
             if existing_email:
-                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'.")
+                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
             
             # Vérifier le téléphone
             cur.execute("SELECT id, username, phone FROM users WHERE phone = %s", (phone,))
             existing_phone = cur.fetchone()
             if existing_phone:
-                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'.")
+                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
         else:
             cur = conn.cursor()
             # Vérifier le nom d'utilisateur
@@ -1963,13 +1879,13 @@ async def admin_add_member(request: Request) -> HTMLResponse:
             cur.execute("SELECT id, username, email FROM users WHERE email = ?", (email,))
             existing_email = cur.fetchone()
             if existing_email:
-                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'.")
+                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
             
             # Vérifier le téléphone
             cur.execute("SELECT id, username, phone FROM users WHERE phone = ?", (phone,))
             existing_phone = cur.fetchone()
             if existing_phone:
-                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'.")
+                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
             
         if errors:
             conn.close()
