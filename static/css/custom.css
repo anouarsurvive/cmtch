@@ -160,7 +160,7 @@ a:hover {
         box-shadow: 0 0 0 0.2rem rgba(251, 191, 36, 0.25);
     }
     
-    /* Navigation principale sur mobile - icônes seulement */
+    /* Navigation principale sur mobile */
     .navbar-nav .nav-item .nav-link {
         padding: 8px 12px !important;
         font-size: 14px;
@@ -168,6 +168,17 @@ a:hover {
     
     .navbar-nav .nav-item .nav-link i {
         font-size: 16px;
+    }
+    
+    /* Masquer le texte sur très petits écrans */
+    @media (max-width: 575.98px) {
+        .navbar-nav .nav-item .nav-link {
+            font-size: 12px;
+        }
+        
+        .navbar-nav .nav-item .nav-link i {
+            font-size: 14px;
+        }
     }
 }
 
