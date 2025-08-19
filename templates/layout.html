@@ -80,55 +80,34 @@
             <!-- Menu de navigation - responsive -->
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <!-- Version desktop -->
-                    <li class="nav-item d-none d-lg-block">
+                    <!-- Navigation principale - visible sur tous les écrans -->
+                    <li class="nav-item">
                         <a class="nav-link" href="/">
-                            <i class="fas fa-home me-1"></i>Accueil
+                            <i class="fas fa-home me-1"></i><span class="d-none d-sm-inline">Accueil</span>
                         </a>
                     </li>
-                    <li class="nav-item d-none d-lg-block">
+                    <li class="nav-item">
                         <a class="nav-link" href="/articles">
-                            <i class="fas fa-newspaper me-1"></i>Actualités
-                        </a>
-                    </li>
-                    
-                    <!-- Version mobile - menu vertical -->
-                    <li class="nav-item d-lg-none">
-                        <a class="nav-link mobile-nav-link" href="/">
-                            <i class="fas fa-home me-2"></i>Accueil
-                        </a>
-                    </li>
-                    <li class="nav-item d-lg-none">
-                        <a class="nav-link mobile-nav-link" href="/articles">
-                            <i class="fas fa-newspaper me-2"></i>Actualités
+                            <i class="fas fa-newspaper me-1"></i><span class="d-none d-sm-inline">Actualités</span>
                         </a>
                     </li>
                     
                     {% if not user %}
-                        <li class="nav-item d-none d-lg-block">
+                        <!-- Utilisateur non connecté -->
+                        <li class="nav-item">
                             <a class="nav-link" href="/inscription">
-                                <i class="fas fa-user-plus me-1"></i>Inscription
+                                <i class="fas fa-user-plus me-1"></i><span class="d-none d-sm-inline">Inscription</span>
                             </a>
                         </li>
-                        <li class="nav-item d-none d-lg-block">
+                        <li class="nav-item">
                             <a class="nav-link" href="/connexion">
-                                <i class="fas fa-sign-in-alt me-1"></i>Connexion
-                            </a>
-                        </li>
-                        <!-- Version mobile -->
-                        <li class="nav-item d-lg-none">
-                            <a class="nav-link mobile-nav-link" href="/inscription">
-                                <i class="fas fa-user-plus me-2"></i>Inscription
-                            </a>
-                        </li>
-                        <li class="nav-item d-lg-none">
-                            <a class="nav-link mobile-nav-link" href="/connexion">
-                                <i class="fas fa-sign-in-alt me-2"></i>Connexion
+                                <i class="fas fa-sign-in-alt me-1"></i><span class="d-none d-sm-inline">Connexion</span>
                             </a>
                         </li>
                     {% else %}
+                        <!-- Utilisateur connecté -->
                         {% if user.is_admin %}
-                            <!-- Version desktop -->
+                            <!-- Menu admin - version desktop -->
                             <li class="nav-item dropdown d-none d-lg-block">
                                 <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                     <i class="fas fa-cog me-1"></i>Admin
@@ -151,22 +130,9 @@
                                     </li>
                                 </ul>
                             </li>
-                            <!-- Version mobile -->
-                            <li class="nav-item d-lg-none">
-                                <div class="mobile-section-title">Administration</div>
-                                <a class="nav-link mobile-nav-link" href="/admin/membres">
-                                    <i class="fas fa-users me-2"></i>Gestion des membres
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/admin/reservations">
-                                    <i class="fas fa-calendar me-2"></i>Gestion des réservations
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/admin/articles">
-                                    <i class="fas fa-newspaper me-2"></i>Gestion des articles
-                                </a>
-                            </li>
                         {% endif %}
                         
-                        <!-- Version desktop -->
+                        <!-- Menu utilisateur - version desktop -->
                         <li class="nav-item dropdown d-none d-lg-block">
                             <a class="nav-link dropdown-toggle text-light" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user me-1"></i>{{ user.username }}
@@ -193,8 +159,21 @@
                             </ul>
                         </li>
                         
-                        <!-- Version mobile -->
+                        <!-- Menu mobile - visible seulement sur mobile -->
                         <li class="nav-item d-lg-none">
+                            {% if user.is_admin %}
+                                <div class="mobile-section-title">Administration</div>
+                                <a class="nav-link mobile-nav-link" href="/admin/membres">
+                                    <i class="fas fa-users me-2"></i>Gestion des membres
+                                </a>
+                                <a class="nav-link mobile-nav-link" href="/admin/reservations">
+                                    <i class="fas fa-calendar me-2"></i>Gestion des réservations
+                                </a>
+                                <a class="nav-link mobile-nav-link" href="/admin/articles">
+                                    <i class="fas fa-newspaper me-2"></i>Gestion des articles
+                                </a>
+                            {% endif %}
+                            
                             <div class="mobile-section-title">Mon compte</div>
                             <div class="mobile-user-info">
                                 <i class="fas fa-user-circle me-2"></i>
