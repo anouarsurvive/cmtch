@@ -54,7 +54,8 @@
                         </div>
                     </div>
                     
-                    <div class="table-responsive">
+                    <!-- Version desktop -->
+                    <div class="table-responsive d-none d-lg-block">
                         <table class="table schedule-table">
                             <thead>
                                 <tr>
@@ -113,6 +114,59 @@
                         </table>
                     </div>
                     
+                    <!-- Version mobile -->
+                    <div class="d-lg-none">
+                        <div class="mobile-schedule">
+                            {% for slot in time_slots %}
+                                <div class="mobile-time-slot">
+                                    <div class="mobile-time-header">
+                                        <i class="fas fa-clock me-2"></i>
+                                        <strong>{{ slot[0] }} - {{ slot[1] }}</strong>
+                                    </div>
+                                    <div class="mobile-courts">
+                                        {% for court in (1, 2, 3) %}
+                                            {% set slot_info = availability[court][slot] %}
+                                            {% set is_reserved = slot_info.reserved %}
+                                            <div class="mobile-court-item">
+                                                <div class="court-label">
+                                                    <i class="fas fa-tennis-ball me-1"></i>
+                                                    Court {{ court }}
+                                                </div>
+                                                {% if is_reserved %}
+                                                    {% set reservation_info = slot_info.reservation_info %}
+                                                    <div class="mobile-slot-reserved {% if reservation_info.is_current_user %}mobile-own-reservation{% endif %}">
+                                                        <i class="fas fa-lock me-2"></i>
+                                                        <div class="mobile-reservation-details">
+                                                            <span class="reserved-by">
+                                                                {% if reservation_info.is_current_user %}
+                                                                    <strong>Vous</strong>
+                                                                {% else %}
+                                                                    {{ reservation_info.user_full_name }}
+                                                                {% endif %}
+                                                            </span>
+                                                            <small class="username-display">@{{ reservation_info.username }}</small>
+                                                        </div>
+                                                    </div>
+                                                {% else %}
+                                                    <button type="button" 
+                                                            class="btn btn-primary btn-sm mobile-slot-available" 
+                                                            data-court="{{ court }}" 
+                                                            data-start="{{ slot[0] }}" 
+                                                            data-end="{{ slot[1] }}"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#reservationModal">
+                                                        <i class="fas fa-plus me-1"></i>
+                                                        Réserver
+                                                    </button>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
                     <div class="schedule-footer">
                         <p class="text-muted">
                             <i class="fas fa-info-circle me-2"></i>
@@ -124,7 +178,8 @@
 
             <!-- Mes réservations -->
             <div class="col-lg-4">
-                <div class="my-reservations-card">
+                <!-- Version desktop -->
+                <div class="my-reservations-card d-none d-lg-block">
                     <div class="card-header">
                         <h3 class="card-title">
                             <i class="fas fa-list me-2"></i>
@@ -168,6 +223,52 @@
                             </div>
                         {% else %}
                             <div class="empty-reservations">
+                                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">Aucune réservation</h5>
+                                <p class="text-muted">Vous n'avez pas encore de réservation.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Version mobile -->
+                <div class="d-lg-none">
+                    <div class="mobile-user-reservations">
+                        <h4 class="mb-3">
+                            <i class="fas fa-calendar-check me-2"></i>
+                            Mes réservations
+                        </h4>
+                        {% if user_reservations %}
+                            <div class="mobile-reservations-list">
+                                {% for r in user_reservations %}
+                                    <div class="mobile-reservation-item">
+                                        <div class="mobile-reservation-info">
+                                            <div class="mobile-reservation-time">
+                                                <i class="fas fa-clock me-1"></i>
+                                                {{ r.start_time }} - {{ r.end_time }}
+                                            </div>
+                                            <div class="mobile-reservation-court">
+                                                <i class="fas fa-tennis-ball me-1"></i>
+                                                Court {{ r.court_number }} • {{ r.date }}
+                                            </div>
+                                        </div>
+                                        <div class="mobile-reservation-actions">
+                                            <a href="/reservations/{{ r.id }}/export-ics" 
+                                               class="btn btn-sm btn-outline-primary"
+                                               title="Exporter vers le calendrier">
+                                                <i class="fas fa-calendar-plus"></i>
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    onclick="cancelReservation({{ r.id }})"
+                                                    title="Annuler la réservation">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
                                 <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
                                 <h5 class="text-muted">Aucune réservation</h5>
                                 <p class="text-muted">Vous n'avez pas encore de réservation.</p>

@@ -12,19 +12,21 @@
                 <h1 class="display-3 fw-bold mb-3">Club Municipal de Tennis Chihia</h1>
                 <p class="lead mb-4 fs-5">🎾 Votre passion du tennis, notre excellence depuis 1995</p>
                 <div class="row g-3 mb-4">
-                    <div class="col-md-4">
+                    <div class="col-md-4 col-6">
                         <div class="d-flex align-items-center justify-content-center">
                             <i class="fas fa-trophy text-warning me-2"></i>
-                            <span>3 Courts de tennis</span>
+                            <span class="d-none d-sm-inline">3 Courts de tennis</span>
+                            <span class="d-inline d-sm-none">3 Courts</span>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 col-6">
                         <div class="d-flex align-items-center justify-content-center">
                             <i class="fas fa-users text-info me-2"></i>
-                            <span>+200 Membres actifs</span>
+                            <span class="d-none d-sm-inline">+200 Membres actifs</span>
+                            <span class="d-inline d-sm-none">+200 Membres</span>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4 col-12 d-none d-md-block">
                         <div class="d-flex align-items-center justify-content-center">
                             <i class="fas fa-star text-warning me-2"></i>
                             <span>28 ans d'expérience</span>
@@ -286,12 +288,13 @@
     <div class="container">
         <h2 class="h3 text-center mb-4">Actualités</h2>
         {% if latest_articles %}
-        <div class="row g-4">
+        <!-- Version desktop -->
+        <div class="row g-4 d-none d-lg-flex">
             {% for article in latest_articles %}
             <div class="col-lg-4 col-md-6">
                 <div class="card border-0 shadow-sm h-100">
-                                         {% if article.image_path %}
-                         <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}" style="height: 180px; object-fit: cover;">
+                    {% if article.image_path %}
+                        <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}" style="height: 180px; object-fit: cover;">
                     {% else %}
                         <div class="bg-light d-flex align-items-center justify-content-center" style="height: 180px;">
                             <i class="fas fa-newspaper fa-2x text-muted"></i>
@@ -311,6 +314,36 @@
                 </div>
             </div>
             {% endfor %}
+        </div>
+        
+        <!-- Version mobile -->
+        <div class="d-lg-none">
+            <div class="mobile-articles">
+                {% for article in latest_articles %}
+                <div class="mobile-article-item">
+                    <div class="mobile-article-image">
+                        {% if article.image_path %}
+                            <img src="{{ article.image_path }}" alt="{{ article.title }}" class="img-fluid rounded">
+                        {% else %}
+                            <div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 120px;">
+                                <i class="fas fa-newspaper fa-2x text-muted"></i>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mobile-article-content">
+                        <div class="mobile-article-date">
+                            <i class="fas fa-calendar me-1"></i>
+                            {{ article.created_at.strftime('%d/%m/%Y') if article.created_at else 'Date inconnue' }}
+                        </div>
+                        <h6 class="mobile-article-title">{{ article.title }}</h6>
+                        <p class="mobile-article-excerpt">{{ article.content[:80] }}{% if article.content|length > 80 %}...{% endif %}</p>
+                        <a href="/articles/{{ article.id }}" class="btn btn-primary btn-sm">
+                            Lire la suite
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         <div class="text-center mt-3">
             <a href="/articles" class="btn btn-primary">

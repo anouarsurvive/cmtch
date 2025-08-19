@@ -57,50 +57,79 @@
     <link rel="preload" href="{{ url_for('static', path='js/performance.js') }}" as="script">
 </head>
 <body>
-    <!-- Navigation compacte et horizontale -->
+    <!-- Navigation responsive optimisée mobile -->
     <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
         <div class="container">
-            <!-- Logo et nom du club - version ultra-compacte -->
+            <!-- Logo et nom du club - version mobile optimisée -->
             <a class="navbar-brand d-flex align-items-center" href="/">
-                <img src="{{ url_for('static', path='images/logo.jpg') }}" alt="Logo du club" height="30" class="me-2">
-                <div>
+                <img src="{{ url_for('static', path='images/logo.jpg') }}" alt="Logo du club" height="30" class="me-2 d-none d-sm-inline">
+                <div class="d-none d-sm-block">
                     <span class="d-block fw-bold small">Club Municipal</span>
                     <span class="d-block small opacity-75">de Tennis Chihia</span>
                 </div>
+                <div class="d-block d-sm-none">
+                    <span class="fw-bold">CMTCH</span>
+                </div>
             </a>
             
-            <!-- Bouton toggle pour mobile -->
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <!-- Bouton toggle pour mobile - amélioré -->
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             
-            <!-- Menu de navigation - version ultra-compacte et horizontale -->
+            <!-- Menu de navigation - responsive -->
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto d-flex flex-row align-items-center">
-                    <li class="nav-item">
+                <ul class="navbar-nav ms-auto">
+                    <!-- Version desktop -->
+                    <li class="nav-item d-none d-lg-block">
                         <a class="nav-link" href="/">
                             <i class="fas fa-home me-1"></i>Accueil
                         </a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item d-none d-lg-block">
                         <a class="nav-link" href="/articles">
                             <i class="fas fa-newspaper me-1"></i>Actualités
                         </a>
                     </li>
+                    
+                    <!-- Version mobile - menu vertical -->
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link mobile-nav-link" href="/">
+                            <i class="fas fa-home me-2"></i>Accueil
+                        </a>
+                    </li>
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link mobile-nav-link" href="/articles">
+                            <i class="fas fa-newspaper me-2"></i>Actualités
+                        </a>
+                    </li>
+                    
                     {% if not user %}
-                        <li class="nav-item">
+                        <li class="nav-item d-none d-lg-block">
                             <a class="nav-link" href="/inscription">
                                 <i class="fas fa-user-plus me-1"></i>Inscription
                             </a>
                         </li>
-                        <li class="nav-item">
+                        <li class="nav-item d-none d-lg-block">
                             <a class="nav-link" href="/connexion">
                                 <i class="fas fa-sign-in-alt me-1"></i>Connexion
                             </a>
                         </li>
+                        <!-- Version mobile -->
+                        <li class="nav-item d-lg-none">
+                            <a class="nav-link mobile-nav-link" href="/inscription">
+                                <i class="fas fa-user-plus me-2"></i>Inscription
+                            </a>
+                        </li>
+                        <li class="nav-item d-lg-none">
+                            <a class="nav-link mobile-nav-link" href="/connexion">
+                                <i class="fas fa-sign-in-alt me-2"></i>Connexion
+                            </a>
+                        </li>
                     {% else %}
                         {% if user.is_admin %}
-                            <li class="nav-item dropdown">
+                            <!-- Version desktop -->
+                            <li class="nav-item dropdown d-none d-lg-block">
                                 <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                     <i class="fas fa-cog me-1"></i>Admin
                                 </a>
@@ -122,8 +151,23 @@
                                     </li>
                                 </ul>
                             </li>
+                            <!-- Version mobile -->
+                            <li class="nav-item d-lg-none">
+                                <div class="mobile-section-title">Administration</div>
+                                <a class="nav-link mobile-nav-link" href="/admin/membres">
+                                    <i class="fas fa-users me-2"></i>Gestion des membres
+                                </a>
+                                <a class="nav-link mobile-nav-link" href="/admin/reservations">
+                                    <i class="fas fa-calendar me-2"></i>Gestion des réservations
+                                </a>
+                                <a class="nav-link mobile-nav-link" href="/admin/articles">
+                                    <i class="fas fa-newspaper me-2"></i>Gestion des articles
+                                </a>
+                            </li>
                         {% endif %}
-                        <li class="nav-item dropdown">
+                        
+                        <!-- Version desktop -->
+                        <li class="nav-item dropdown d-none d-lg-block">
                             <a class="nav-link dropdown-toggle text-light" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user me-1"></i>{{ user.username }}
                             </a>
@@ -147,6 +191,26 @@
                                     </a>
                                 </li>
                             </ul>
+                        </li>
+                        
+                        <!-- Version mobile -->
+                        <li class="nav-item d-lg-none">
+                            <div class="mobile-section-title">Mon compte</div>
+                            <div class="mobile-user-info">
+                                <i class="fas fa-user-circle me-2"></i>
+                                <span class="fw-bold">{{ user.username }}</span>
+                            </div>
+                            {% if user.validated %}
+                                <a class="nav-link mobile-nav-link" href="/reservations">
+                                    <i class="fas fa-calendar-check me-2"></i>Mes réservations
+                                </a>
+                                <a class="nav-link mobile-nav-link" href="/espace">
+                                    <i class="fas fa-user me-2"></i>Mon espace
+                                </a>
+                            {% endif %}
+                            <a class="nav-link mobile-nav-link text-danger" href="/deconnexion">
+                                <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
+                            </a>
                         </li>
                     {% endif %}
                 </ul>
