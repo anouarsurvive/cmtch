@@ -105,6 +105,24 @@
                         </li>
                     {% endif %}
                     
+                    {% if user and user.is_admin %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/membres">
+                                <i class="fas fa-users me-1"></i>Gestion membres
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/reservations">
+                                <i class="fas fa-calendar me-1"></i>Gestion réservations
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/articles">
+                                <i class="fas fa-newspaper me-1"></i>Gestion articles
+                            </a>
+                        </li>
+                    {% endif %}
+                    
                     {% if not user %}
                         <!-- Utilisateur non connecté -->
                         <li class="nav-item">
@@ -119,31 +137,7 @@
                         </li>
                     {% else %}
                         <!-- Utilisateur connecté -->
-                        {% if user.is_admin %}
-                            <!-- Menu admin - version desktop -->
-                            <li class="nav-item dropdown d-none d-lg-block">
-                                <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-cog me-1"></i>Admin
-                                </a>
-                                <ul class="dropdown-menu" aria-labelledby="adminDropdown">
-                                    <li>
-                                        <a class="dropdown-item" href="/admin/membres">
-                                            <i class="fas fa-users me-2"></i>Membres
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="/admin/reservations">
-                                            <i class="fas fa-calendar me-2"></i>Réservations
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="/admin/articles">
-                                            <i class="fas fa-newspaper me-2"></i>Articles
-                                        </a>
-                                    </li>
-                                </ul>
-                            </li>
-                        {% endif %}
+
                         
                         <!-- Menu utilisateur - version desktop -->
                         <li class="nav-item dropdown d-none d-lg-block">
@@ -161,19 +155,6 @@
                         
                         <!-- Menu mobile - visible seulement sur mobile -->
                         <li class="nav-item d-lg-none">
-                            {% if user.is_admin %}
-                                <div class="mobile-section-title">Administration</div>
-                                <a class="nav-link mobile-nav-link" href="/admin/membres">
-                                    <i class="fas fa-users me-2"></i>Gestion des membres
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/admin/reservations">
-                                    <i class="fas fa-calendar me-2"></i>Gestion des réservations
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/admin/articles">
-                                    <i class="fas fa-newspaper me-2"></i>Gestion des articles
-                                </a>
-                            {% endif %}
-                            
                             <div class="mobile-section-title">Mon compte</div>
                             <div class="mobile-user-info">
                                 <i class="fas fa-user-circle me-2"></i>
