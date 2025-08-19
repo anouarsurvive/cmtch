@@ -92,6 +92,19 @@
                         </a>
                     </li>
                     
+                    {% if user and user.validated %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/reservations">
+                                <i class="fas fa-calendar-check me-1"></i>Réservations
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/espace">
+                                <i class="fas fa-user me-1"></i>Mon espace
+                            </a>
+                        </li>
+                    {% endif %}
+                    
                     {% if not user %}
                         <!-- Utilisateur non connecté -->
                         <li class="nav-item">
@@ -138,19 +151,6 @@
                                 <i class="fas fa-user me-1"></i>{{ user.username }}
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="userDropdown">
-                                {% if user.validated %}
-                                    <li>
-                                        <a class="dropdown-item" href="/reservations">
-                                            <i class="fas fa-calendar-check me-2"></i>Réservations
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="/espace">
-                                            <i class="fas fa-user me-2"></i>Mon espace
-                                        </a>
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                {% endif %}
                                 <li>
                                     <a class="dropdown-item" href="/deconnexion">
                                         <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
@@ -179,14 +179,6 @@
                                 <i class="fas fa-user-circle me-2"></i>
                                 <span class="fw-bold">{{ user.username }}</span>
                             </div>
-                            {% if user.validated %}
-                                <a class="nav-link mobile-nav-link" href="/reservations">
-                                    <i class="fas fa-calendar-check me-2"></i>Mes réservations
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/espace">
-                                    <i class="fas fa-user me-2"></i>Mon espace
-                                </a>
-                            {% endif %}
                             <a class="nav-link mobile-nav-link text-danger" href="/deconnexion">
                                 <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
                             </a>
