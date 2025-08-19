@@ -99,18 +99,6 @@
                             </a>
                         </li>
                     {% else %}
-                        {% if user.validated %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="/reservations">
-                                    <i class="fas fa-calendar-check me-1"></i>Réservations
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="/espace">
-                                    <i class="fas fa-user me-1"></i>Mon espace
-                                </a>
-                            </li>
-                        {% endif %}
                         {% if user.is_admin %}
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -135,15 +123,30 @@
                                 </ul>
                             </li>
                         {% endif %}
-                        <li class="nav-item">
-                            <span class="nav-link text-light">
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-light" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user me-1"></i>{{ user.username }}
-                            </span>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/deconnexion">
-                                <i class="fas fa-sign-out-alt me-1"></i>Déconnexion
                             </a>
+                            <ul class="dropdown-menu" aria-labelledby="userDropdown">
+                                {% if user.validated %}
+                                    <li>
+                                        <a class="dropdown-item" href="/reservations">
+                                            <i class="fas fa-calendar-check me-2"></i>Réservations
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="/espace">
+                                            <i class="fas fa-user me-2"></i>Mon espace
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                {% endif %}
+                                <li>
+                                    <a class="dropdown-item" href="/deconnexion">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
+                                    </a>
+                                </li>
+                            </ul>
                         </li>
                     {% endif %}
                 </ul>
