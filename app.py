@@ -1121,12 +1121,15 @@ async def reservations_page(request: Request) -> HTMLResponse:
         user_stats = convert_mysql_result(stats, column_names) if stats else {"total_reservations": 0, "days_played": 0}
         
         # Réservations récurrentes de l'utilisateur
-        cur, column_names = execute_with_names(
-            "SELECT * FROM recurring_reservations WHERE user_id = %s AND active = 1",
-            (user.id,),
-        )
-        recurring_reservations = cur.fetchall()
-        recurring_reservations = [convert_mysql_result(res, column_names) for res in recurring_reservations]
+        try:
+            cur, column_names = execute_with_names(
+                "SELECT * FROM recurring_reservations WHERE user_id = %s AND active = 1",
+                (user.id,),
+            )
+            recurring_reservations = cur.fetchall()
+            recurring_reservations = [convert_mysql_result(res, column_names) for res in recurring_reservations]
+        except:
+            recurring_reservations = []
         
     else:
         cur = conn.cursor()
@@ -1162,11 +1165,14 @@ async def reservations_page(request: Request) -> HTMLResponse:
         user_stats = {"total_reservations": stats[0], "days_played": stats[1]} if stats else {"total_reservations": 0, "days_played": 0}
         
         # Réservations récurrentes
-        cur.execute(
-            "SELECT * FROM recurring_reservations WHERE user_id = ? AND active = 1",
-            (user["id"],),
-        )
-        recurring_reservations = cur.fetchall()
+        try:
+            cur.execute(
+                "SELECT * FROM recurring_reservations WHERE user_id = ? AND active = 1",
+                (user["id"],),
+            )
+            recurring_reservations = cur.fetchall()
+        except:
+            recurring_reservations = []
     
     conn.close()
     
@@ -1237,6 +1243,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
         "recurring_reservations": recurring_reservations,
         "user_stats": user_stats,
         "selected_date": selected_date,
+        "selected_date_obj": selected_date_obj,
         "view_type": view_type,
         "time_slots": time_slots,
         "availability": availability,
