@@ -256,6 +256,9 @@ def generate_ics_content(event_title: str, event_description: str, start_datetim
     def format_datetime(dt):
         return dt.strftime("%Y%m%dT%H%M%SZ")
     
+    # Préparer la description en échappant les caractères spéciaux
+    description = event_description.replace(chr(10), '\\n').replace(chr(13), '')
+    
     ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//CMTCH//Tennis Club//FR
@@ -267,7 +270,7 @@ DTSTAMP:{format_datetime(datetime.utcnow())}
 DTSTART:{format_datetime(start_datetime)}
 DTEND:{format_datetime(end_datetime)}
 SUMMARY:{event_title}
-DESCRIPTION:{event_description.replace(chr(10), '\\n').replace(chr(13), '')}
+DESCRIPTION:{description}
 LOCATION:{location}
 STATUS:CONFIRMED
 SEQUENCE:0
