@@ -5,8 +5,48 @@
     <div class="container">
         <!-- En-tête de la page -->
         <div class="page-header text-center mb-5">
-            <h2 class="section-title">Réservations des courts</h2>
+            <h2 class="section-title">
+                <i class="fas fa-calendar-check me-2"></i>
+                Réservations des courts
+            </h2>
             <p class="lead text-muted">Réservez votre créneau de tennis en quelques clics</p>
+        </div>
+
+        <!-- Statistiques utilisateur -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="stats-cards">
+                    <div class="row">
+                        <div class="col-md-4 col-6 mb-3">
+                            <div class="stat-card text-center">
+                                <div class="stat-icon">
+                                    <i class="fas fa-calendar-alt fa-2x text-primary"></i>
+                                </div>
+                                <div class="stat-number">{{ user_stats.total_reservations }}</div>
+                                <div class="stat-label">Réservations totales</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-3">
+                            <div class="stat-card text-center">
+                                <div class="stat-icon">
+                                    <i class="fas fa-calendar-day fa-2x text-success"></i>
+                                </div>
+                                <div class="stat-number">{{ user_stats.days_played }}</div>
+                                <div class="stat-label">Jours joués</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-3">
+                            <div class="stat-card text-center">
+                                <div class="stat-icon">
+                                    <i class="fas fa-tennis-ball fa-2x text-warning"></i>
+                                </div>
+                                <div class="stat-number">{{ user_reservations|length }}</div>
+                                <div class="stat-label">Réservations actives</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Sélecteur de date -->
@@ -368,4 +408,53 @@ document.querySelectorAll('.slot-available').forEach(slot => {
     });
 });
 </script>
+
+<style>
+/* Styles pour les cartes de statistiques */
+.stats-cards .stat-card {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    border: 1px solid #e9ecef;
+}
+
+.stats-cards .stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.stat-icon {
+    margin-bottom: 10px;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Responsive pour les statistiques */
+@media (max-width: 768px) {
+    .stats-cards .stat-card {
+        padding: 15px;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .stat-label {
+        font-size: 0.8rem;
+    }
+}
+</style>
 {% endblock %}

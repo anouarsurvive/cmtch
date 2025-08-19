@@ -1085,6 +1085,14 @@ async def reservations_page(request: Request) -> HTMLResponse:
         user_reservations = cur.fetchall()
         user_reservations = [convert_mysql_result(res, column_names) for res in user_reservations]
         
+        # Statistiques utilisateur
+        cur, column_names = execute_with_names(
+            "SELECT COUNT(*) as total_reservations, COUNT(DISTINCT date) as days_played FROM reservations WHERE user_id = %s",
+            (user.id,),
+        )
+        stats = cur.fetchone()
+        user_stats = convert_mysql_result(stats, column_names) if stats else {"total_reservations": 0, "days_played": 0}
+        
     else:
         cur = conn.cursor()
         cur.execute(
@@ -1099,6 +1107,14 @@ async def reservations_page(request: Request) -> HTMLResponse:
             (user["id"],),
         )
         user_reservations = cur.fetchall()
+        
+        # Statistiques utilisateur
+        cur.execute(
+            "SELECT COUNT(*) as total_reservations, COUNT(DISTINCT date) as days_played FROM reservations WHERE user_id = ?",
+            (user["id"],),
+        )
+        stats = cur.fetchone()
+        user_stats = {"total_reservations": stats[0], "days_played": stats[1]} if stats else {"total_reservations": 0, "days_played": 0}
     
     conn.close()
     
@@ -1165,6 +1181,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
         "is_admin": bool(user.is_admin),
         "reservations": reservations,
         "user_reservations": user_reservations,
+        "user_stats": user_stats,
         "selected_date": selected_date,
         "time_slots": time_slots,
         "availability": availability,
