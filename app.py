@@ -30,9 +30,14 @@ import sqlite3
 from datetime import datetime, date, time, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import urllib.parse
 from fastapi.templating import Jinja2Templates
@@ -51,6 +56,13 @@ app = FastAPI()
 
 # Clé secrète pour signer les cookies de session.
 SECRET_KEY = "change-me-in-production-please"
+
+# Configuration email
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@cmtch.tn")
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 # Expose l'objet datetime dans les templates pour afficher l'année dans le pied de page
@@ -180,6 +192,270 @@ def get_db_connection():
     """
     from database import get_db_connection as get_db_conn
     return get_db_conn()
+
+def send_email(to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
+    """Envoie un email via SMTP.
+    
+    Args:
+        to_email: Adresse email du destinataire
+        subject: Sujet de l'email
+        html_content: Contenu HTML de l'email
+        text_content: Contenu texte alternatif (optionnel)
+        
+    Returns:
+        True si l'email a été envoyé avec succès, False sinon
+    """
+    try:
+        if not SMTP_USERNAME or not SMTP_PASSWORD:
+            print(f"⚠️ Configuration SMTP manquante - Email non envoyé à {to_email}")
+            return False
+            
+        msg = MIMEMultipart('alternative')
+        msg['From'] = EMAIL_FROM
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        # Ajouter le contenu texte et HTML
+        if text_content:
+            msg.attach(MIMEText(text_content, 'plain', 'utf-8'))
+        msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+        
+        # Connexion au serveur SMTP
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        
+        # Envoi de l'email
+        text = msg.as_string()
+        server.sendmail(EMAIL_FROM, to_email, text)
+        server.quit()
+        
+        print(f"✅ Email envoyé avec succès à {to_email}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'envoi d'email à {to_email}: {e}")
+        return False
+
+
+def generate_ics_content(event_title: str, event_description: str, start_datetime: datetime, 
+                        end_datetime: datetime, location: str = "Club Municipal de Tennis Chihia") -> str:
+    """Génère le contenu d'un fichier ICS (iCalendar).
+    
+    Args:
+        event_title: Titre de l'événement
+        event_description: Description de l'événement
+        start_datetime: Date et heure de début
+        end_datetime: Date et heure de fin
+        location: Lieu de l'événement
+        
+    Returns:
+        Contenu du fichier ICS
+    """
+    # Format des dates pour ICS
+    def format_datetime(dt):
+        return dt.strftime("%Y%m%dT%H%M%SZ")
+    
+    ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//CMTCH//Tennis Club//FR
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:{uuid.uuid4()}@cmtch.tn
+DTSTAMP:{format_datetime(datetime.utcnow())}
+DTSTART:{format_datetime(start_datetime)}
+DTEND:{format_datetime(end_datetime)}
+SUMMARY:{event_title}
+DESCRIPTION:{event_description.replace(chr(10), '\\n').replace(chr(13), '')}
+LOCATION:{location}
+STATUS:CONFIRMED
+SEQUENCE:0
+END:VEVENT
+END:VCALENDAR"""
+    
+    return ics_content
+
+
+def send_reservation_confirmation_email(user_email: str, user_name: str, reservation_data: Dict) -> bool:
+    """Envoie un email de confirmation de réservation.
+    
+    Args:
+        user_email: Email de l'utilisateur
+        user_name: Nom de l'utilisateur
+        reservation_data: Données de la réservation
+        
+    Returns:
+        True si l'email a été envoyé avec succès
+    """
+    subject = f"Confirmation de réservation - Court {reservation_data['court_number']}"
+    
+    # Contenu texte
+    text_content = f"""
+Confirmation de réservation - Club Municipal de Tennis Chihia
+
+Bonjour {user_name},
+
+Votre réservation a été confirmée avec succès.
+
+Détails de la réservation :
+- Date : {reservation_data['date']}
+- Heure : {reservation_data['start_time']} - {reservation_data['end_time']}
+- Court : {reservation_data['court_number']}
+- ID réservation : #{reservation_data['id']}
+
+Lieu : Club Municipal de Tennis Chihia
+
+Merci de votre confiance !
+
+L'équipe du Club Municipal de Tennis Chihia
+"""
+    
+    # Contenu HTML
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+        .content {{ background: #f9f9f9; padding: 20px; border-radius: 0 0 10px 10px; }}
+        .reservation-details {{ background: white; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #667eea; }}
+        .detail-item {{ margin: 10px 0; }}
+        .label {{ font-weight: bold; color: #667eea; }}
+        .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 14px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎾 Confirmation de réservation</h1>
+            <p>Club Municipal de Tennis Chihia</p>
+        </div>
+        <div class="content">
+            <p>Bonjour <strong>{user_name}</strong>,</p>
+            <p>Votre réservation a été confirmée avec succès !</p>
+            
+            <div class="reservation-details">
+                <h3>📅 Détails de votre réservation</h3>
+                <div class="detail-item">
+                    <span class="label">Date :</span> {reservation_data['date']}
+                </div>
+                <div class="detail-item">
+                    <span class="label">Heure :</span> {reservation_data['start_time']} - {reservation_data['end_time']}
+                </div>
+                <div class="detail-item">
+                    <span class="label">Court :</span> Court {reservation_data['court_number']}
+                </div>
+                <div class="detail-item">
+                    <span class="label">ID réservation :</span> #{reservation_data['id']}
+                </div>
+            </div>
+            
+            <p><strong>Lieu :</strong> Club Municipal de Tennis Chihia</p>
+            
+            <p>Merci de votre confiance !</p>
+            <p>À bientôt sur les courts ! 🎾</p>
+        </div>
+        <div class="footer">
+            <p>Club Municipal de Tennis Chihia</p>
+            <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    return send_email(user_email, subject, html_content, text_content)
+
+
+def send_member_validation_email(user_email: str, user_name: str, admin_name: str = "l'administrateur") -> bool:
+    """Envoie un email de validation de membre.
+    
+    Args:
+        user_email: Email de l'utilisateur
+        user_name: Nom de l'utilisateur
+        admin_name: Nom de l'administrateur qui a validé
+        
+    Returns:
+        True si l'email a été envoyé avec succès
+    """
+    subject = "Votre compte a été validé - Club Municipal de Tennis Chihia"
+    
+    # Contenu texte
+    text_content = f"""
+Validation de compte - Club Municipal de Tennis Chihia
+
+Bonjour {user_name},
+
+Excellente nouvelle ! Votre compte a été validé par {admin_name}.
+
+Vous pouvez maintenant :
+- Vous connecter à votre espace personnel
+- Effectuer des réservations de courts
+- Accéder à toutes les fonctionnalités du club
+
+Connectez-vous dès maintenant sur notre site web !
+
+L'équipe du Club Municipal de Tennis Chihia
+"""
+    
+    # Contenu HTML
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+        .content {{ background: #f9f9f9; padding: 20px; border-radius: 0 0 10px 10px; }}
+        .success-box {{ background: white; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #28a745; }}
+        .cta-button {{ display: inline-block; background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 15px 0; }}
+        .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 14px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ Compte validé !</h1>
+            <p>Club Municipal de Tennis Chihia</p>
+        </div>
+        <div class="content">
+            <p>Bonjour <strong>{user_name}</strong>,</p>
+            <p>Excellente nouvelle ! Votre compte a été validé par <strong>{admin_name}</strong>.</p>
+            
+            <div class="success-box">
+                <h3>🎉 Vous pouvez maintenant :</h3>
+                <ul>
+                    <li>Vous connecter à votre espace personnel</li>
+                    <li>Effectuer des réservations de courts</li>
+                    <li>Accéder à toutes les fonctionnalités du club</li>
+                </ul>
+            </div>
+            
+            <p style="text-align: center;">
+                <a href="https://www.cmtch.online/connexion" class="cta-button">
+                    🎾 Se connecter maintenant
+                </a>
+            </p>
+            
+            <p>À bientôt sur les courts !</p>
+        </div>
+        <div class="footer">
+            <p>Club Municipal de Tennis Chihia</p>
+            <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    return send_email(user_email, subject, html_content, text_content)
+
 
 def hash_password(password: str) -> str:
     """Retourne l'empreinte SHA‑256 d'un mot de passe en clair.
@@ -1003,10 +1279,146 @@ async def create_reservation(request: Request) -> HTMLResponse:
             "VALUES (?, ?, ?, ?, ?)",
             (user["id"], court_number, _date.isoformat(), start_time, end_time),
         )
+    # Récupérer l'ID de la réservation créée
+    reservation_id = cur.lastrowid
+    
     conn.commit()
     conn.close()
+    
+    # Envoyer un email de confirmation
+    reservation_data = {
+        'id': reservation_id,
+        'date': _date.strftime('%d/%m/%Y'),
+        'start_time': start_time,
+        'end_time': end_time,
+        'court_number': court_number
+    }
+    
+    # Récupérer les informations de l'utilisateur pour l'email
+    conn = get_db_connection()
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("SELECT email, full_name FROM users WHERE id = %s", (user["id"],))
+        user_info = cur.fetchone()
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT email, full_name FROM users WHERE id = ?", (user["id"],))
+        user_info = cur.fetchone()
+    conn.close()
+    
+    if user_info:
+        user_email, user_name = user_info
+        send_reservation_confirmation_email(user_email, user_name, reservation_data)
+    
     redirect_url = f"/reservations?date={_date.isoformat()}"
     return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@app.get("/reservations/{reservation_id}/export-ics")
+async def export_reservation_ics(request: Request, reservation_id: int) -> FileResponse:
+    """Exporte une réservation vers un fichier ICS pour le calendrier personnel."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    
+    conn = get_db_connection()
+    
+    # Récupérer les détails de la réservation
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT r.*, u.full_name FROM reservations r JOIN users u ON r.user_id = u.id WHERE r.id = %s",
+            (reservation_id,)
+        )
+        reservation = cur.fetchone()
+    else:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT r.*, u.full_name FROM reservations r JOIN users u ON r.user_id = u.id WHERE r.id = ?",
+            (reservation_id,)
+        )
+        reservation = cur.fetchone()
+    
+    conn.close()
+    
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Réservation introuvable")
+    
+    # Vérifier que l'utilisateur est propriétaire de la réservation ou admin
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        reservation_user_id = reservation[1]  # user_id est à l'index 1
+        reservation_full_name = reservation[5]  # full_name est à l'index 5
+    else:
+        reservation_user_id = reservation['user_id']
+        reservation_full_name = reservation['full_name']
+    
+    if reservation_user_id != user["id"] and not user["is_admin"]:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    
+    # Convertir les données de la réservation
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        # MySQL retourne un tuple
+        date_str = reservation[3]  # date
+        start_time_str = reservation[4]  # start_time
+        end_time_str = reservation[5]  # end_time
+        court_number = reservation[2]  # court_number
+    else:
+        # SQLite retourne un dict
+        date_str = reservation['date']
+        start_time_str = reservation['start_time']
+        end_time_str = reservation['end_time']
+        court_number = reservation['court_number']
+    
+    # Parser les dates et heures
+    try:
+        reservation_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        # Gérer les différents formats de temps (string ou timedelta)
+        if isinstance(start_time_str, str):
+            start_time = datetime.strptime(start_time_str, "%H:%M").time()
+        else:
+            # Si c'est un timedelta (MySQL)
+            total_seconds = int(start_time_str.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            start_time = time(hours, minutes)
+        
+        if isinstance(end_time_str, str):
+            end_time = datetime.strptime(end_time_str, "%H:%M").time()
+        else:
+            # Si c'est un timedelta (MySQL)
+            total_seconds = int(end_time_str.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            end_time = time(hours, minutes)
+        
+        # Créer les datetime complets
+        start_datetime = datetime.combine(reservation_date, start_time)
+        end_datetime = datetime.combine(reservation_date, end_time)
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erreur de format de date: {e}")
+    
+    # Générer le contenu ICS
+    event_title = f"Tennis - Court {court_number}"
+    event_description = f"Réservation de tennis sur le court {court_number} avec {reservation_full_name}"
+    location = "Club Municipal de Tennis Chihia"
+    
+    ics_content = generate_ics_content(event_title, event_description, start_datetime, end_datetime, location)
+    
+    # Créer un fichier temporaire
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.ics', delete=False, encoding='utf-8') as f:
+        f.write(ics_content)
+        temp_file_path = f.name
+    
+    # Retourner le fichier
+    return FileResponse(
+        path=temp_file_path,
+        filename=f"reservation_tennis_court_{court_number}_{date_str}.ics",
+        media_type="text/calendar",
+        headers={"Content-Disposition": f"attachment; filename=reservation_tennis_court_{court_number}_{date_str}.ics"}
+    )
 
 
 @app.get("/admin/membres", response_class=HTMLResponse)
@@ -1301,6 +1713,21 @@ async def validate_member(request: Request) -> HTMLResponse:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
         new_state = 0 if row["validated"] else 1
         cur.execute("UPDATE users SET validated = ? WHERE id = ?", (new_state, user_id))
+    
+    # Si le membre vient d'être validé, envoyer un email de confirmation
+    if new_state == 1:
+        # Récupérer les informations du membre validé
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur.execute("SELECT email, full_name FROM users WHERE id = %s", (user_id,))
+            member_info = cur.fetchone()
+        else:
+            cur.execute("SELECT email, full_name FROM users WHERE id = ?", (user_id,))
+            member_info = cur.fetchone()
+        
+        if member_info:
+            member_email, member_name = member_info
+            admin_name = user.get("full_name", "l'administrateur")
+            send_member_validation_email(member_email, member_name, admin_name)
     
     conn.commit()
     conn.close()

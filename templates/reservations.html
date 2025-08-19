@@ -152,6 +152,11 @@
                                             {{ r.start_time }} - {{ r.end_time }}
                                         </div>
                                         <div class="reservation-actions">
+                                            <a href="/reservations/{{ r.id }}/export-ics" 
+                                               class="btn btn-sm btn-outline-primary me-1"
+                                               title="Exporter vers le calendrier">
+                                                <i class="fas fa-calendar-plus"></i>
+                                            </a>
                                             <button class="btn btn-sm btn-outline-danger" 
                                                     onclick="cancelReservation({{ r.id }})"
                                                     title="Annuler la réservation">
