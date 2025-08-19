@@ -163,38 +163,7 @@
                             </ul>
                         </li>
                         
-                        <!-- Menu mobile - visible seulement sur mobile -->
-                        <li class="nav-item d-lg-none">
-                            {% if user.is_admin %}
-                                <div class="mobile-section-title">Administration</div>
-                                <a class="nav-link mobile-nav-link" href="/admin/membres">
-                                    <i class="fas fa-users me-2"></i>Gestion des membres
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/admin/reservations">
-                                    <i class="fas fa-calendar me-2"></i>Gestion des réservations
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/admin/articles">
-                                    <i class="fas fa-newspaper me-2"></i>Gestion des articles
-                                </a>
-                            {% endif %}
-                            
-                            <div class="mobile-section-title">Mon compte</div>
-                            <div class="mobile-user-info">
-                                <i class="fas fa-user-circle me-2"></i>
-                                <span class="fw-bold">{{ user.username }}</span>
-                            </div>
-                            {% if user.validated %}
-                                <a class="nav-link mobile-nav-link" href="/reservations">
-                                    <i class="fas fa-calendar-check me-2"></i>Mes réservations
-                                </a>
-                                <a class="nav-link mobile-nav-link" href="/espace">
-                                    <i class="fas fa-user me-2"></i>Mon espace
-                                </a>
-                            {% endif %}
-                            <a class="nav-link mobile-nav-link text-danger" href="/deconnexion">
-                                <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
-                            </a>
-                        </li>
+
                     {% endif %}
                 </ul>
             </div>
