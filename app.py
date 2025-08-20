@@ -3296,23 +3296,64 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
 async def test_espace_simple(request: Request) -> JSONResponse:
     """Test simple pour diagnostiquer le problème de /espace."""
     try:
+        # Test 1: Récupération du cookie
+        token = request.cookies.get("session_token")
+        if not token:
+            return JSONResponse({"error": "Aucun token de session trouvé"})
+        
+        # Test 2: Parsing du token
+        user_id = parse_session_token(token)
+        if not user_id:
+            return JSONResponse({"error": "Token de session invalide", "token": token})
+        
+        # Test 3: Récupération de l'utilisateur
         user = get_current_user(request)
         if not user:
-            return JSONResponse({"error": "Utilisateur non connecté"})
+            return JSONResponse({"error": "get_current_user retourne None", "user_id": user_id})
+        
+        # Test 4: Vérification des attributs
+        user_attrs = {}
+        try:
+            user_attrs["id"] = user.id
+        except Exception as e:
+            user_attrs["id_error"] = str(e)
+        
+        try:
+            user_attrs["username"] = user.username
+        except Exception as e:
+            user_attrs["username_error"] = str(e)
+        
+        try:
+            user_attrs["validated"] = user.validated
+        except Exception as e:
+            user_attrs["validated_error"] = str(e)
+        
+        try:
+            user_attrs["is_admin"] = user.is_admin
+        except Exception as e:
+            user_attrs["is_admin_error"] = str(e)
+        
+        # Test 5: Vérification du type d'objet
+        user_type = type(user).__name__
+        user_dir = dir(user)
         
         return JSONResponse({
             "success": True,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "validated": user.validated,
-                "is_admin": user.is_admin
-            }
+            "token": token,
+            "user_id": user_id,
+            "user_type": user_type,
+            "user_attributes": user_attrs,
+            "user_dir": user_dir,
+            "has_id": hasattr(user, 'id'),
+            "has_validated": hasattr(user, 'validated'),
+            "has_is_admin": hasattr(user, 'is_admin')
         })
+        
     except Exception as e:
+        import traceback
         return JSONResponse({
             "error": str(e),
-            "traceback": str(e.__traceback__)
+            "traceback": traceback.format_exc()
         })
 
 @app.get("/test-db-espace")
@@ -4160,21 +4201,62 @@ async def test_admin_reservations(request: Request):
 async def test_espace_simple(request: Request) -> JSONResponse:
     """Test simple pour diagnostiquer le problème de /espace."""
     try:
+        # Test 1: Récupération du cookie
+        token = request.cookies.get("session_token")
+        if not token:
+            return JSONResponse({"error": "Aucun token de session trouvé"})
+        
+        # Test 2: Parsing du token
+        user_id = parse_session_token(token)
+        if not user_id:
+            return JSONResponse({"error": "Token de session invalide", "token": token})
+        
+        # Test 3: Récupération de l'utilisateur
         user = get_current_user(request)
         if not user:
-            return JSONResponse({"error": "Utilisateur non connecté"})
+            return JSONResponse({"error": "get_current_user retourne None", "user_id": user_id})
+        
+        # Test 4: Vérification des attributs
+        user_attrs = {}
+        try:
+            user_attrs["id"] = user.id
+        except Exception as e:
+            user_attrs["id_error"] = str(e)
+        
+        try:
+            user_attrs["username"] = user.username
+        except Exception as e:
+            user_attrs["username_error"] = str(e)
+        
+        try:
+            user_attrs["validated"] = user.validated
+        except Exception as e:
+            user_attrs["validated_error"] = str(e)
+        
+        try:
+            user_attrs["is_admin"] = user.is_admin
+        except Exception as e:
+            user_attrs["is_admin_error"] = str(e)
+        
+        # Test 5: Vérification du type d'objet
+        user_type = type(user).__name__
+        user_dir = dir(user)
         
         return JSONResponse({
             "success": True,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "validated": user.validated,
-                "is_admin": user.is_admin
-            }
+            "token": token,
+            "user_id": user_id,
+            "user_type": user_type,
+            "user_attributes": user_attrs,
+            "user_dir": user_dir,
+            "has_id": hasattr(user, 'id'),
+            "has_validated": hasattr(user, 'validated'),
+            "has_is_admin": hasattr(user, 'is_admin')
         })
+        
     except Exception as e:
+        import traceback
         return JSONResponse({
             "error": str(e),
-            "traceback": str(e.__traceback__)
+            "traceback": traceback.format_exc()
         })
