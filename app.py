@@ -37,7 +37,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import urllib.parse
 from fastapi.templating import Jinja2Templates
@@ -3292,6 +3292,71 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
 #  Espace utilisateur : statistiques de séances
 # -----------------------------------------------------------------------------
 
+@app.get("/test-espace-simple")
+async def test_espace_simple(request: Request) -> JSONResponse:
+    """Test simple pour diagnostiquer le problème de /espace."""
+    try:
+        user = get_current_user(request)
+        if not user:
+            return JSONResponse({"error": "Utilisateur non connecté"})
+        
+        return JSONResponse({
+            "success": True,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "validated": user.validated,
+                "is_admin": user.is_admin
+            }
+        })
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e),
+            "traceback": str(e.__traceback__)
+        })
+
+@app.get("/test-db-espace")
+async def test_db_espace(request: Request) -> JSONResponse:
+    """Test de la base de données pour /espace."""
+    try:
+        user = get_current_user(request)
+        if not user:
+            return JSONResponse({"error": "Utilisateur non connecté"})
+        
+        conn = get_db_connection()
+        
+        # Test simple de la base
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM reservations WHERE user_id = %s", (user.id,))
+            count = cur.fetchone()[0]
+            conn.close()
+            
+            return JSONResponse({
+                "success": True,
+                "database_type": "MySQL",
+                "reservations_count": count,
+                "user_id": user.id
+            })
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM reservations WHERE user_id = ?", (user.id,))
+            count = cur.fetchone()[0]
+            conn.close()
+            
+            return JSONResponse({
+                "success": True,
+                "database_type": "SQLite/PostgreSQL",
+                "reservations_count": count,
+                "user_id": user.id
+            })
+            
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e),
+            "traceback": str(e.__traceback__)
+        })
+
 @app.get("/espace", response_class=HTMLResponse)
 async def user_dashboard(request: Request) -> HTMLResponse:
     """Page personnelle affichant les statistiques de réservation par mois.
@@ -4090,3 +4155,26 @@ async def test_admin_reservations(request: Request):
             "message": f"Erreur générale: {str(e)}",
             "step": "general"
         }
+
+@app.get("/test-espace-simple")
+async def test_espace_simple(request: Request) -> JSONResponse:
+    """Test simple pour diagnostiquer le problème de /espace."""
+    try:
+        user = get_current_user(request)
+        if not user:
+            return JSONResponse({"error": "Utilisateur non connecté"})
+        
+        return JSONResponse({
+            "success": True,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "validated": user.validated,
+                "is_admin": user.is_admin
+            }
+        })
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e),
+            "traceback": str(e.__traceback__)
+        })
