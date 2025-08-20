@@ -993,7 +993,7 @@ async def login(request: Request) -> HTMLResponse:
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
         elif not verify_password(password, user["password_hash"]):
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
-        elif not user["validated"]:
+        elif not user.validated:
             errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
         elif not user.get("email_verified", True):  # Par défaut True pour compatibilité avec l'ancienne base
             errors.append("Votre adresse email n'a pas encore été validée. Veuillez vérifier votre boîte mail et cliquer sur le lien de confirmation.")
@@ -1006,7 +1006,7 @@ async def login(request: Request) -> HTMLResponse:
             )
         
         # Connexion réussie - créer la session
-        token = create_session_token(user["id"])
+        token = create_session_token(user.id)
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(
             key="session_token", 
@@ -1037,7 +1037,7 @@ async def logout(request: Request) -> RedirectResponse:
 
 def check_admin(user: sqlite3.Row) -> None:
     """Lève une exception si l'utilisateur n'est pas administrateur."""
-    if not user or not user["is_admin"]:
+    if not user or not user.is_admin:
         raise HTTPException(status_code=403, detail="Accès réservé à l'administration.")
 
 
@@ -1051,7 +1051,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
-    if not user["validated"]:
+    if not user.validated:
         return templates.TemplateResponse(
             "not_validated.html",
             {"request": request, "message": "Votre inscription doit être validée pour accéder aux réservations."},
@@ -1104,14 +1104,14 @@ async def reservations_page(request: Request) -> HTMLResponse:
         
         cur.execute(
             "SELECT * FROM reservations WHERE user_id = ? ORDER BY date DESC, start_time",
-            (user["id"],),
+            (user.id,),
         )
         user_reservations = cur.fetchall()
         
         # Statistiques utilisateur
         cur.execute(
             "SELECT COUNT(*) as total_reservations, COUNT(DISTINCT date) as days_played FROM reservations WHERE user_id = ?",
-            (user["id"],),
+            (user.id,),
         )
         stats = cur.fetchone()
         user_stats = {"total_reservations": stats[0], "days_played": stats[1]} if stats else {"total_reservations": 0, "days_played": 0}
@@ -1166,7 +1166,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
                     reservation_info = {
                         "user_full_name": res.user_full_name,
                         "username": getattr(res, 'username', "Utilisateur"),
-                        "is_current_user": res.user_id == user.id if hasattr(user, 'id') else res.user_id == user["id"]
+                        "is_current_user": res.user_id == user.id
                     }
                     break
             availability[court][(start_str, end_str)] = {
@@ -1200,7 +1200,7 @@ async def create_reservation(request: Request) -> HTMLResponse:
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
-    if not user["validated"]:
+    if not user.validated:
         return templates.TemplateResponse(
             "not_validated.html",
             {"request": request, "message": "Votre inscription doit être validée pour accéder aux réservations."},
@@ -1293,13 +1293,13 @@ async def create_reservation(request: Request) -> HTMLResponse:
         cur.execute(
             "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
             "VALUES (%s, %s, %s, %s, %s)",
-            (user["id"], court_number, _date.isoformat(), start_time, end_time),
+            (user.id, court_number, _date.isoformat(), start_time, end_time),
         )
     else:
         cur.execute(
             "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
             "VALUES (?, ?, ?, ?, ?)",
-            (user["id"], court_number, _date.isoformat(), start_time, end_time),
+            (user.id, court_number, _date.isoformat(), start_time, end_time),
         )
     # Récupérer l'ID de la réservation créée
     reservation_id = cur.lastrowid
@@ -1320,11 +1320,11 @@ async def create_reservation(request: Request) -> HTMLResponse:
     conn = get_db_connection()
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
-        cur.execute("SELECT email, full_name FROM users WHERE id = %s", (user["id"],))
+        cur.execute("SELECT email, full_name FROM users WHERE id = %s", (user.id,))
         user_info = cur.fetchone()
     else:
         cur = conn.cursor()
-        cur.execute("SELECT email, full_name FROM users WHERE id = ?", (user["id"],))
+        cur.execute("SELECT email, full_name FROM users WHERE id = ?", (user.id,))
         user_info = cur.fetchone()
     conn.close()
     
