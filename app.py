@@ -674,8 +674,8 @@ async def home(request: Request) -> HTMLResponse:
         {
             "request": request,
             "user": user,
-            "is_admin": bool(user["is_admin"]) if user else False,
-            "validated": bool(user["validated"]) if user else False,
+            "is_admin": bool(user.is_admin) if user else False,
+            "validated": bool(user.validated) if user else False,
             "adresse": adresse,
             "telephone": telephone,
             "email": email,
@@ -991,7 +991,7 @@ async def login(request: Request) -> HTMLResponse:
         # Vérification de l'utilisateur
         if user is None:
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
-        elif not verify_password(password, user["password_hash"]):
+        elif not verify_password(password, user.password_hash):
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
         elif not user.validated:
             errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
@@ -1374,7 +1374,7 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
         reservation_user_id = reservation['user_id']
         reservation_full_name = reservation['full_name']
     
-    if reservation_user_id != user["id"] and not user["is_admin"]:
+    if reservation_user_id != user.id and not user.is_admin:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
     
     # Convertir les données de la réservation
@@ -1449,7 +1449,7 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
 async def create_recurring_reservation(request: Request) -> HTMLResponse:
     """Crée une réservation récurrente."""
     user = get_current_user(request)
-    if not user or not user["validated"]:
+    if not user or not user.validated:
         return RedirectResponse(url="/connexion", status_code=303)
     
     form = await request.form()
@@ -1467,14 +1467,14 @@ async def create_recurring_reservation(request: Request) -> HTMLResponse:
         cur.execute(
             "INSERT INTO recurring_reservations (user_id, court_number, start_time, end_time, frequency, start_date, end_date, active) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s, 1)",
-            (user["id"], court_number, start_time, end_time, frequency, start_date, end_date)
+            (user.id, court_number, start_time, end_time, frequency, start_date, end_date)
         )
     else:
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO recurring_reservations (user_id, court_number, start_time, end_time, frequency, start_date, end_date, active) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-            (user["id"], court_number, start_time, end_time, frequency, start_date, end_date)
+            (user.id, court_number, start_time, end_time, frequency, start_date, end_date)
         )
     
     conn.commit()
@@ -1507,7 +1507,7 @@ async def cancel_reservation(request: Request, reservation_id: int) -> JSONRespo
     
     reservation_user_id = reservation[0] if hasattr(conn, '_is_mysql') and conn._is_mysql else reservation['user_id']
     
-    if reservation_user_id != user["id"] and not user["is_admin"]:
+    if reservation_user_id != user.id and not user.is_admin:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
     
     # Supprimer la réservation
@@ -1562,7 +1562,7 @@ async def get_calendar_data(request: Request) -> JSONResponse:
                 "title": f"Court {res[2]} - {res[5]}",
                 "start": f"{res[3]}T{res[4]}:00",
                 "end": f"{res[3]}T{res[5]}:00",
-                "backgroundColor": "#007bff" if res[1] == user["id"] else "#6c757d"
+                "backgroundColor": "#007bff" if res[1] == user.id else "#6c757d"
             }
         else:
             event = {
@@ -1570,7 +1570,7 @@ async def get_calendar_data(request: Request) -> JSONResponse:
                 "title": f"Court {res['court_number']} - {res['full_name']}",
                 "start": f"{res['date']}T{res['start_time']}:00",
                 "end": f"{res['date']}T{res['end_time']}:00",
-                "backgroundColor": "#007bff" if res['user_id'] == user["id"] else "#6c757d"
+                "backgroundColor": "#007bff" if res['user_id'] == user.id else "#6c757d"
             }
         calendar_events.append(event)
     
@@ -1590,14 +1590,14 @@ async def get_notifications(request: Request) -> JSONResponse:
         cur = conn.cursor()
         cur.execute(
             "SELECT * FROM notifications WHERE user_id = %s ORDER BY created_at DESC LIMIT 10",
-            (user["id"],)
+            (user.id,)
         )
         notifications = cur.fetchall()
     else:
         cur = conn.cursor()
         cur.execute(
             "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 10",
-            (user["id"],)
+            (user.id,)
         )
         notifications = cur.fetchall()
     
@@ -1626,14 +1626,14 @@ async def add_favorite_slot(request: Request) -> JSONResponse:
         cur.execute(
             "INSERT INTO favorite_slots (user_id, court_number, start_time, end_time, day_of_week) "
             "VALUES (%s, %s, %s, %s, %s)",
-            (user["id"], court_number, start_time, end_time, day_of_week)
+            (user.id, court_number, start_time, end_time, day_of_week)
         )
     else:
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO favorite_slots (user_id, court_number, start_time, end_time, day_of_week) "
             "VALUES (?, ?, ?, ?, ?)",
-            (user["id"], court_number, start_time, end_time, day_of_week)
+            (user.id, court_number, start_time, end_time, day_of_week)
         )
     
     conn.commit()
@@ -1657,7 +1657,7 @@ async def get_user_stats(request: Request) -> JSONResponse:
         cur.execute(
             "SELECT COUNT(*) as total, COUNT(DISTINCT date) as days, "
             "COUNT(DISTINCT court_number) as courts FROM reservations WHERE user_id = %s",
-            (user["id"],)
+            (user.id,)
         )
         general_stats = cur.fetchone()
         
@@ -1665,7 +1665,7 @@ async def get_user_stats(request: Request) -> JSONResponse:
         cur.execute(
             "SELECT DATE_FORMAT(date, '%%Y-%%m') as month, COUNT(*) as count "
             "FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month DESC LIMIT 12",
-            (user["id"],)
+            (user.id,)
         )
         monthly_stats = cur.fetchall()
         
@@ -1673,7 +1673,7 @@ async def get_user_stats(request: Request) -> JSONResponse:
         cur.execute(
             "SELECT court_number, COUNT(*) as count FROM reservations WHERE user_id = %s "
             "GROUP BY court_number ORDER BY count DESC LIMIT 1",
-            (user["id"],)
+            (user.id,)
         )
         favorite_court = cur.fetchone()
         
@@ -1683,15 +1683,15 @@ async def get_user_stats(request: Request) -> JSONResponse:
         cur.execute(
             "SELECT COUNT(*) as total, COUNT(DISTINCT date) as days, "
             "COUNT(DISTINCT court_number) as courts FROM reservations WHERE user_id = ?",
-            (user["id"],)
+            (user.id,)
         )
         general_stats = cur.fetchone()
         
         # Statistiques par mois
         cur.execute(
             "SELECT strftime('%Y-%m', date) as month, COUNT(*) as count "
-            "FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month DESC LIMIT 12",
-            (user["id"],)
+            "FROM reservations WHERE user_id = ? GROUP BY month DESC LIMIT 12",
+            (user.id,)
         )
         monthly_stats = cur.fetchall()
         
@@ -1699,7 +1699,7 @@ async def get_user_stats(request: Request) -> JSONResponse:
         cur.execute(
             "SELECT court_number, COUNT(*) as count FROM reservations WHERE user_id = ? "
             "GROUP BY court_number ORDER BY count DESC LIMIT 1",
-            (user["id"],)
+            (user.id,)
         )
         favorite_court = cur.fetchone()
     
@@ -2441,7 +2441,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             return RedirectResponse(url="/connexion", status_code=303)
         
         # 2. Vérifier les droits admin
-        if not user["is_admin"]:
+        if not user.is_admin:
                 return templates.TemplateResponse(
                     "error.html",
                     {
@@ -3593,12 +3593,12 @@ async def debug_auth(request: Request):
             return {
                 "status": "connected",
                 "user": {
-                    "id": user["id"],
-                    "username": user["username"],
-                    "full_name": user["full_name"],
-                    "is_admin": bool(user["is_admin"]),
-                    "validated": bool(user["validated"]),
-                    "is_trainer": bool(user["is_trainer"])
+                    "id": user.id,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                    "is_admin": bool(user.is_admin),
+                    "validated": bool(user.validated),
+                    "is_trainer": bool(user.is_trainer)
                 },
                 "message": "Utilisateur connecté"
             }
@@ -3977,7 +3977,7 @@ async def backup_database_endpoint(request: Request):
     try:
         user = get_current_user(request)
         
-        if not user or not user["is_admin"]:
+        if not user or not user.is_admin:
             return {
                 "status": "error",
                 "message": "Accès refusé - droits administrateur requis"
@@ -4001,7 +4001,7 @@ async def list_backups_endpoint(request: Request):
     try:
         user = get_current_user(request)
         
-        if not user or not user["is_admin"]:
+        if not user or not user.is_admin:
             return {
                 "status": "error",
                 "message": "Accès refusé - droits administrateur requis"
@@ -4032,15 +4032,15 @@ async def test_admin_reservations(request: Request):
                 "step": "authentication"
             }
         
-        if not user["is_admin"]:
+        if not user.is_admin:
             return {
                 "status": "error", 
                 "message": "Utilisateur non administrateur",
                 "step": "admin_check",
                 "user_info": {
-                    "username": user["username"],
-                    "is_admin": bool(user["is_admin"]),
-                    "validated": bool(user["validated"])
+                    "username": user.username,
+                    "is_admin": bool(user.is_admin),
+                    "validated": bool(user.validated)
                 }
             }
         
@@ -4063,9 +4063,9 @@ async def test_admin_reservations(request: Request):
                 "status": "success",
                 "message": "Tous les tests passent",
                 "user": {
-                    "username": user["username"],
-                    "is_admin": bool(user["is_admin"]),
-                    "validated": bool(user["validated"])
+                    "username": user.username,
+                    "is_admin": bool(user.is_admin),
+                    "validated": bool(user.validated)
                 },
                 "database": {
                     "reservations_count": reservations_count,
@@ -4079,8 +4079,8 @@ async def test_admin_reservations(request: Request):
                 "message": f"Erreur de base de données: {str(db_error)}",
                 "step": "database_connection",
                 "user_info": {
-                    "username": user["username"],
-                    "is_admin": bool(user["is_admin"])
+                    "username": user.username,
+                    "is_admin": bool(user.is_admin)
                 }
             }
             
