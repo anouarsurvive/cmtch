@@ -1280,6 +1280,13 @@ async def reservations_page(request: Request) -> HTMLResponse:
         selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
         month_start = selected_date_obj.replace(day=1)
         
+        # Formater le titre du mois
+        month_names = [
+            "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+            "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+        ]
+        month_title = f"{month_names[selected_date_obj.month - 1]} {selected_date_obj.year}"
+        
         # Trouver le dernier jour du mois
         if month_start.month == 12:
             month_end = month_start.replace(year=month_start.year + 1, month=1, day=1) - timedelta(days=1)
@@ -1385,6 +1392,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
         "week_end": week_end.isoformat() if week_end else None,
         "week_dates": week_dates,
         "month_dates": month_dates if view_type == "month" else None,
+        "month_title": month_title if view_type == "month" else None,
         "today_date": today_str,
     }
     
