@@ -1221,6 +1221,8 @@ async def reservations_page(request: Request) -> HTMLResponse:
     
     # Préparer les données pour la vue semaine (disponibilité par court et par jour)
     week_availability = {}
+    month_availability = {}
+    
     if view_type == "week" and week_dates:
         for week_date in week_dates:
             date_str = week_date["date"]
@@ -1272,6 +1274,99 @@ async def reservations_page(request: Request) -> HTMLResponse:
                         "reservation_info": reservation_info
                     }
     
+    # Préparer les données pour la vue mois
+    if view_type == "month":
+        # Calculer le début et la fin du mois
+        selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
+        month_start = selected_date_obj.replace(day=1)
+        
+        # Trouver le dernier jour du mois
+        if month_start.month == 12:
+            month_end = month_start.replace(year=month_start.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            month_end = month_start.replace(month=month_start.month + 1, day=1) - timedelta(days=1)
+        
+        # Générer toutes les dates du mois
+        month_dates = []
+        current_date = month_start
+        while current_date <= month_end:
+            month_dates.append({
+                "date": current_date.isoformat(),
+                "day_number": current_date.day,
+                "is_current_month": True
+            })
+            current_date += timedelta(days=1)
+        
+        # Ajouter les jours de la semaine précédente pour compléter la première semaine
+        days_before = month_start.weekday()
+        for i in range(days_before - 1, -1, -1):
+            prev_date = month_start - timedelta(days=i + 1)
+            month_dates.insert(0, {
+                "date": prev_date.isoformat(),
+                "day_number": prev_date.day,
+                "is_current_month": False
+            })
+        
+        # Ajouter les jours de la semaine suivante pour compléter la dernière semaine
+        days_after = 6 - month_end.weekday()
+        for i in range(1, days_after + 1):
+            next_date = month_end + timedelta(days=i)
+            month_dates.append({
+                "date": next_date.isoformat(),
+                "day_number": next_date.day,
+                "is_current_month": False
+            })
+        
+        # Calculer la disponibilité pour chaque jour du mois
+        for date_info in month_dates:
+            date_str = date_info["date"]
+            month_availability[date_str] = {}
+            
+            for court in (1, 2, 3):
+                month_availability[date_str][court] = {}
+                for start_str, end_str in time_slots:
+                    reserved = False
+                    reservation_info = None
+                    
+                    for res in reservations:
+                        if (res.court_number == court and 
+                            res.date == date_str):
+                            
+                            # Gestion des timedelta MySQL
+                            start_time_str = str(res.start_time) if hasattr(res.start_time, 'total_seconds') else res.start_time
+                            end_time_str = str(res.end_time) if hasattr(res.end_time, 'total_seconds') else res.end_time
+                            
+                            if hasattr(res.start_time, 'total_seconds'):
+                                total_seconds = int(res.start_time.total_seconds())
+                                hours = total_seconds // 3600
+                                minutes = (total_seconds % 3600) // 60
+                                start_time_str = f"{hours:02d}:{minutes:02d}"
+                            
+                            if hasattr(res.end_time, 'total_seconds'):
+                                total_seconds = int(res.end_time.total_seconds())
+                                hours = total_seconds // 3600
+                                minutes = (total_seconds % 3600) // 60
+                                end_time_str = f"{hours:02d}:{minutes:02d}"
+                            
+                            res_start = datetime.strptime(start_time_str, "%H:%M").time()
+                            res_end = datetime.strptime(end_time_str, "%H:%M").time()
+                            slot_start = datetime.strptime(start_str, "%H:%M").time()
+                            slot_end = datetime.strptime(end_str, "%H:%M").time()
+                            
+                            if (res_start < slot_end and res_end > slot_start):
+                                reserved = True
+                                reservation_info = {
+                                    "user_full_name": res.user_full_name,
+                                    "username": getattr(res, 'username', "Utilisateur"),
+                                    "is_current_user": res.user_id == user.id
+                                }
+                                break
+                    
+                    month_availability[date_str][court][(start_str, end_str)] = {
+                        "reserved": reserved,
+                        "reservation_info": reservation_info
+                    }
+    
     # Préparer les données pour le template
     template_data = {
         "request": request,
@@ -1284,10 +1379,12 @@ async def reservations_page(request: Request) -> HTMLResponse:
         "time_slots": time_slots,
         "availability": availability,
         "week_availability": week_availability,
+        "month_availability": month_availability,
         "view_type": view_type,
         "week_start": week_start.isoformat() if week_start else None,
         "week_end": week_end.isoformat() if week_end else None,
         "week_dates": week_dates,
+        "month_dates": month_dates if view_type == "month" else None,
         "today_date": today_str,
     }
     
