@@ -3318,19 +3318,101 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
         article_id = int(form.get("article_id", ["0"])[0])
     except ValueError:
         return RedirectResponse(url="/admin/articles", status_code=303)
+    
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # Récupérer le chemin de l'image avant de supprimer l'article
+    image_path = None
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
-        cur.execute("DELETE FROM articles WHERE id = %s", (article_id,))
+        cur.execute("SELECT image_path FROM articles WHERE id = %s", (article_id,))
+        result = cur.fetchone()
+        if result:
+            image_path = result[0]
     else:
         cur = conn.cursor()
+        cur.execute("SELECT image_path FROM articles WHERE id = ?", (article_id,))
+        result = cur.fetchone()
+        if result:
+            image_path = result[0]
+    
+    # Supprimer l'article de la base de données
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur.execute("DELETE FROM articles WHERE id = %s", (article_id,))
+    else:
         cur.execute("DELETE FROM articles WHERE id = ?", (article_id,))
     
     conn.commit()
     conn.close()
+    
+    # Supprimer le fichier image s'il existe et s'il s'agit d'un upload local
+    if image_path and image_path.startswith("/static/article_images/"):
+        try:
+            # Extraire le nom du fichier du chemin
+            filename = os.path.basename(image_path)
+            file_path = os.path.join(BASE_DIR, "static", "article_images", filename)
+            
+            # Vérifier que le fichier existe et le supprimer
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Fichier image supprimé : {file_path}")
+        except Exception as e:
+            print(f"Erreur lors de la suppression du fichier image : {e}")
+    
     return RedirectResponse(url="/admin/articles", status_code=303)
+
+
+@app.post("/admin/articles/nettoyer-images", response_class=HTMLResponse)
+async def admin_cleanup_orphaned_images(request: Request) -> HTMLResponse:
+    """Nettoie les images orphelines (images sans article associé)."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/connexion", status_code=303)
+    check_admin(user)
+    
+    conn = get_db_connection()
+    
+    # Récupérer tous les chemins d'images utilisés dans la base
+    used_images = set()
+    if hasattr(conn, '_is_mysql') and conn._is_mysql:
+        cur = conn.cursor()
+        cur.execute("SELECT image_path FROM articles WHERE image_path IS NOT NULL AND image_path != ''")
+        results = cur.fetchall()
+        for result in results:
+            if result[0]:
+                used_images.add(result[0])
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT image_path FROM articles WHERE image_path IS NOT NULL AND image_path != ''")
+        results = cur.fetchall()
+        for result in results:
+            if result[0]:
+                used_images.add(result[0])
+    
+    conn.close()
+    
+    # Parcourir le dossier des images et supprimer les orphelines
+    images_dir = os.path.join(BASE_DIR, "static", "article_images")
+    cleaned_count = 0
+    
+    if os.path.exists(images_dir):
+        for filename in os.listdir(images_dir):
+            if filename.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                image_path = f"/static/article_images/{filename}"
+                if image_path not in used_images:
+                    try:
+                        file_path = os.path.join(images_dir, filename)
+                        os.remove(file_path)
+                        cleaned_count += 1
+                        print(f"Image orpheline supprimée : {filename}")
+                    except Exception as e:
+                        print(f"Erreur lors de la suppression de {filename}: {e}")
+    
+    # Rediriger avec un message de succès
+    return RedirectResponse(
+        url=f"/admin/articles?cleaned={cleaned_count}", 
+        status_code=303
+    )
 
 
 @app.get("/admin/articles/modifier/{article_id}", response_class=HTMLResponse)

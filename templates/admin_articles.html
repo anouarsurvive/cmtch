@@ -2,7 +2,14 @@
 
 {% block content %}
 <h2 class="mb-4">Administration – Articles</h2>
-<a href="/admin/articles/nouveau" class="btn btn-success mb-3">Nouvel article</a>
+<div class="d-flex gap-2 mb-3">
+  <a href="/admin/articles/nouveau" class="btn btn-success">Nouvel article</a>
+  <form action="/admin/articles/nettoyer-images" method="post" class="d-inline">
+    <button type="submit" class="btn btn-warning" onclick="return confirm('Nettoyer les images orphelines ? Cette action supprimera toutes les images qui ne sont plus associées à un article.');">
+      <i class="fas fa-broom me-2"></i>Nettoyer les images
+    </button>
+  </form>
+</div>
 {% if articles %}
   <div class="table-responsive">
     <table class="table table-striped align-middle">
