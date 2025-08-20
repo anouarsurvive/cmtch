@@ -1219,6 +1219,59 @@ async def reservations_page(request: Request) -> HTMLResponse:
                 "reservation_info": reservation_info
             }
     
+    # Préparer les données pour la vue semaine (disponibilité par court et par jour)
+    week_availability = {}
+    if view_type == "week" and week_dates:
+        for week_date in week_dates:
+            date_str = week_date["date"]
+            week_availability[date_str] = {}
+            
+            for court in (1, 2, 3):
+                week_availability[date_str][court] = {}
+                for start_str, end_str in time_slots:
+                    # Chercher les réservations pour ce court, cette date et ce créneau
+                    reserved = False
+                    reservation_info = None
+                    
+                    for res in reservations:
+                        if (res.court_number == court and 
+                            res.date == date_str):
+                            
+                            # Gestion des timedelta MySQL
+                            start_time_str = str(res.start_time) if hasattr(res.start_time, 'total_seconds') else res.start_time
+                            end_time_str = str(res.end_time) if hasattr(res.end_time, 'total_seconds') else res.end_time
+                            
+                            if hasattr(res.start_time, 'total_seconds'):
+                                total_seconds = int(res.start_time.total_seconds())
+                                hours = total_seconds // 3600
+                                minutes = (total_seconds % 3600) // 60
+                                start_time_str = f"{hours:02d}:{minutes:02d}"
+                            
+                            if hasattr(res.end_time, 'total_seconds'):
+                                total_seconds = int(res.end_time.total_seconds())
+                                hours = total_seconds // 3600
+                                minutes = (total_seconds % 3600) // 60
+                                end_time_str = f"{hours:02d}:{minutes:02d}"
+                            
+                            res_start = datetime.strptime(start_time_str, "%H:%M").time()
+                            res_end = datetime.strptime(end_time_str, "%H:%M").time()
+                            slot_start = datetime.strptime(start_str, "%H:%M").time()
+                            slot_end = datetime.strptime(end_str, "%H:%M").time()
+                            
+                            if (res_start < slot_end and res_end > slot_start):
+                                reserved = True
+                                reservation_info = {
+                                    "user_full_name": res.user_full_name,
+                                    "username": getattr(res, 'username', "Utilisateur"),
+                                    "is_current_user": res.user_id == user.id
+                                }
+                                break
+                    
+                    week_availability[date_str][court][(start_str, end_str)] = {
+                        "reserved": reserved,
+                        "reservation_info": reservation_info
+                    }
+    
     # Préparer les données pour le template
     template_data = {
         "request": request,
@@ -1230,6 +1283,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
         "selected_date": selected_date,
         "time_slots": time_slots,
         "availability": availability,
+        "week_availability": week_availability,
         "view_type": view_type,
         "week_start": week_start.isoformat() if week_start else None,
         "week_end": week_end.isoformat() if week_end else None,

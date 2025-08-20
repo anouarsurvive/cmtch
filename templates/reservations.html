@@ -128,16 +128,47 @@
                             Planning du {{ selected_date }}
                         {% endif %}
                     </h3>
-                    <div class="schedule-legend">
-                        <span class="legend-item">
-                            <span class="legend-color available"></span>
-                            Libre
-                        </span>
-                        <span class="legend-item">
-                            <span class="legend-color reserved"></span>
-                            Réservé
-                        </span>
-                    </div>
+                                         <div class="schedule-legend">
+                         {% if view_type == "week" %}
+                             <!-- Légende pour la vue semaine -->
+                             <div class="legend-courts">
+                                 <span class="legend-title">Courts :</span>
+                                 <span class="legend-item">
+                                     <span class="legend-color court-1-available"></span>
+                                     Court 1
+                                 </span>
+                                 <span class="legend-item">
+                                     <span class="legend-color court-2-available"></span>
+                                     Court 2
+                                 </span>
+                                 <span class="legend-item">
+                                     <span class="legend-color court-3-available"></span>
+                                     Court 3
+                                 </span>
+                             </div>
+                             <div class="legend-status">
+                                 <span class="legend-title">Statut :</span>
+                                 <span class="legend-item">
+                                     <span class="legend-color available"></span>
+                                     Libre
+                                 </span>
+                                 <span class="legend-item">
+                                     <span class="legend-color reserved"></span>
+                                     Réservé
+                                 </span>
+                             </div>
+                         {% else %}
+                             <!-- Légende pour la vue jour -->
+                             <span class="legend-item">
+                                 <span class="legend-color available"></span>
+                                 Libre
+                             </span>
+                             <span class="legend-item">
+                                 <span class="legend-color reserved"></span>
+                                 Réservé
+                             </span>
+                         {% endif %}
+                     </div>
                 </div>
                     
                     <!-- Version desktop -->
@@ -168,15 +199,29 @@
                                                 <span class="time-end">{{ slot[1] }}</span>
                                             </div>
                                         </th>
-                                        {% for week_date in week_dates %}
-                                            <td class="day-cell">
-                                                <!-- Ici on affichera les réservations pour chaque jour -->
-                                                <div class="day-slot-info">
-                                                    <!-- Placeholder pour l'instant -->
-                                                    <small class="text-muted">-</small>
-                                                </div>
-                                            </td>
-                                        {% endfor %}
+                                                                                 {% for week_date in week_dates %}
+                                             <td class="day-cell">
+                                                 <div class="day-slot-info">
+                                                     {% set date_str = week_date.date %}
+                                                     {% if week_availability and date_str in week_availability %}
+                                                         <div class="courts-status">
+                                                             {% for court in (1, 2, 3) %}
+                                                                 {% if court in week_availability[date_str] %}
+                                                                     {% set slot_info = week_availability[date_str][court][slot] %}
+                                                                     {% set is_reserved = slot_info.reserved %}
+                                                                     <div class="court-indicator court-{{ court }} {% if is_reserved %}reserved{% else %}available{% endif %}" 
+                                                                          title="Court {{ court }}: {% if is_reserved %}Réservé{% else %}Libre{% endif %}">
+                                                                         <span class="court-number">{{ court }}</span>
+                                                                     </div>
+                                                                 {% endif %}
+                                                             {% endfor %}
+                                                         </div>
+                                                     {% else %}
+                                                         <small class="text-muted">-</small>
+                                                     {% endif %}
+                                                 </div>
+                                             </td>
+                                         {% endfor %}
                                     </tr>
                                 {% endfor %}
                                 </tbody>
@@ -798,6 +843,118 @@ document.querySelectorAll('.slot-available').forEach(slot => {
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+    
+    /* Indicateurs de courts pour la vue semaine */
+    .courts-status {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .court-indicator {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .court-indicator:hover {
+        transform: scale(1.1);
+    }
+    
+    /* Couleurs par court */
+    .court-1.available {
+        background-color: #3b82f6; /* Bleu clair */
+    }
+    
+    .court-1.reserved {
+        background-color: #1d4ed8; /* Bleu foncé */
+    }
+    
+    .court-2.available {
+        background-color: #10b981; /* Vert clair */
+    }
+    
+    .court-2.reserved {
+        background-color: #047857; /* Vert foncé */
+    }
+    
+    .court-3.available {
+        background-color: #f59e0b; /* Orange clair */
+    }
+    
+    .court-3.reserved {
+        background-color: #d97706; /* Orange foncé */
+    }
+    
+    .court-number {
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+    
+    /* Styles pour la légende de la vue semaine */
+    .schedule-legend {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .legend-courts, .legend-status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .legend-title {
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.9rem;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8rem;
+        color: #6b7280;
+    }
+    
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    
+    /* Couleurs pour la légende */
+    .legend-color.court-1-available {
+        background-color: #3b82f6;
+    }
+    
+    .legend-color.court-2-available {
+        background-color: #10b981;
+    }
+    
+    .legend-color.court-3-available {
+        background-color: #f59e0b;
+    }
+    
+    .legend-color.available {
+        background-color: #10b981;
+    }
+    
+    .legend-color.reserved {
+        background-color: #ef4444;
     }
     
     /* Styles pour les cartes de statistiques */
