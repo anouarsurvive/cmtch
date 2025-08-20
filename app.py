@@ -1594,7 +1594,11 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
     
     # Parser les dates et heures
     try:
-        reservation_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        # Gérer le cas où date_str est déjà un objet date (MySQL)
+        if isinstance(date_str, datetime.date):
+            reservation_date = date_str
+        else:
+            reservation_date = datetime.strptime(str(date_str), "%Y-%m-%d").date()
         
         # Gérer les différents formats de temps (string ou timedelta)
         if isinstance(start_time_str, str):
