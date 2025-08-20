@@ -1060,6 +1060,25 @@ async def reservations_page(request: Request) -> HTMLResponse:
     # Paramètres de la requête
     today_str = date.today().isoformat()
     selected_date = request.query_params.get("date", today_str)
+    view_type = request.query_params.get("view", "day")  # day, week, month
+    
+    # Calculer les dates de la semaine si vue semaine
+    week_start = None
+    week_end = None
+    week_dates = []
+    
+    if view_type == "week":
+        selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
+        # Trouver le lundi de la semaine
+        days_since_monday = selected_date_obj.weekday()
+        week_start = selected_date_obj - timedelta(days=days_since_monday)
+        week_end = week_start + timedelta(days=6)
+        
+        # Générer toutes les dates de la semaine
+        current_date = week_start
+        while current_date <= week_end:
+            week_dates.append(current_date.isoformat())
+            current_date += timedelta(days=1)
     
     # Récupérer les réservations
     conn = get_db_connection()
@@ -1068,12 +1087,20 @@ async def reservations_page(request: Request) -> HTMLResponse:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
         
-        # Réservations pour la date sélectionnée
-        cur, column_names = execute_with_names(
-            "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
-            "WHERE date = %s ORDER BY start_time",
-            (selected_date,),
-        )
+        # Réservations pour la date sélectionnée ou la semaine
+        if view_type == "week" and week_dates:
+            placeholders = ','.join(['%s'] * len(week_dates))
+            cur, column_names = execute_with_names(
+                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+                "WHERE date IN (" + placeholders + ") ORDER BY date, start_time",
+                week_dates,
+            )
+        else:
+            cur, column_names = execute_with_names(
+                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+                "WHERE date = %s ORDER BY start_time",
+                (selected_date,),
+            )
         reservations = cur.fetchall()
         reservations = [convert_mysql_result(res, column_names) for res in reservations]
         
@@ -1095,11 +1122,19 @@ async def reservations_page(request: Request) -> HTMLResponse:
         
     else:
         cur = conn.cursor()
-        cur.execute(
-            "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
-            "WHERE date = ? ORDER BY start_time",
-            (selected_date,),
-        )
+        if view_type == "week" and week_dates:
+            placeholders = ','.join(['?'] * len(week_dates))
+            cur.execute(
+                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+                "WHERE date IN (" + placeholders + ") ORDER BY date, start_time",
+                week_dates,
+            )
+        else:
+            cur.execute(
+                "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
+                "WHERE date = ? ORDER BY start_time",
+                (selected_date,),
+            )
         reservations = cur.fetchall()
         
         cur.execute(
@@ -1185,6 +1220,11 @@ async def reservations_page(request: Request) -> HTMLResponse:
         "selected_date": selected_date,
         "time_slots": time_slots,
         "availability": availability,
+        "view_type": view_type,
+        "week_start": week_start.isoformat() if week_start else None,
+        "week_end": week_end.isoformat() if week_end else None,
+        "week_dates": week_dates,
+        "today_date": today_str,
     }
     
     return templates.TemplateResponse("reservations.html", template_data)

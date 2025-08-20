@@ -54,13 +54,13 @@
             <div class="row justify-content-center">
                 <div class="col-md-6">
                     <div class="btn-group w-100" role="group">
-                        <button type="button" class="btn btn-outline-primary active" data-view="day">
+                        <button type="button" class="btn btn-outline-primary {% if view_type == 'day' %}active{% endif %}" data-view="day">
                             <i class="fas fa-calendar-day me-2"></i>Jour
                         </button>
-                        <button type="button" class="btn btn-outline-primary" data-view="week">
+                        <button type="button" class="btn btn-outline-primary {% if view_type == 'week' %}active{% endif %}" data-view="week">
                             <i class="fas fa-calendar-week me-2"></i>Semaine
                         </button>
-                        <button type="button" class="btn btn-outline-primary" data-view="month">
+                        <button type="button" class="btn btn-outline-primary {% if view_type == 'month' %}active{% endif %}" data-view="month">
                             <i class="fas fa-calendar-alt me-2"></i>Mois
                         </button>
                     </div>
@@ -100,99 +100,149 @@
         </div>
 
         <div class="row">
-            <!-- Planning principal -->
-            <div class="col-lg-8 mb-4">
-                <!-- Actions rapides -->
-                <div class="quick-actions mb-4">
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <button class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#recurringModal">
-                                <i class="fas fa-redo me-2"></i>Réservation récurrente
-                            </button>
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <button class="btn btn-outline-info w-100" data-bs-toggle="modal" data-bs-target="#favoritesModal">
-                                <i class="fas fa-heart me-2"></i>Créneaux favoris
-                            </button>
-                        </div>
+                    <!-- Planning principal -->
+        <div class="col-lg-8 mb-4">
+            <!-- Actions rapides -->
+            <div class="quick-actions mb-4">
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#recurringModal">
+                            <i class="fas fa-redo me-2"></i>Réservation récurrente
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-info w-100" data-bs-toggle="modal" data-bs-target="#favoritesModal">
+                            <i class="fas fa-heart me-2"></i>Créneaux favoris
+                        </button>
                     </div>
                 </div>
-                <div class="schedule-card">
-                    <div class="schedule-header">
-                        <h3 class="schedule-title">
+            </div>
+            <div class="schedule-card">
+                <div class="schedule-header">
+                    <h3 class="schedule-title">
+                        {% if view_type == "week" %}
+                            <i class="fas fa-calendar-week me-2"></i>
+                            Planning de la semaine du {{ week_start }} au {{ week_end }}
+                        {% else %}
                             <i class="fas fa-calendar-day me-2"></i>
                             Planning du {{ selected_date }}
-                        </h3>
-                        <div class="schedule-legend">
-                            <span class="legend-item">
-                                <span class="legend-color available"></span>
-                                Libre
-                            </span>
-                            <span class="legend-item">
-                                <span class="legend-color reserved"></span>
-                                Réservé
-                            </span>
-                        </div>
+                        {% endif %}
+                    </h3>
+                    <div class="schedule-legend">
+                        <span class="legend-item">
+                            <span class="legend-color available"></span>
+                            Libre
+                        </span>
+                        <span class="legend-item">
+                            <span class="legend-color reserved"></span>
+                            Réservé
+                        </span>
                     </div>
+                </div>
                     
                     <!-- Version desktop -->
                     <div class="table-responsive d-none d-lg-block">
-                        <table class="table schedule-table">
-                            <thead>
-                                <tr>
-                                    <th class="time-header">Heure</th>
-                                    <th class="court-header">Court 1</th>
-                                    <th class="court-header">Court 2</th>
-                                    <th class="court-header">Court 3</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            {% for slot in time_slots %}
-                                <tr class="time-row">
-                                    <th scope="row" class="time-slot">
-                                        <div class="time-display">
-                                            <span class="time-start">{{ slot[0] }}</span>
-                                            <span class="time-separator">–</span>
-                                            <span class="time-end">{{ slot[1] }}</span>
-                                        </div>
-                                    </th>
-                                    {% for court in (1, 2, 3) %}
-                                        {% set slot_info = availability[court][slot] %}
-                                        {% set is_reserved = slot_info.reserved %}
-                                        <td class="court-cell">
-                                            {% if is_reserved %}
-                                                {% set reservation_info = slot_info.reservation_info %}
-                                                <div class="slot-reserved {% if reservation_info.is_current_user %}slot-own-reservation{% endif %}">
-                                                    <i class="fas fa-lock me-2"></i>
-                                                    <div class="reservation-details">
-                                                        <span class="reserved-by">
-                                                            {% if reservation_info.is_current_user %}
-                                                                <strong>Vous</strong>
-                                                            {% else %}
-                                                                {{ reservation_info.user_full_name }}
-                                                            {% endif %}
-                                                        </span>
-                                                        <small class="username-display">@{{ reservation_info.username }}</small>
-                                                    </div>
+                        {% if view_type == "week" %}
+                            <!-- Vue semaine -->
+                            <table class="table schedule-table week-view">
+                                <thead>
+                                    <tr>
+                                        <th class="time-header">Heure</th>
+                                        {% for week_date in week_dates %}
+                                            {% set date_obj = week_date|string %}
+                                            {% set day_name = date_obj|string|strptime("%Y-%m-%d")|strftime("%A") %}
+                                            {% set day_number = date_obj|string|strptime("%Y-%m-%d")|strftime("%d") %}
+                                            <th class="day-header">
+                                                <div class="day-info">
+                                                    <div class="day-name">{{ day_name|title }}</div>
+                                                    <div class="day-date">{{ day_number }}</div>
                                                 </div>
-                                            {% else %}
-                                                <button type="button" 
-                                                        class="btn slot-available" 
-                                                        data-court="{{ court }}" 
-                                                        data-start="{{ slot[0] }}" 
-                                                        data-end="{{ slot[1] }}"
-                                                        data-bs-toggle="modal" 
-                                                        data-bs-target="#reservationModal">
-                                                    <i class="fas fa-check me-2"></i>
-                                                    <span>Libre</span>
-                                                </button>
-                                            {% endif %}
-                                        </td>
-                                    {% endfor %}
-                                </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
+                                            </th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for slot in time_slots %}
+                                    <tr class="time-row">
+                                        <th scope="row" class="time-slot">
+                                            <div class="time-display">
+                                                <span class="time-start">{{ slot[0] }}</span>
+                                                <span class="time-separator">–</span>
+                                                <span class="time-end">{{ slot[1] }}</span>
+                                            </div>
+                                        </th>
+                                        {% for week_date in week_dates %}
+                                            <td class="day-cell">
+                                                <!-- Ici on affichera les réservations pour chaque jour -->
+                                                <div class="day-slot-info">
+                                                    <!-- Placeholder pour l'instant -->
+                                                    <small class="text-muted">-</small>
+                                                </div>
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <!-- Vue jour (existant) -->
+                            <table class="table schedule-table">
+                                <thead>
+                                    <tr>
+                                        <th class="time-header">Heure</th>
+                                        <th class="court-header">Court 1</th>
+                                        <th class="court-header">Court 2</th>
+                                        <th class="court-header">Court 3</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for slot in time_slots %}
+                                    <tr class="time-row">
+                                        <th scope="row" class="time-slot">
+                                            <div class="time-display">
+                                                <span class="time-start">{{ slot[0] }}</span>
+                                                <span class="time-separator">–</span>
+                                                <span class="time-end">{{ slot[1] }}</span>
+                                            </div>
+                                        </th>
+                                        {% for court in (1, 2, 3) %}
+                                            {% set slot_info = availability[court][slot] %}
+                                            {% set is_reserved = slot_info.reserved %}
+                                            <td class="court-cell">
+                                                {% if is_reserved %}
+                                                    {% set reservation_info = slot_info.reservation_info %}
+                                                    <div class="slot-reserved {% if reservation_info.is_current_user %}slot-own-reservation{% endif %}">
+                                                        <i class="fas fa-lock me-2"></i>
+                                                        <div class="reservation-details">
+                                                            <span class="reserved-by">
+                                                                {% if reservation_info.is_current_user %}
+                                                                    <strong>Vous</strong>
+                                                                {% else %}
+                                                                    {{ reservation_info.user_full_name }}
+                                                                {% endif %}
+                                                            </span>
+                                                            <small class="username-display">@{{ reservation_info.username }}</small>
+                                                        </div>
+                                                    </div>
+                                                {% else %}
+                                                    <button type="button" 
+                                                            class="btn slot-available" 
+                                                            data-court="{{ court }}" 
+                                                            data-start="{{ slot[0] }}" 
+                                                            data-end="{{ slot[1] }}"
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#reservationModal">
+                                                        <i class="fas fa-check me-2"></i>
+                                                        <span>Libre</span>
+                                                    </button>
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        {% endif %}
                     </div>
                     
                     <!-- Version mobile -->
@@ -473,9 +523,22 @@ document.querySelectorAll('.slot-available').forEach(slot => {
             // Ajouter la classe active au bouton cliqué
             this.classList.add('active');
             
-            // Ici on pourrait ajouter la logique pour changer la vue
+            // Changer la vue en mettant à jour l'URL
             const view = this.dataset.view;
-            console.log('Changement de vue vers:', view);
+            const currentUrl = new URL(window.location);
+            currentUrl.searchParams.set('view', view);
+            
+            // Si on passe en vue semaine, on peut ajuster la date pour être au début de la semaine
+            if (view === 'week') {
+                const currentDate = new Date(currentUrl.searchParams.get('date') || new Date());
+                const daysSinceMonday = currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1;
+                const monday = new Date(currentDate);
+                monday.setDate(currentDate.getDate() - daysSinceMonday);
+                currentUrl.searchParams.set('date', monday.toISOString().split('T')[0]);
+            }
+            
+            // Rediriger vers la nouvelle URL
+            window.location.href = currentUrl.toString();
         });
     });
 
@@ -563,8 +626,11 @@ document.querySelectorAll('.slot-available').forEach(slot => {
         // Fermer le modal des favoris
         bootstrap.Modal.getInstance(document.getElementById('favoritesModal')).hide();
         
-        // Faire défiler vers le formulaire de réservation
-        document.querySelector('.reservation-form').scrollIntoView({ behavior: 'smooth' });
+        // Faire défiler vers le formulaire de réservation (sans effet de défilement)
+        const reservationForm = document.querySelector('.reservation-form');
+        if (reservationForm) {
+            reservationForm.scrollIntoView();
+        }
     }
 
     // Charger les favoris quand le modal s'ouvre
@@ -685,6 +751,47 @@ document.querySelectorAll('.slot-available').forEach(slot => {
     .quick-actions .btn:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Styles pour la vue semaine */
+    .week-view .day-header {
+        text-align: center;
+        vertical-align: middle;
+        min-width: 120px;
+    }
+    
+    .week-view .day-info {
+        padding: 8px;
+    }
+    
+    .week-view .day-name {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .week-view .day-date {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-top: 4px;
+    }
+    
+    .week-view .day-cell {
+        text-align: center;
+        vertical-align: middle;
+        min-height: 60px;
+        border: 1px solid #e5e7eb;
+    }
+    
+    .week-view .day-slot-info {
+        padding: 8px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     
     /* Styles pour les cartes de statistiques */
