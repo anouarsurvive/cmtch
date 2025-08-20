@@ -540,18 +540,24 @@ document.querySelectorAll('.slot-available').forEach(slot => {
     });
 
     // Initialisation des dates dans le modal récurrent
-    document.getElementById('recurringModal').addEventListener('show.bs.modal', function() {
-        const today = new Date();
-        const startDate = today.toISOString().split('T')[0];
-        
-        // Date de fin = 1 mois plus tard
-        const endDate = new Date();
-        endDate.setMonth(endDate.getMonth() + 1);
-        const endDateStr = endDate.toISOString().split('T')[0];
-        
-        document.querySelector('input[name="start_date"]').value = startDate;
-        document.querySelector('input[name="end_date"]').value = endDateStr;
-    });
+    const recurringModal = document.getElementById('recurringModal');
+    if (recurringModal) {
+        recurringModal.addEventListener('show.bs.modal', function() {
+            const today = new Date();
+            const startDate = today.toISOString().split('T')[0];
+            
+            // Date de fin = 1 mois plus tard
+            const endDate = new Date();
+            endDate.setMonth(endDate.getMonth() + 1);
+            const endDateStr = endDate.toISOString().split('T')[0];
+            
+            const startDateInput = document.querySelector('input[name="start_date"]');
+            const endDateInput = document.querySelector('input[name="end_date"]');
+            
+            if (startDateInput) startDateInput.value = startDate;
+            if (endDateInput) endDateInput.value = endDateStr;
+        });
+    }
 
     // Fonction pour créer une réservation récurrente
     function createRecurringReservation() {
@@ -631,7 +637,10 @@ document.querySelectorAll('.slot-available').forEach(slot => {
     }
 
     // Charger les favoris quand le modal s'ouvre
-    document.getElementById('favoritesModal').addEventListener('show.bs.modal', loadFavorites);
+    const favoritesModal = document.getElementById('favoritesModal');
+    if (favoritesModal) {
+        favoritesModal.addEventListener('show.bs.modal', loadFavorites);
+    }
     </script>
 
     <!-- Modal Réservation récurrente -->
