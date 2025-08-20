@@ -539,7 +539,16 @@ a:hover {
         flex-direction: column;
     }
     
-    .mobile-article-image {
+    /* Styles pour les images d'articles - redimensionnement sans coupe */
+.article-image-container img,
+.card-img-top[src*="article_images"],
+.article-image {
+    object-fit: contain !important;
+    background-color: #f8f9fa;
+    padding: 8px;
+}
+
+.mobile-article-image {
         flex-shrink: 0;
     }
     
