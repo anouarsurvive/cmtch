@@ -1074,10 +1074,16 @@ async def reservations_page(request: Request) -> HTMLResponse:
         week_start = selected_date_obj - timedelta(days=days_since_monday)
         week_end = week_start + timedelta(days=6)
         
-        # Générer toutes les dates de la semaine
+        # Générer toutes les dates de la semaine avec informations formatées
         current_date = week_start
         while current_date <= week_end:
-            week_dates.append(current_date.isoformat())
+            day_names = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+            day_index = current_date.weekday()
+            week_dates.append({
+                "date": current_date.isoformat(),
+                "day_name": day_names[day_index],
+                "day_number": current_date.day
+            })
             current_date += timedelta(days=1)
     
     # Récupérer les réservations
@@ -1089,11 +1095,13 @@ async def reservations_page(request: Request) -> HTMLResponse:
         
         # Réservations pour la date sélectionnée ou la semaine
         if view_type == "week" and week_dates:
-            placeholders = ','.join(['%s'] * len(week_dates))
+            # Extraire les dates des objets week_dates
+            dates_list = [week_date["date"] for week_date in week_dates]
+            placeholders = ','.join(['%s'] * len(dates_list))
             cur, column_names = execute_with_names(
                 "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
                 "WHERE date IN (" + placeholders + ") ORDER BY date, start_time",
-                week_dates,
+                dates_list,
             )
         else:
             cur, column_names = execute_with_names(
@@ -1123,11 +1131,13 @@ async def reservations_page(request: Request) -> HTMLResponse:
     else:
         cur = conn.cursor()
         if view_type == "week" and week_dates:
-            placeholders = ','.join(['?'] * len(week_dates))
+            # Extraire les dates des objets week_dates
+            dates_list = [week_date["date"] for week_date in week_dates]
+            placeholders = ','.join(['?'] * len(dates_list))
             cur.execute(
                 "SELECT r.*, u.full_name AS user_full_name, u.username FROM reservations r JOIN users u ON r.user_id = u.id "
                 "WHERE date IN (" + placeholders + ") ORDER BY date, start_time",
-                week_dates,
+                dates_list,
             )
         else:
             cur.execute(

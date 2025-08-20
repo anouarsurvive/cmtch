@@ -149,13 +149,10 @@
                                     <tr>
                                         <th class="time-header">Heure</th>
                                         {% for week_date in week_dates %}
-                                            {% set date_obj = week_date|string %}
-                                            {% set day_name = date_obj|string|strptime("%Y-%m-%d")|strftime("%A") %}
-                                            {% set day_number = date_obj|string|strptime("%Y-%m-%d")|strftime("%d") %}
                                             <th class="day-header">
                                                 <div class="day-info">
-                                                    <div class="day-name">{{ day_name|title }}</div>
-                                                    <div class="day-date">{{ day_number }}</div>
+                                                    <div class="day-name">{{ week_date.day_name|title }}</div>
+                                                    <div class="day-date">{{ week_date.day_number }}</div>
                                                 </div>
                                             </th>
                                         {% endfor %}
