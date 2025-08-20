@@ -103,9 +103,9 @@
                                 <td>
                                     <div class="progress-wrapper">
                                         <div class="progress">
-                                            <div class="progress-bar" style="width: {{ (c / total_reservations * 100)|round(1) }}%"></div>
+                                            <div class="progress-bar" style="width: {{ (c / (total_reservations|default(1)) * 100)|round(1) }}%"></div>
                                         </div>
-                                        <span class="progress-text">{{ (c / total_reservations * 100)|round(1) }}%</span>
+                                        <span class="progress-text">{{ (c / (total_reservations|default(1)) * 100)|round(1) }}%</span>
                                     </div>
                                 </td>
                             </tr>
