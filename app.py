@@ -3462,6 +3462,10 @@ async def user_dashboard(request: Request) -> HTMLResponse:
         counts_js = json.dumps(counts)
         # Préparer les paires pour itération dans le template (mois, count)
         data_pairs = list(zip(months, counts))
+        
+        # Calculer les statistiques supplémentaires
+        total_reservations = sum(counts)
+        total_hours = total_reservations  # Chaque réservation = 1 heure
     except Exception as e:
         print(f"❌ Erreur dans la transformation des données de /espace: {e}")
         # En cas d'erreur, utiliser des listes vides
@@ -3470,6 +3474,9 @@ async def user_dashboard(request: Request) -> HTMLResponse:
         months_js = json.dumps([])
         counts_js = json.dumps([])
         data_pairs = []
+        total_reservations = 0
+        total_hours = 0
+    
     return templates.TemplateResponse(
         "user_dashboard.html",
         {
@@ -3480,6 +3487,8 @@ async def user_dashboard(request: Request) -> HTMLResponse:
             "months_js": months_js,
             "counts_js": counts_js,
             "data_pairs": data_pairs,
+            "total_reservations": total_reservations,
+            "total_hours": total_hours,
         },
     )
 
