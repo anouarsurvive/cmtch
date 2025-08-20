@@ -3303,7 +3303,7 @@ async def user_dashboard(request: Request) -> HTMLResponse:
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
-    if not user["validated"]:
+    if not user.validated:
         return templates.TemplateResponse(
             "not_validated.html",
             {"request": request, "message": "Votre inscription doit être validée pour accéder à cet espace."},
@@ -3318,7 +3318,7 @@ async def user_dashboard(request: Request) -> HTMLResponse:
             # Regrouper par année-mois et compter
             cur, column_names = execute_with_names(
                 "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month",
-                (user["id"],),
+                (user.id,),
             )
             rows = cur.fetchall()
             # Convertir les tuples MySQL en objets avec attributs nommés
@@ -3335,7 +3335,7 @@ async def user_dashboard(request: Request) -> HTMLResponse:
             # Regrouper par année-mois et compter
             cur.execute(
                 "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
-                (user["id"],),
+                (user.id,),
             )
             rows = cur.fetchall()
         except Exception as e:
@@ -3349,8 +3349,8 @@ async def user_dashboard(request: Request) -> HTMLResponse:
     counts: List[int] = []
     try:
         for row in rows:
-            months.append(row["month"])
-            counts.append(row["count"])
+            months.append(row.month)
+            counts.append(row.count)
         # Préparer les versions JSON des listes pour Chart.js
         months_js = json.dumps(months)
         counts_js = json.dumps(counts)
@@ -3772,8 +3772,8 @@ async def test_espace_endpoint():
         months = []
         counts = []
         for row in rows:
-            months.append(row["month"])
-            counts.append(row["count"])
+            months.append(row.month)
+            counts.append(row.count)
         
         return {
             "status": "success",
