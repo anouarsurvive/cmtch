@@ -37,6 +37,15 @@ def get_db_connection():
     # Vérifier si on est sur Render avec MySQL (HostGator)
     database_url = os.getenv('DATABASE_URL')
     
+    # Forcer SQLite en local pour éviter les problèmes de connexion MySQL
+    if not database_url or not MYSQL_AVAILABLE:
+        # Connexion SQLite en local ou en fallback
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        DB_PATH = os.path.join(BASE_DIR, "database.db")
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+    
     if database_url and MYSQL_AVAILABLE and 'mysql://' in database_url:
         # Connexion MySQL sur HostGator
         try:
