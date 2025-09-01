@@ -667,7 +667,7 @@ async def home(request: Request) -> HTMLResponse:
         cur.execute(
             "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
         )
-    latest_articles = cur.fetchall()
+        latest_articles = cur.fetchall()
     conn.close()
     return templates.TemplateResponse(
         "index.html",
