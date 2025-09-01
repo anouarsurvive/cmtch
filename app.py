@@ -809,39 +809,36 @@ async def register(request: Request) -> HTMLResponse:
         pwd_hash = hash_password(password)
         is_trainer = 1 if role == "trainer" else 0
         
-        # Générer un token de validation par email
-        import secrets
-        email_verification_token = secrets.token_urlsafe(32)
+        # Vérification email désactivée - marquer directement comme vérifié
+        email_verification_token = None
+        email_verified = 1
         
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute(
                 "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, 0, %s, %s, 0)",
-                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer, email_verification_token),
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, 0, %s, %s, %s)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer, email_verification_token, email_verified),
             )
         else:
             cur.execute(
                 "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0)",
-                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer, email_verification_token),
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)",
+                (username, pwd_hash, full_name, email, phone, ijin_number, birth_date, "", is_trainer, email_verification_token, email_verified),
             )
         conn.commit()
         conn.close()
         
         print(f"✅ Utilisateur créé avec succès: {username}")
         
-        # Construire l'URL de validation
-        base_url = str(request.base_url).rstrip('/')
-        verification_url = f"{base_url}/verifier-email/{email_verification_token}"
-        
+        # Vérification email désactivée - redirection simple
         return templates.TemplateResponse(
             "register_success.html",
             {
                 "request": request, 
                 "username": username,
                 "email": email,
-                "verification_url": verification_url
+                "verification_url": None
             },
         )
         
@@ -995,8 +992,9 @@ async def login(request: Request) -> HTMLResponse:
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
         elif not user.validated:
             errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
-        elif not user.get("email_verified", True) and not user.get("is_admin", False):  # Les admins n'ont pas besoin de vérification email
-            errors.append("Votre adresse email n'a pas encore été validée. Veuillez vérifier votre boîte mail et cliquer sur le lien de confirmation.")
+        # Vérification email désactivée pour l'instant
+        # elif not user.get("email_verified", True) and not user.get("is_admin", False):
+        #     errors.append("Votre adresse email n'a pas encore été validée. Veuillez vérifier votre boîte mail et cliquer sur le lien de confirmation.")
         
         # Si erreurs, afficher le formulaire avec les erreurs
         if errors:
@@ -2142,9 +2140,9 @@ async def admin_add_member(request: Request) -> HTMLResponse:
         is_trainer = 1 if role == "trainer" else 0
         is_admin = 1 if role == "admin" else 0
         
-        # Générer un token de validation par email si nécessaire
-        import secrets
-        email_verification_token = secrets.token_urlsafe(32) if not email_verified else None
+        # Vérification email désactivée - marquer directement comme vérifié
+        email_verification_token = None
+        email_verified = 1
         
         # Vérifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:

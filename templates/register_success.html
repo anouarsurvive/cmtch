@@ -16,33 +16,29 @@
                         Félicitations <strong>{{ username }}</strong> ! Votre compte a été créé avec succès.
                     </p>
                     
-                    <div class="alert alert-info" role="alert">
+                    <div class="alert alert-success" role="alert">
                         <h5 class="alert-heading">
-                            <i class="fas fa-info-circle me-2"></i>Validation de votre email requise
+                            <i class="fas fa-check-circle me-2"></i>Votre compte est prêt !
                         </h5>
                         <p class="mb-3">
-                            Pour activer votre compte, vous devez valider votre adresse email : <strong>{{ email }}</strong>
+                            Votre compte a été créé avec succès. Vous pouvez maintenant vous connecter.
                         </p>
                         <p class="mb-0">
-                            <strong>Cliquez sur le lien ci-dessous pour valider votre email :</strong>
+                            <strong>Votre email :</strong> {{ email }}
                         </p>
                     </div>
                     
                     <div class="mb-4">
-                        <a href="{{ verification_url }}" class="btn btn-primary btn-lg">
-                            <i class="fas fa-check-circle me-2"></i>Valider mon email
+                        <a href="/connexion" class="btn btn-primary btn-lg">
+                            <i class="fas fa-sign-in-alt me-2"></i>Se connecter
                         </a>
                     </div>
                     
-                    <div class="alert alert-warning" role="alert">
+                    <div class="alert alert-info" role="alert">
                         <small>
-                            <i class="fas fa-exclamation-triangle me-1"></i>
-                            <strong>Important :</strong> Si vous ne recevez pas d'email, vérifiez votre dossier spam.
-                            Vous pouvez également copier et coller ce lien dans votre navigateur :
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Note :</strong> Votre compte sera activé après validation par un administrateur.
                         </small>
-                        <div class="mt-2">
-                            <code class="small">{{ verification_url }}</code>
-                        </div>
                     </div>
                     
                     <hr class="my-4">
@@ -51,7 +47,6 @@
                         <div class="col-md-6">
                             <h6 class="text-muted">Prochaines étapes :</h6>
                             <ul class="list-unstyled text-start">
-                                <li><i class="fas fa-check text-success me-2"></i>Cliquez sur le lien de validation</li>
                                 <li><i class="fas fa-clock text-warning me-2"></i>Attendez la validation admin</li>
                                 <li><i class="fas fa-sign-in-alt text-info me-2"></i>Connectez-vous</li>
                                 <li><i class="fas fa-calendar-check text-primary me-2"></i>Réservez vos créneaux</li>
