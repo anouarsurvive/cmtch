@@ -20,8 +20,11 @@
         {% if articles %}
             <div class="row">
                 {% for article in articles %}
+                    {% set article_lang = detect_language(article.title + ' ' + (article.content or '')) %}
+                    {% set article_direction = get_text_direction(article_lang) %}
+                    {% set article_align = get_text_align(article_lang) %}
                     <div class="col-lg-6 col-xl-4 mb-4">
-                        <div class="article-card h-100">
+                        <div class="article-card h-100 article-{{ article_direction }}">
                             <div class="article-image-wrapper">
                                                                  {% if article.image_path and article.image_path != '' %}
                                      <img src="{{ article.image_path }}" 
@@ -53,8 +56,8 @@
                             </div>
                             
                             <div class="article-content">
-                                <h3 class="article-title">{{ article.title }}</h3>
-                                <p class="article-excerpt">
+                                <h3 class="article-title article-title-{{ article_direction }}">{{ article.title }}</h3>
+                                <p class="article-excerpt article-content-{{ article_direction }}">
                                     {% if article.content %}
                                         {{ article.content[:150] }}{% if article.content|length > 150 %}...{% endif %}
                                     {% else %}

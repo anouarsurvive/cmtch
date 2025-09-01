@@ -291,8 +291,10 @@
         <!-- Version desktop -->
         <div class="row g-4 d-none d-lg-flex">
             {% for article in latest_articles %}
+            {% set article_lang = detect_language(article.title + ' ' + (article.content or '')) %}
+            {% set article_direction = get_text_direction(article_lang) %}
             <div class="col-lg-4 col-md-6">
-                <div class="card border-0 shadow-sm h-100">
+                <div class="card border-0 shadow-sm h-100 article-{{ article_direction }}">
                     {% if article.image_path %}
                         <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}" style="height: 180px; object-fit: contain; background-color: #f8f9fa;">
                     {% else %}
@@ -301,12 +303,12 @@
                         </div>
                     {% endif %}
                     <div class="card-body">
-                        <small class="text-muted d-block mb-2">
+                        <small class="text-muted d-block mb-2 article-meta-{{ article_direction }}">
                             <i class="fas fa-calendar me-1"></i>
                             {{ article.created_at.strftime('%d/%m/%Y') if article.created_at else 'Date inconnue' }}
                         </small>
-                        <h6 class="card-title">{{ article.title }}</h6>
-                        <p class="card-text text-muted small">{{ article.content[:100] }}{% if article.content|length > 100 %}...{% endif %}</p>
+                        <h6 class="card-title article-title-{{ article_direction }}">{{ article.title }}</h6>
+                        <p class="card-text text-muted small article-content-{{ article_direction }}">{{ article.content[:100] }}{% if article.content|length > 100 %}...{% endif %}</p>
                         <a href="/articles/{{ article.id }}" class="btn btn-outline-primary btn-sm">
                             Lire la suite
                         </a>
@@ -320,7 +322,9 @@
         <div class="d-lg-none">
             <div class="mobile-articles">
                 {% for article in latest_articles %}
-                <div class="mobile-article-item">
+                {% set article_lang = detect_language(article.title + ' ' + (article.content or '')) %}
+                {% set article_direction = get_text_direction(article_lang) %}
+                <div class="mobile-article-item article-{{ article_direction }}">
                     <div class="mobile-article-image">
                         {% if article.image_path %}
                             <img src="{{ article.image_path }}" alt="{{ article.title }}" class="img-fluid rounded">
@@ -331,12 +335,12 @@
                         {% endif %}
                     </div>
                     <div class="mobile-article-content">
-                        <div class="mobile-article-date">
+                        <div class="mobile-article-date article-meta-{{ article_direction }}">
                             <i class="fas fa-calendar me-1"></i>
                             {{ article.created_at.strftime('%d/%m/%Y') if article.created_at else 'Date inconnue' }}
                         </div>
-                        <h6 class="mobile-article-title">{{ article.title }}</h6>
-                        <p class="mobile-article-excerpt">{{ article.content[:80] }}{% if article.content|length > 80 %}...{% endif %}</p>
+                        <h6 class="mobile-article-title article-title-{{ article_direction }}">{{ article.title }}</h6>
+                        <p class="mobile-article-excerpt article-content-{{ article_direction }}">{{ article.content[:80] }}{% if article.content|length > 80 %}...{% endif %}</p>
                         <a href="/articles/{{ article.id }}" class="btn btn-primary btn-sm">
                             Lire la suite
                         </a>

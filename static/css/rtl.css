@@ -1,0 +1,179 @@
+/* Support RTL (Right-to-Left) pour les articles arabes */
+
+/* Styles de base pour le texte RTL */
+.text-rtl {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Arial', 'Tahoma', sans-serif;
+}
+
+.text-ltr {
+    direction: ltr;
+    text-align: left;
+}
+
+/* Styles pour les articles en arabe */
+.article-rtl {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Arial', 'Tahoma', sans-serif;
+}
+
+.article-rtl .card-title {
+    text-align: right;
+    direction: rtl;
+}
+
+.article-rtl .card-text {
+    text-align: right;
+    direction: rtl;
+    line-height: 1.8;
+}
+
+.article-rtl .card-body {
+    text-align: right;
+    direction: rtl;
+}
+
+/* Styles pour les articles en français */
+.article-ltr {
+    direction: ltr;
+    text-align: left;
+}
+
+.article-ltr .card-title {
+    text-align: left;
+    direction: ltr;
+}
+
+.article-ltr .card-text {
+    text-align: left;
+    direction: ltr;
+}
+
+.article-ltr .card-body {
+    text-align: left;
+    direction: ltr;
+}
+
+/* Styles pour les titres d'articles */
+.article-title-rtl {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Arial', 'Tahoma', sans-serif;
+    font-weight: bold;
+}
+
+.article-title-ltr {
+    direction: ltr;
+    text-align: left;
+    font-weight: bold;
+}
+
+/* Styles pour le contenu des articles */
+.article-content-rtl {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Arial', 'Tahoma', sans-serif;
+    line-height: 1.8;
+}
+
+.article-content-ltr {
+    direction: ltr;
+    text-align: left;
+    line-height: 1.6;
+}
+
+/* Styles pour les métadonnées (date, auteur) */
+.article-meta-rtl {
+    direction: rtl;
+    text-align: right;
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.article-meta-ltr {
+    direction: ltr;
+    text-align: left;
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+/* Styles pour les boutons et liens */
+.article-rtl .btn {
+    float: right;
+}
+
+.article-ltr .btn {
+    float: left;
+}
+
+/* Styles pour les listes */
+.article-rtl ul,
+.article-rtl ol {
+    text-align: right;
+    direction: rtl;
+}
+
+.article-ltr ul,
+.article-ltr ol {
+    text-align: left;
+    direction: ltr;
+}
+
+/* Styles pour les citations */
+.article-rtl blockquote {
+    text-align: right;
+    direction: rtl;
+    border-right: 4px solid #007bff;
+    border-left: none;
+    padding-right: 15px;
+    padding-left: 0;
+    margin-right: 0;
+    margin-left: 15px;
+}
+
+.article-ltr blockquote {
+    text-align: left;
+    direction: ltr;
+    border-left: 4px solid #007bff;
+    border-right: none;
+    padding-left: 15px;
+    padding-right: 0;
+    margin-left: 0;
+    margin-right: 15px;
+}
+
+/* Styles pour les images dans les articles */
+.article-rtl .article-image {
+    float: right;
+    margin-left: 15px;
+    margin-right: 0;
+}
+
+.article-ltr .article-image {
+    float: left;
+    margin-right: 15px;
+    margin-left: 0;
+}
+
+/* Responsive design pour RTL */
+@media (max-width: 768px) {
+    .article-rtl .article-image,
+    .article-ltr .article-image {
+        float: none;
+        margin: 10px 0;
+        display: block;
+        text-align: center;
+    }
+    
+    .article-rtl,
+    .article-ltr {
+        text-align: center;
+    }
+    
+    .article-rtl .card-title,
+    .article-ltr .card-title {
+        text-align: center;
+    }
+}
