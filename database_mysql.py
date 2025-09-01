@@ -131,9 +131,9 @@ def init_mysql_db():
         from app import hash_password
         admin_pwd = hash_password("admin")
         cur.execute("""
-            INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, ("admin", admin_pwd, "Administrateur", "admin@example.com", "", 1, 1))
+            INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated, email_verification_token, email_verified)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, ("admin", admin_pwd, "Administrateur", "admin@example.com", "", 1, 1, None, 1))
         conn.commit()
         print("✅ Utilisateur admin créé avec succès (MySQL)")
     else:
@@ -205,9 +205,9 @@ def init_sqlite_db():
         from app import hash_password
         admin_pwd = hash_password("admin")
         cur.execute("""
-            INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ("admin", admin_pwd, "Administrateur", "admin@example.com", "", 1, 1))
+            INSERT INTO users (username, password_hash, full_name, email, phone, is_admin, validated, email_verification_token, email_verified)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("admin", admin_pwd, "Administrateur", "admin@example.com", "", 1, 1, None, 1))
         conn.commit()
         print("✅ Utilisateur admin créé avec succès (SQLite)")
     else:
