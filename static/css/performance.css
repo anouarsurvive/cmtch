@@ -1,0 +1,349 @@
+/* Optimisations de performance pour Firefox et autres navigateurs */
+
+/* Désactiver les effets de parallaxe problématiques */
+.hero {
+    background-attachment: scroll !important; /* Évite les problèmes de performance */
+}
+
+/* Optimiser les animations pour les performances */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Optimiser les transitions pour éviter les reflows */
+.card {
+    will-change: transform;
+    transform: translateZ(0); /* Force l'accélération matérielle */
+}
+
+.card:hover {
+    transform: translateY(-5px) translateZ(0);
+}
+
+/* Optimiser les animations d'images */
+.img-fluid {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.img-fluid:hover {
+    transform: scale(1.03) translateZ(0);
+}
+
+/* Optimiser les boutons */
+.btn {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.btn:hover {
+    transform: translateY(-2px) translateZ(0);
+}
+
+/* Optimiser les icônes */
+.fa-2x {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.card:hover .fa-2x {
+    transform: scale(1.1) translateZ(0);
+}
+
+/* Optimiser les liens sociaux */
+.social-link {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.social-link:hover {
+    transform: translateY(-8px) rotate(360deg) translateZ(0);
+}
+
+/* Optimiser les alertes */
+.alert {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les animations de scroll */
+.scroll-reveal {
+    will-change: opacity, transform;
+    transform: translateY(30px) translateZ(0);
+}
+
+.scroll-reveal.revealed {
+    transform: translateY(0) translateZ(0);
+}
+
+/* Optimiser les animations de chargement */
+.loading::after {
+    will-change: left;
+}
+
+/* Optimiser les effets de survol des listes */
+.list-unstyled li {
+    will-change: padding-left;
+}
+
+/* Optimiser les badges */
+.badge {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les cartes de statistiques */
+.card .fw-bold {
+    will-change: color;
+}
+
+/* Optimiser les icônes circulaires */
+.rounded-circle {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.card:hover .rounded-circle {
+    transform: scale(1.1) translateZ(0);
+}
+
+/* Optimiser les boutons d'action */
+.btn-outline-primary:hover,
+.btn-outline-success:hover,
+.btn-outline-info:hover {
+    will-change: transform;
+    transform: translateY(-3px) translateZ(0);
+}
+
+/* Optimiser les animations de bounce */
+.fa-tennis-ball {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les animations de pulse */
+.pulse {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les animations de slide */
+.slide-in-left,
+.slide-in-right {
+    will-change: opacity, transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les animations de fade */
+.fadeInUp {
+    will-change: opacity, transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les animations de slide down */
+.slideInDown {
+    will-change: opacity, transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les animations de float */
+.hero::before {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Optimiser les animations de loading */
+@keyframes loading {
+    0% { 
+        left: -100%; 
+        transform: translateZ(0);
+    }
+    100% { 
+        left: 100%; 
+        transform: translateZ(0);
+    }
+}
+
+/* Optimiser les animations de bounce */
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0) translateZ(0);
+    }
+    40% {
+        transform: translateY(-10px) translateZ(0);
+    }
+    60% {
+        transform: translateY(-5px) translateZ(0);
+    }
+}
+
+/* Optimiser les animations de pulse */
+@keyframes pulse {
+    0% { 
+        transform: scale(1) translateZ(0); 
+    }
+    50% { 
+        transform: scale(1.05) translateZ(0); 
+    }
+    100% { 
+        transform: scale(1) translateZ(0); 
+    }
+}
+
+/* Optimiser les animations de float */
+@keyframes float {
+    0%, 100% { 
+        transform: translateY(0px) rotate(0deg) translateZ(0); 
+    }
+    25% { 
+        transform: translateY(-15px) rotate(1deg) translateZ(0); 
+    }
+    50% { 
+        transform: translateY(-25px) rotate(0deg) translateZ(0); 
+    }
+    75% { 
+        transform: translateY(-15px) rotate(-1deg) translateZ(0); 
+    }
+}
+
+/* Optimiser les animations de fadeInUp */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(40px) translateZ(0);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) translateZ(0);
+    }
+}
+
+/* Optimiser les animations de slideInDown */
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) translateZ(0);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) translateZ(0);
+    }
+}
+
+/* Optimiser les animations de slideInLeft */
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-40px) translateZ(0);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) translateZ(0);
+    }
+}
+
+/* Optimiser les animations de slideInRight */
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(40px) translateZ(0);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) translateZ(0);
+    }
+}
+
+/* Optimiser les transitions pour les performances */
+* {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Optimiser les scrolls pour Firefox */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Optimiser les performances sur mobile */
+@media (max-width: 768px) {
+    .hero {
+        background-attachment: scroll !important;
+    }
+    
+    .card:hover {
+        transform: none; /* Désactiver les effets de survol sur mobile */
+    }
+    
+    .img-fluid:hover {
+        transform: none; /* Désactiver les effets de survol sur mobile */
+    }
+    
+    .btn:hover {
+        transform: none; /* Désactiver les effets de survol sur mobile */
+    }
+}
+
+/* Optimiser les performances sur les appareils à faible puissance */
+@media (prefers-reduced-motion: reduce) {
+    .hero::before {
+        animation: none !important;
+    }
+    
+    .fa-tennis-ball {
+        animation: none !important;
+    }
+    
+    .pulse {
+        animation: none !important;
+    }
+    
+    .card:hover {
+        transform: none !important;
+    }
+    
+    .img-fluid:hover {
+        transform: none !important;
+    }
+    
+    .btn:hover {
+        transform: none !important;
+    }
+    
+    .social-link:hover {
+        transform: none !important;
+    }
+    
+    .alert {
+        animation: none !important;
+    }
+    
+    .scroll-reveal {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    
+    .loading::after {
+        animation: none !important;
+    }
+}
+
+/* Optimiser les performances pour les navigateurs WebKit */
+@supports (-webkit-backdrop-filter: blur(15px)) {
+    .social-link {
+        backdrop-filter: blur(15px);
+    }
+}
+
+/* Optimiser les performances pour les navigateurs non-WebKit */
+@supports not (-webkit-backdrop-filter: blur(15px)) {
+    .social-link {
+        background: rgba(255, 255, 255, 0.2);
+    }
+}

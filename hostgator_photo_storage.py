@@ -5,6 +5,7 @@ Système de stockage des photos sur HostGator via FTP
 
 import os
 import ftplib
+import io
 import uuid
 from typing import Optional, Tuple
 import urllib.parse
@@ -67,7 +68,7 @@ class HostGatorPhotoStorage:
             
             # Upload du fichier
             ftp.storbinary(f'STOR {unique_name}', 
-                          ftplib.BytesIO(file_content))
+                          io.BytesIO(file_content))
             
             # Fermer la connexion
             ftp.quit()
