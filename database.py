@@ -154,7 +154,9 @@ def init_mysql_db():
             photo_path VARCHAR(500),
             is_admin TINYINT DEFAULT 0,
             validated TINYINT DEFAULT 0,
-            is_trainer TINYINT DEFAULT 0
+            is_trainer TINYINT DEFAULT 0,
+            email_verification_token VARCHAR(255) NULL,
+            email_verified TINYINT DEFAULT 0
         )
     """)
     
@@ -271,7 +273,9 @@ def init_sqlite_db():
             photo_path TEXT,
             is_admin INTEGER DEFAULT 0,
             validated INTEGER DEFAULT 0,
-            is_trainer INTEGER DEFAULT 0
+            is_trainer INTEGER DEFAULT 0,
+            email_verification_token TEXT NULL,
+            email_verified INTEGER DEFAULT 0
         )
     """)
     
@@ -400,7 +404,9 @@ def init_postgresql_db():
                 photo_path TEXT,
                 is_admin BOOLEAN DEFAULT FALSE,
                 validated BOOLEAN DEFAULT FALSE,
-                is_trainer BOOLEAN DEFAULT FALSE
+                is_trainer BOOLEAN DEFAULT FALSE,
+                email_verification_token VARCHAR(255) NULL,
+                email_verified BOOLEAN DEFAULT FALSE
             )
         """)
         

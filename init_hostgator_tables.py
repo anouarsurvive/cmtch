@@ -47,6 +47,8 @@ def init_hostgator_tables():
                 is_admin TINYINT DEFAULT 0,
                 validated TINYINT DEFAULT 0,
                 is_trainer TINYINT DEFAULT 0,
+                email_verification_token VARCHAR(255) NULL,
+                email_verified TINYINT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
