@@ -4327,6 +4327,35 @@ async def check_backup_status_endpoint():
         }
 
 
+@app.get("/test-photo-upload")
+async def test_photo_upload_endpoint():
+    """Test du système de stockage des photos"""
+    try:
+        from photo_upload_service import test_photo_system
+        
+        # Exécuter le test
+        import io
+        import sys
+        from contextlib import redirect_stdout
+        
+        f = io.StringIO()
+        with redirect_stdout(f):
+            test_photo_system()
+        
+        output = f.getvalue()
+        
+        return {
+            "status": "success",
+            "message": "Test du système de photos terminé",
+            "output": output
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors du test: {str(e)}"
+        }
+
 @app.get("/create-admin")
 async def create_admin_endpoint():
     """Point de terminaison pour créer l'utilisateur admin si la base est vide."""
