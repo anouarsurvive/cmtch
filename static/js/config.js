@@ -32,7 +32,7 @@ const PERFORMANCE_CONFIG = {
         '/static/css/critical.css',
         '/static/js/performance.js',
         '/static/images/hero.png',
-        'https://www.cmtch.online/photos/logo.jpg'
+        'https://www.cmtch.online/photos/cfe876eaaf7a4756a2aeb32935ae9707.jpg'
     ],
     
     // Ressources à précharger
