@@ -296,9 +296,9 @@
             <div class="col-lg-4 col-md-6">
                 <div class="card border-0 shadow-sm h-100 article-{{ article_direction }}">
                     {% if article.image_path %}
-                        <img src="{{ article.image_path }}" class="card-img-top" alt="{{ article.title }}" style="height: 180px; object-fit: contain; background-color: #f8f9fa;">
+                        <img src="{{ article.image_path }}" class="card-img-top article-image" alt="{{ article.title }}">
                     {% else %}
-                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 180px;">
+                        <div class="bg-light d-flex align-items-center justify-content-center article-image-wrapper">
                             <i class="fas fa-newspaper fa-2x text-muted"></i>
                         </div>
                     {% endif %}
@@ -327,9 +327,9 @@
                 <div class="mobile-article-item article-{{ article_direction }}">
                     <div class="mobile-article-image">
                         {% if article.image_path %}
-                            <img src="{{ article.image_path }}" alt="{{ article.title }}" class="img-fluid rounded">
+                            <img src="{{ article.image_path }}" alt="{{ article.title }}" class="img-fluid rounded article-image">
                         {% else %}
-                            <div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 120px;">
+                            <div class="bg-light d-flex align-items-center justify-content-center rounded article-image-wrapper">
                                 <i class="fas fa-newspaper fa-2x text-muted"></i>
                             </div>
                         {% endif %}
