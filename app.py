@@ -64,14 +64,6 @@ SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@cmtch.tn")
 
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-# Expose l'objet datetime dans les templates pour afficher l'année dans le pied de page
-templates.env.globals["datetime"] = datetime
-# Expose les fonctions de détection de langue dans les templates
-templates.env.globals["detect_language"] = detect_language
-templates.env.globals["get_text_direction"] = get_text_direction
-templates.env.globals["get_text_align"] = get_text_align
-
 def detect_language(text: str) -> str:
     """
     Détecte la langue d'un texte (arabe ou français)
@@ -105,6 +97,14 @@ def get_text_align(language: str) -> str:
     Retourne l'alignement du texte selon la langue
     """
     return 'right' if language == 'ar' else 'left'
+
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+# Expose l'objet datetime dans les templates pour afficher l'année dans le pied de page
+templates.env.globals["datetime"] = datetime
+# Expose les fonctions de détection de langue dans les templates
+templates.env.globals["detect_language"] = detect_language
+templates.env.globals["get_text_direction"] = get_text_direction
+templates.env.globals["get_text_align"] = get_text_align
 
 # Montage des fichiers statiques (CSS, images, JS)
 app.mount(
