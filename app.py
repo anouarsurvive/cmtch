@@ -995,7 +995,7 @@ async def login(request: Request) -> HTMLResponse:
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
         elif not user.validated:
             errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
-        elif not user.get("email_verified", True):  # Par défaut True pour compatibilité avec l'ancienne base
+        elif not user.get("email_verified", True) and not user.get("is_admin", False):  # Les admins n'ont pas besoin de vérification email
             errors.append("Votre adresse email n'a pas encore été validée. Veuillez vérifier votre boîte mail et cliquer sur le lien de confirmation.")
         
         # Si erreurs, afficher le formulaire avec les erreurs
