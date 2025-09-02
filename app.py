@@ -115,11 +115,11 @@ app.mount(
 )
 
 # Route spécifique pour les images d'articles qui redirige vers HostGator
-# @app.get("/article_images/{filename}")
-# async def serve_article_image(filename: str):
-#     """Redirige les requêtes d'images d'articles vers HostGator"""
-#     hostgator_url = f"https://www.cmtch.online/static/article_images/{filename}"
-#     return RedirectResponse(url=hostgator_url, status_code=302)
+@app.get("/article_images/{filename}")
+async def serve_article_image(filename: str):
+    """Redirige les requêtes d'images d'articles vers HostGator"""
+    hostgator_url = f"https://www.cmtch.online/static/article_images/{filename}"
+    return RedirectResponse(url=hostgator_url, status_code=302)
 
 
 def create_session_token(user_id: int) -> str:
@@ -3255,11 +3255,11 @@ async def admin_new_article_form(request: Request) -> HTMLResponse:
 async def admin_new_article(request: Request) -> HTMLResponse:
     """Traite la soumission du formulaire de création d'article.
 
-    Ce gestionnaire prend en charge deux types de formulaires :
-    - `multipart/form-data` : permet de télécharger un fichier image depuis le
+    Ce gestionnaire prend en charge deux types de formulaires :
+    - `multipart/form-data` : permet de télécharger un fichier image depuis le
       navigateur grâce à un champ `<input type="file" name="image_file">`. Le
       fichier est enregistré dans `static/article_images/` avec un nom unique.
-    - `application/x-www-form-urlencoded` : permet de spécifier un champ
+    - `application/x-www-form-urlencoded` : permet de spécifier un champ
       `image_url` contenant l'adresse de l'image.
 
     Dans tous les cas, le titre et le contenu sont requis. Si un champ est
@@ -3269,25 +3269,29 @@ async def admin_new_article(request: Request) -> HTMLResponse:
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
     check_admin(user)
+    
     # Déterminer le type de contenu
     content_type = request.headers.get("content-type", "")
     errors: List[str] = []
     title = ""
     content_text = ""
     image_path: str = ""
+    
+    # Lire le body une seule fois
+    body = await request.body()
+    
     if "multipart/form-data" in content_type:
         # Analyse du corps multipart
-        body = await request.body()
         form = parse_multipart_form(body, content_type)
         title = str(form.get("title", "")).strip()
         content_text = str(form.get("content", "")).strip()
+        
         # Gestion du fichier image s'il existe
         file_field = form.get("image_file")
         if file_field and isinstance(file_field, dict):
             filename = file_field.get("filename")
             file_content = file_field.get("content", b"")
             if filename and file_content:
-                # Créer un dossier pour les images si nécessaire
                 # Générer un nom unique pour éviter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
@@ -3297,7 +3301,8 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                     from photo_upload_service_hostgator import upload_photo_to_hostgator
                     success, message, hostgator_url = upload_photo_to_hostgator(file_content, unique_name)
                     if success:
-                        image_path = hostgator_url
+                        # Utiliser le chemin relatif pour la cohérence avec la base de données
+                        image_path = f"/article_images/{unique_name}"
                         print(f"✅ Image uploadée vers HostGator: {hostgator_url}")
                     else:
                         # Fallback vers stockage local si HostGator échoue
@@ -3306,7 +3311,7 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                         file_path = os.path.join(images_dir, unique_name)
                         with open(file_path, "wb") as f:
                             f.write(file_content)
-                        image_path = f"/static/article_images/{unique_name}"
+                        image_path = f"/article_images/{unique_name}"
                         print(f"⚠️ Fallback vers stockage local: {image_path}")
                 except Exception as e:
                     # Fallback vers stockage local en cas d'erreur
@@ -3315,21 +3320,23 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                     file_path = os.path.join(images_dir, unique_name)
                     with open(file_path, "wb") as f:
                         f.write(file_content)
-                    image_path = f"/static/article_images/{unique_name}"
+                    image_path = f"/article_images/{unique_name}"
                     print(f"❌ Erreur HostGator, fallback local: {e}")
-        raw_body = await request.body()
-        form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
+    else:
+        # Analyse du corps form-urlencoded
+        form = urllib.parse.parse_qs(body.decode(), keep_blank_values=True)
         title = form.get("title", [""])[0].strip()
         content_text = form.get("content", [""])[0].strip()
         image_path = form.get("image_url", [""])[0].strip()
+    
     # Vérifications
     if not title:
         errors.append("Le titre est obligatoire.")
     if not content_text:
         errors.append("Le contenu est obligatoire.")
+    
     # Si erreurs, renvoyer le formulaire avec les champs saisis
     if errors:
-        # Indiquer les valeurs précédentes pour pré-remplir le formulaire
         return templates.TemplateResponse(
             "admin_article_form.html",
             {
@@ -3342,6 +3349,7 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 "image_url": image_path if "multipart/form-data" not in content_type else "",
             },
         )
+    
     # Insérer dans la base de données
     conn = get_db_connection()
     
