@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fond -->
+  <rect width="400" height="300" fill="#f8f9fa" stroke="#dee2e6" stroke-width="2"/>
+  
+  <!-- Icône d'article -->
+  <g transform="translate(200, 150)">
+    <!-- Document -->
+    <rect x="-40" y="-50" width="80" height="100" fill="#007bff" rx="5"/>
+    
+    <!-- Lignes de texte -->
+    <rect x="-30" y="-35" width="60" height="3" fill="white" rx="1"/>
+    <rect x="-30" y="-25" width="45" height="3" fill="white" rx="1"/>
+    <rect x="-30" y="-15" width="55" height="3" fill="white" rx="1"/>
+    <rect x="-30" y="-5" width="40" height="3" fill="white" rx="1"/>
+    <rect x="-30" y="5" width="50" height="3" fill="white" rx="1"/>
+    <rect x="-30" y="15" width="35" height="3" fill="white" rx="1"/>
+    <rect x="-30" y="25" width="60" height="3" fill="white" rx="1"/>
+    <rect x="-30" y="35" width="42" height="3" fill="white" rx="1"/>
+  </g>
+  
+  <!-- Texte -->
+  <text x="200" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#6c757d">
+    Image par défaut
+  </text>
+</svg>
