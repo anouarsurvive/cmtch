@@ -3546,7 +3546,6 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                 # Générer un nom unique pour éviter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
-                
                 # Upload vers HostGator au lieu du stockage local
                 try:
                     from photo_upload_service_hostgator import upload_photo_to_hostgator
