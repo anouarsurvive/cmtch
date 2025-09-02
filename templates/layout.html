@@ -48,13 +48,13 @@
     </style>
 
     <!-- Préchargement des ressources critiques -->
-    <link rel="preload" href="{{ url_for('static', path='css/style.css') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}"></noscript>
+    <link rel="preload" href="/static/css/style.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="/static/css/style.css"></noscript>
     
     <!-- CSS personnalisé pour CMTCH -->
-    <link rel="stylesheet" href="{{ url_for('static', path='css/custom.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/performance.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/rtl.css') }}">
+    <link rel="stylesheet" href="/static/css/custom.css">
+    <link rel="stylesheet" href="/static/css/performance.css">
+    <link rel="stylesheet" href="/static/css/rtl.css">
     
 
 </head>

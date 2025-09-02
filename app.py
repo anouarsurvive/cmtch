@@ -107,12 +107,19 @@ templates.env.globals["get_text_direction"] = get_text_direction
 templates.env.globals["get_text_align"] = get_text_align
 
 # Montage des fichiers statiques (CSS, images, JS)
-# Montage StaticFiles commenté - utilisation de l'URL directe HostGator
-# app.mount(
-#     "/static",
-#     StaticFiles(directory=os.path.join(BASE_DIR, "static")),
-#     name="static",
-# )
+# Montage StaticFiles pour les fichiers CSS/JS locaux
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
+    name="static",
+)
+
+# Route spécifique pour les images d'articles qui redirige vers HostGator
+# @app.get("/article_images/{filename}")
+# async def serve_article_image(filename: str):
+#     """Redirige les requêtes d'images d'articles vers HostGator"""
+#     hostgator_url = f"https://www.cmtch.online/static/article_images/{filename}"
+#     return RedirectResponse(url=hostgator_url, status_code=302)
 
 
 def create_session_token(user_id: int) -> str:
@@ -4404,7 +4411,7 @@ async def check_backup_status_endpoint():
 async def test_photo_upload_endpoint():
     """Test du système de stockage des photos"""
     try:
-        from photo_upload_service import test_photo_system
+        from photo_upload_service_hostgator import upload_photo_to_hostgator
         
         # Exécuter le test
         import io
