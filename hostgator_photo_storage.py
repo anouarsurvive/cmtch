@@ -18,8 +18,9 @@ class HostGatorPhotoStorage:
         self.ftp_host = "ftp.novaprint.tn"
         self.ftp_user = "cmtch@cmtch.online"  # Votre nom d'utilisateur FTP
         self.ftp_password = "Anouar881984?"  # Votre mot de passe FTP
-        self.remote_photos_dir = "/public_html/photos"  # Dossier sur HostGator
-        self.base_url = "https://www.cmtch.online/photos"  # URL publique
+        # ✅ CORRIGÉ: Upload vers le bon dossier /static/article_images/
+        self.remote_photos_dir = "/public_html/static/article_images"  # Dossier sur HostGator
+        self.base_url = "https://www.cmtch.online/static/article_images"  # URL publique
         
     def upload_photo(self, file_content: bytes, filename: str) -> Tuple[bool, str, str]:
         """
@@ -54,12 +55,13 @@ class HostGatorPhotoStorage:
                     # Essayer de créer le dossier parent d'abord
                     try:
                         ftp.mkd("/public_html")
+                        ftp.mkd("/public_html/static")
                         ftp.mkd(self.remote_photos_dir)
-                        print(f"✅ Dossier créé avec parent: {self.remote_photos_dir}")
+                        print(f"✅ Dossier créé avec parents: {self.remote_photos_dir}")
                     except:
                         pass
             
-            # Changer vers le dossier photos
+            # Changer vers le dossier article_images
             try:
                 ftp.cwd(self.remote_photos_dir)
             except ftplib.error_perm:
@@ -96,7 +98,7 @@ class HostGatorPhotoStorage:
             ftp = ftplib.FTP(self.ftp_host)
             ftp.login(self.ftp_user, self.ftp_password)
             
-            # Changer vers le dossier photos
+            # Changer vers le dossier article_images
             ftp.cwd(self.remote_photos_dir)
             
             # Supprimer le fichier
@@ -122,20 +124,25 @@ class HostGatorPhotoStorage:
             ftp = ftplib.FTP(self.ftp_host)
             ftp.login(self.ftp_user, self.ftp_password)
             
-            # Changer vers le dossier photos
+            # Changer vers le dossier article_images
             ftp.cwd(self.remote_photos_dir)
             
             # Lister les fichiers
             files = ftp.nlst()
             
-            # Filtrer les fichiers images
-            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+            # Filtrer les fichiers d'images
+            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp'}
             photos = []
+            
             for file in files:
-                if any(file.lower().endswith(ext) for ext in image_extensions):
+                if file in {'.', '..'}:
+                    continue
+                ext = os.path.splitext(file)[1].lower()
+                if ext in image_extensions:
                     photos.append({
                         'filename': file,
-                        'url': f"{self.base_url}/{file}"
+                        'url': f"{self.base_url}/{file}",
+                        'size': ftp.size(file) if ftp.size(file) else 0
                     })
             
             # Fermer la connexion
@@ -145,6 +152,52 @@ class HostGatorPhotoStorage:
             
         except Exception as e:
             return False, [], f"Erreur lors de la liste: {str(e)}"
+    
+    def get_photo_url(self, filename: str) -> str:
+        """
+        Retourne l'URL publique d'une photo
+        
+        Args:
+            filename: Nom du fichier
+            
+        Returns:
+            URL publique de la photo
+        """
+        return f"{self.base_url}/{filename}"
+    
+    def photo_exists(self, filename: str) -> bool:
+        """
+        Vérifie si une photo existe sur HostGator
+        
+        Args:
+            filename: Nom du fichier
+            
+        Returns:
+            True si la photo existe, False sinon
+        """
+        try:
+            # Connexion FTP
+            ftp = ftplib.FTP(self.ftp_host)
+            ftp.login(self.ftp_user, self.ftp_password)
+            
+            # Changer vers le dossier article_images
+            ftp.cwd(self.remote_photos_dir)
+            
+            # Vérifier si le fichier existe
+            try:
+                ftp.size(filename)
+                exists = True
+            except:
+                exists = False
+            
+            # Fermer la connexion
+            ftp.quit()
+            
+            return exists
+            
+        except Exception as e:
+            print(f"❌ Erreur vérification existence: {e}")
+            return False
 
 def test_hostgator_connection():
     """Test de connexion à HostGator"""

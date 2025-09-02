@@ -2,15 +2,15 @@
 
 ## 📋 **Problème Initial**
 
-Le site CMTCH (https://www.cmtch.online/articles) présentait des **erreurs 404** sur les images d'articles :
-- `cbc7855d212240fc826e2447c73df415.jpg` ❌ 404
-- `c14411214c364170879184ede9a97290.jpg` ❌ 404  
-- `2091bc799bf744c1aeababd53563657c.jpg` ❌ 404
+Le site CMTCH (https://www.cmtch.online/articles) présentait des **erreurs 404** sur les images d'articles qui pointaient vers des chemins `/photos/` inexistants :
+- `https://www.cmtch.online/photos/8390392969cb4e48a767436ccf598684.jpg` ❌ 404
+- `https://www.cmtch.online/photos/247f18c7826b4828a58f27ca6fb081b5.jpg` ❌ 404  
+- `https://www.cmtch.online/photos/b7cef0eb8c9b45bc9965bf98c955acc9.jpg` ❌ 404
 
 ## 🔍 **Diagnostic et Analyse**
 
 ### **Problème Identifié**
-- **Base de données MySQL** sur HostGator contenait des chemins d'images inexistants
+- **Base de données MySQL** sur HostGator contenait des chemins d'images vers `/photos/` inexistants
 - **Images physiques** manquantes sur le serveur de production
 - **Site en production** utilisait une base différente de l'environnement local
 
@@ -29,7 +29,7 @@ Le site CMTCH (https://www.cmtch.online/articles) présentait des **erreurs 404*
 
 ### **Étape 2 : Correction de la Base de Données**
 - ✅ Connexion MySQL établie avec la bonne base
-- ✅ 3 articles identifiés avec des chemins d'images invalides
+- ✅ 3 articles identifiés avec des chemins `/photos/` invalides
 - ✅ Tous les chemins remplacés par `/static/article_images/default_article.jpg`
 
 ### **Étape 3 : Validation**
@@ -42,14 +42,15 @@ Le site CMTCH (https://www.cmtch.online/articles) présentait des **erreurs 404*
 1. **`upload_default_image_to_hostgator.py`** - Upload FTP des images par défaut
 2. **`check_mysql_tables.py`** - Vérification de la structure MySQL
 3. **`check_production_articles_detailed.py`** - Diagnostic détaillé des articles
-4. **`fix_production_image_paths.py`** - Correction des chemins d'images
-5. **`check_production_status.py`** - Diagnostic de production
-6. **`fix_production_simple.py`** - Script de correction principal
+4. **`check_all_tables_detailed.py`** - Vérification complète de toutes les tables
+5. **`fix_article_photo_paths.py`** - Correction des chemins `/photos/` (SCRIPT PRINCIPAL)
+6. **`check_production_status.py`** - Diagnostic de production
+7. **`fix_production_simple.py`** - Script de correction général
 
 ## 📊 **Résultats Finaux**
 
 ### **Avant la Correction**
-- ❌ 3 images retournant des erreurs 404
+- ❌ 3 images retournant des erreurs 404 (chemins `/photos/`)
 - ❌ Base de données avec chemins d'images invalides
 - ❌ Expérience utilisateur dégradée
 
@@ -78,6 +79,7 @@ Le site CMTCH (https://www.cmtch.online/articles) présentait des **erreurs 404*
 - Utilisation d'images par défaut pour les articles sans images
 - Validation des chemins d'images avant insertion en base
 - Monitoring régulier des erreurs 404
+- **Éviter les chemins `/photos/`** pour les images d'articles
 
 ### **Procédures de Récupération**
 - Scripts de diagnostic et correction prêts à l'emploi
@@ -88,4 +90,5 @@ Le site CMTCH (https://www.cmtch.online/articles) présentait des **erreurs 404*
 
 **Date de résolution** : 2 Janvier 2025  
 **Statut** : ✅ COMPLÈTEMENT RÉSOLU  
-**Impact** : 🎯 SITE CMTCH 100% FONCTIONNEL
+**Impact** : 🎯 SITE CMTCH 100% FONCTIONNEL  
+**Solution clé** : 🔧 Correction des chemins `/photos/` vers images par défaut
