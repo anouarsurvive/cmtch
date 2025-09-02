@@ -9,7 +9,7 @@ from typing import Tuple, Optional
 
 def upload_photo_to_hostgator(file_content: bytes, filename: str) -> Tuple[bool, str, str]:
     """
-    Upload une photo sur HostGator avec fallback vers stockage local
+    Upload une photo sur HostGator (pas de fallback local)
     
     Args:
         file_content: Contenu binaire du fichier
@@ -28,13 +28,13 @@ def upload_photo_to_hostgator(file_content: bytes, filename: str) -> Tuple[bool,
             return True, message, public_url
         else:
             print(f"❌ Erreur upload HostGator: {message}")
-            # Fallback vers stockage local
-            return upload_photo_local(file_content, filename, "HostGator indisponible")
+            # Pas de fallback local - échec total
+            return False, f"Échec upload HostGator: {message}", ""
             
     except Exception as e:
         print(f"❌ Erreur système upload HostGator: {e}")
-        # Fallback vers stockage local
-        return upload_photo_local(file_content, filename, f"Erreur HostGator: {str(e)}")
+        # Pas de fallback local - échec total
+        return False, f"Erreur HostGator: {str(e)}", ""
 
 def upload_photo_local(file_content: bytes, filename: str, reason: str = "") -> Tuple[bool, str, str]:
     """
