@@ -7,6 +7,7 @@ import os
 import ftplib
 import io
 import uuid
+import time
 from typing import Optional, Tuple
 import urllib.parse
 
@@ -34,9 +35,10 @@ class HostGatorPhotoStorage:
             Tuple[success, message, public_url]
         """
         try:
-            # Générer un nom unique pour éviter les collisions
-            ext = os.path.splitext(filename)[1] or ".bin"
-            unique_name = f"{uuid.uuid4().hex}{ext}"
+            # ✅ CORRIGÉ: Générer un nom simple avec timestamp au lieu d'UUID
+            ext = os.path.splitext(filename)[1] or ".jpg"
+            timestamp = int(time.time())
+            unique_name = f"img_{timestamp}{ext}"
             
             # Connexion FTP
             ftp = ftplib.FTP(self.ftp_host)
@@ -71,6 +73,13 @@ class HostGatorPhotoStorage:
             # Upload du fichier
             ftp.storbinary(f'STOR {unique_name}', 
                           io.BytesIO(file_content))
+            
+            # ✅ CORRIGÉ: Appliquer les permissions 644 après upload
+            try:
+                ftp.sendcmd(f"SITE CHMOD 644 {unique_name}")
+                print(f"✅ Permissions 644 appliquées à {unique_name}")
+            except:
+                print(f"⚠️ Impossible d'appliquer les permissions à {unique_name}")
             
             # Fermer la connexion
             ftp.quit()

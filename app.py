@@ -107,11 +107,12 @@ templates.env.globals["get_text_direction"] = get_text_direction
 templates.env.globals["get_text_align"] = get_text_align
 
 # Montage des fichiers statiques (CSS, images, JS)
-app.mount(
-    "/static",
-    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
-    name="static",
-)
+# Montage StaticFiles commenté - utilisation de l'URL directe HostGator
+# app.mount(
+#     "/static",
+#     StaticFiles(directory=os.path.join(BASE_DIR, "static")),
+#     name="static",
+# )
 
 
 def create_session_token(user_id: int) -> str:
@@ -3286,7 +3287,7 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 
                 # Upload vers HostGator au lieu du stockage local
                 try:
-                    from photo_upload_service import upload_photo_to_hostgator
+                    from photo_upload_service_hostgator import upload_photo_to_hostgator
                     success, message, hostgator_url = upload_photo_to_hostgator(file_content, unique_name)
                     if success:
                         image_path = hostgator_url
@@ -3541,7 +3542,7 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                 
                 # Upload vers HostGator au lieu du stockage local
                 try:
-                    from photo_upload_service import upload_photo_to_hostgator
+                    from photo_upload_service_hostgator import upload_photo_to_hostgator
                     success, message, hostgator_url = upload_photo_to_hostgator(file_content, unique_name)
                     if success:
                         image_path = hostgator_url
