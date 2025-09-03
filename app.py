@@ -4596,6 +4596,53 @@ async def serve_image(filename: str):
     except Exception as e:
         return {"error": f"Image non trouvée: {str(e)}"}
 
+@app.get("/debug-table-structure")
+async def debug_table_structure_endpoint():
+    """Debug la structure de la table articles"""
+    try:
+        import sqlite3
+        
+        # Connexion à la base de données
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        
+        # Récupérer la structure de la table articles
+        cursor.execute("PRAGMA table_info(articles)")
+        columns = cursor.fetchall()
+        
+        # Récupérer quelques exemples d'articles
+        cursor.execute("SELECT * FROM articles LIMIT 3")
+        sample_articles = cursor.fetchall()
+        
+        # Récupérer le total d'articles
+        cursor.execute("SELECT COUNT(*) FROM articles")
+        total_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "status": "success",
+            "table_structure": {
+                "columns": [
+                    {
+                        "id": col[0],
+                        "name": col[1],
+                        "type": col[2],
+                        "not_null": bool(col[3]),
+                        "default_value": col[4],
+                        "primary_key": bool(col[5])
+                    }
+                    for col in columns
+                ]
+            },
+            "total_articles": total_count,
+            "sample_articles": sample_articles,
+            "column_names": [col[1] for col in columns]
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/debug-latest-articles")
 async def debug_latest_articles_endpoint():
     """Debug la section 'Derniers articles'"""
@@ -4608,7 +4655,7 @@ async def debug_latest_articles_endpoint():
         
         # Récupérer tous les articles avec leurs détails
         cursor.execute("""
-            SELECT id, title, content, image_path, created_at, type 
+            SELECT id, title, content, image_path, created_at 
             FROM articles 
             ORDER BY created_at DESC 
             LIMIT 10
@@ -4619,19 +4666,15 @@ async def debug_latest_articles_endpoint():
         cursor.execute("SELECT COUNT(*) FROM articles")
         total_count = cursor.fetchone()[0]
         
-        # Récupérer les articles publiés (type = 'published' ou NULL)
-        cursor.execute("""
-            SELECT COUNT(*) FROM articles 
-            WHERE type = 'published' OR type IS NULL
-        """)
-        published_count = cursor.fetchone()[0]
+        # Tous les articles sont considérés comme publiés (pas de colonne type)
+        published_count = total_count
         
         conn.close()
         
         # Analyser chaque article
         analyzed_articles = []
         for article in articles:
-            article_id, title, content, image_path, created_at, article_type = article
+            article_id, title, content, image_path, created_at = article
             
             # Vérifier si l'image est accessible
             image_accessible = False
@@ -4650,7 +4693,6 @@ async def debug_latest_articles_endpoint():
                 "image_path": image_path,
                 "image_accessible": image_accessible,
                 "created_at": created_at,
-                "type": article_type,
                 "has_content": bool(content and content.strip()),
                 "has_title": bool(title and title.strip())
             })
