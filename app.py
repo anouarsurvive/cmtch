@@ -4498,6 +4498,66 @@ async def force_fix_permissions_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/migrate-to-photos-folder")
+async def migrate_to_photos_folder_endpoint():
+    """Migre les images vers le dossier /public_html/photos/ qui fonctionne"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        import io
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        
+        # Aller dans le dossier source
+        ftp.cwd("/public_html/static/article_images")
+        source_files = ftp.nlst()
+        
+        # Aller dans le dossier destination
+        ftp.cwd("/public_html/photos")
+        
+        migrated_count = 0
+        
+        for file in source_files:
+            if file in {'.', '..', '.htaccess'}:
+                continue
+            
+            try:
+                # Lire le fichier source
+                file_data = io.BytesIO()
+                ftp.retrbinary(f'RETR /public_html/static/article_images/{file}', file_data.write)
+                file_data.seek(0)
+                
+                # Écrire dans le dossier destination
+                ftp.storbinary(f'STOR {file}', file_data)
+                
+                # Appliquer les permissions
+                try:
+                    ftp.sendcmd(f"SITE CHMOD 644 {file}")
+                except:
+                    pass
+                
+                migrated_count += 1
+                print(f"✅ Fichier {file} migré vers /public_html/photos/")
+                
+            except Exception as e:
+                print(f"❌ Erreur migration {file}: {e}")
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "message": f"{migrated_count} fichiers migrés vers /public_html/photos/",
+            "migrated_count": migrated_count,
+            "new_base_url": "https://www.cmtch.online/photos"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/diagnose-server-config")
 async def diagnose_server_config_endpoint():
     """Diagnostique la configuration du serveur web"""
