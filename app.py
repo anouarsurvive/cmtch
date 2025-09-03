@@ -4498,6 +4498,118 @@ async def force_fix_permissions_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/test-root-access")
+async def test_root_access_endpoint():
+    """Teste l'accès direct depuis la racine du site"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        import io
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        
+        # Aller dans la racine
+        ftp.cwd("/public_html")
+        
+        # Copier une image de test directement dans la racine
+        test_image = "test_image.jpg"
+        
+        # Lire une image existante
+        ftp.cwd("/public_html/photos")
+        file_data = io.BytesIO()
+        ftp.retrbinary(f'RETR img_1756895548.jpg', file_data.write)
+        file_data.seek(0)
+        
+        # Écrire dans la racine
+        ftp.cwd("/public_html")
+        ftp.storbinary(f'STOR {test_image}', file_data)
+        
+        # Appliquer les permissions
+        try:
+            ftp.sendcmd(f"SITE CHMOD 644 {test_image}")
+        except:
+            pass
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "message": f"Image de test copiée dans la racine",
+            "test_url": f"https://www.cmtch.online/{test_image}",
+            "instructions": "Testez cette URL pour voir si l'image est accessible"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/migrate-all-to-root")
+async def migrate_all_to_root_endpoint():
+    """Migre TOUTES les images vers la racine du site"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        import io
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        
+        # Aller dans le dossier source
+        ftp.cwd("/public_html/photos")
+        source_files = ftp.nlst()
+        
+        # Aller dans la racine
+        ftp.cwd("/public_html")
+        
+        migrated_count = 0
+        
+        for file in source_files:
+            if file in {'.', '..', '.htaccess'}:
+                continue
+            
+            try:
+                # Lire le fichier source
+                file_data = io.BytesIO()
+                ftp.retrbinary(f'RETR /public_html/photos/{file}', file_data.write)
+                file_data.seek(0)
+                
+                # Écrire dans la racine
+                ftp.storbinary(f'STOR {file}', file_data)
+                
+                # Appliquer les permissions
+                try:
+                    ftp.sendcmd(f"SITE CHMOD 644 {file}")
+                except:
+                    pass
+                
+                migrated_count += 1
+                print(f"✅ Fichier {file} migré vers la racine")
+                
+            except Exception as e:
+                print(f"❌ Erreur migration {file}: {e}")
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "message": f"{migrated_count} fichiers migrés vers la racine",
+            "migrated_count": migrated_count,
+            "new_base_url": "https://www.cmtch.online",
+            "test_urls": [
+                "https://www.cmtch.online/img_1756895548.jpg",
+                "https://www.cmtch.online/default_article.jpg"
+            ]
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/migrate-to-photos-folder")
 async def migrate_to_photos_folder_endpoint():
     """Migre les images vers le dossier /public_html/photos/ qui fonctionne"""
