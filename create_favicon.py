@@ -10,7 +10,7 @@ def create_favicon():
     """Crée une favicon à partir du logo du club"""
     
     # Chemin vers le logo
-    logo_path = "static/images/logo.png"
+    logo_path = "static/images/logo.jpg"
     favicon_path = "static/favicon.ico"
     
     try:
