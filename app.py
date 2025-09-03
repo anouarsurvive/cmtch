@@ -4425,6 +4425,171 @@ async def fix_hostgator_permissions_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/force-fix-permissions")
+async def force_fix_permissions_endpoint():
+    """Force la correction des permissions avec une méthode alternative"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        import io
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        ftp.cwd(storage.remote_photos_dir)
+        
+        # Lister tous les fichiers
+        files = ftp.nlst()
+        fixed_count = 0
+        
+        for file in files:
+            if file in {'.', '..', '.htaccess'}:
+                continue
+            
+            try:
+                # Méthode 1: SITE CHMOD
+                try:
+                    ftp.sendcmd(f"SITE CHMOD 644 {file}")
+                    print(f"✅ Permissions 644 appliquées à {file} (SITE CHMOD)")
+                    fixed_count += 1
+                except:
+                    # Méthode 2: SITE CHMOD avec chemin complet
+                    try:
+                        ftp.sendcmd(f"SITE CHMOD 644 {storage.remote_photos_dir}/{file}")
+                        print(f"✅ Permissions 644 appliquées à {file} (SITE CHMOD complet)")
+                        fixed_count += 1
+                    except:
+                        # Méthode 3: Re-upload avec permissions
+                        try:
+                            # Lire le fichier
+                            file_data = io.BytesIO()
+                            ftp.retrbinary(f'RETR {file}', file_data.write)
+                            file_data.seek(0)
+                            
+                            # Supprimer et re-uploader
+                            ftp.delete(file)
+                            ftp.storbinary(f'STOR {file}', file_data)
+                            
+                            # Essayer les permissions
+                            try:
+                                ftp.sendcmd(f"SITE CHMOD 644 {file}")
+                            except:
+                                pass
+                                
+                            print(f"✅ Fichier {file} re-uploadé avec permissions")
+                            fixed_count += 1
+                        except Exception as e:
+                            print(f"❌ Erreur pour {file}: {e}")
+                            
+            except Exception as e:
+                print(f"❌ Erreur générale pour {file}: {e}")
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "message": f"Permissions forcées pour {fixed_count} fichiers",
+            "fixed_count": fixed_count,
+            "total_files": len([f for f in files if f not in {'.', '..', '.htaccess'}])
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/create-parent-htaccess")
+async def create_parent_htaccess_endpoint():
+    """Crée un fichier .htaccess dans le dossier parent pour permettre l'accès aux images"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Contenu du fichier .htaccess pour le dossier parent
+        htaccess_content = """# Permettre l'accès aux images dans tous les sous-dossiers
+<Directory "/public_html/static">
+    Order allow,deny
+    Allow from all
+    
+    # Permettre l'accès aux fichiers d'images
+    <FilesMatch "\\.(jpg|jpeg|png|gif|svg|webp)$">
+        Order allow,deny
+        Allow from all
+    </FilesMatch>
+</Directory>
+
+# Règles pour le dossier article_images
+<Directory "/public_html/static/article_images">
+    Order allow,deny
+    Allow from all
+    
+    # Permettre l'accès direct aux fichiers
+    <Files "*">
+        Order allow,deny
+        Allow from all
+    </Files>
+</Directory>
+
+# Désactiver la protection des répertoires
+Options -Indexes
+
+# Permettre l'accès aux fichiers statiques
+<Files "*.jpg">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.jpeg">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.png">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.gif">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.svg">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.webp">
+    Order allow,deny
+    Allow from all
+</Files>
+"""
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        
+        # Aller dans le dossier parent /public_html/static/
+        ftp.cwd("/public_html/static")
+        
+        # Créer le fichier .htaccess
+        from io import BytesIO
+        ftp.storbinary('STOR .htaccess', BytesIO(htaccess_content.encode('utf-8')))
+        
+        # Appliquer les permissions
+        try:
+            ftp.sendcmd("SITE CHMOD 644 .htaccess")
+        except:
+            pass
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "message": "Fichier .htaccess créé dans le dossier parent",
+            "location": "/public_html/static/.htaccess"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/create-htaccess")
 async def create_htaccess_endpoint():
     """Crée un fichier .htaccess pour permettre l'accès aux images"""
