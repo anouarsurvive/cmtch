@@ -2177,10 +2177,13 @@ footer p {
 .article-image-wrapper {
     position: relative;
     min-height: 200px;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     align-items: center;
     justify-content: center;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    padding: 8px;
 }
 
 .article-image {
@@ -2190,6 +2193,8 @@ footer p {
     object-fit: contain;
     transition: transform 0.4s ease;
     background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    padding: 4px;
 }
 
 .article-card:hover .article-image {

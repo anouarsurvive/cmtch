@@ -23,8 +23,9 @@ def upload_photo_to_hostgator(file_content: bytes, filename: str) -> tuple:
         success, message, public_url = storage.upload_photo(file_content, filename)
         
         if success:
-            # Tester l'accessibilité de l'image uploadée
+            # Tester l'accessibilité de l'image uploadée (si requests est disponible)
             try:
+                import requests
                 response = requests.head(public_url, timeout=10)
                 if response.status_code == 200:
                     # Image accessible, retourner l'URL directe HostGator
@@ -34,6 +35,10 @@ def upload_photo_to_hostgator(file_content: bytes, filename: str) -> tuple:
                     # Utiliser l'image par défaut accessible
                     default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
                     return True, f"Upload réussi mais image non accessible, utilisation de l'image par défaut", default_url
+            except ImportError:
+                print(f"⚠️ Module requests non disponible, utilisation directe de l'URL")
+                # Si requests n'est pas disponible, retourner directement l'URL
+                return True, message, public_url
             except:
                 print(f"⚠️ Impossible de vérifier l'accessibilité de l'image")
                 # Utiliser l'image par défaut accessible

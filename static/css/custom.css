@@ -549,6 +549,16 @@ a:hover {
     width: 100% !important;
     height: auto !important;
     max-height: 300px !important;
+    border-radius: 8px;
+}
+
+/* Styles spécifiques pour les cartes Bootstrap */
+.card-img-top {
+    object-fit: contain !important;
+    background-color: #f8f9fa;
+    padding: 8px;
+    border-radius: 8px 8px 0 0;
+    max-height: 250px !important;
 }
 
 .mobile-article-image {
