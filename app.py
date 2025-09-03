@@ -4346,6 +4346,36 @@ async def enable_auto_backup_endpoint():
         }
 
 
+@app.get("/test-hostgator-image")
+async def test_hostgator_image_endpoint():
+    """Test pour vérifier l'accessibilité des images HostGator"""
+    try:
+        import requests
+        
+        # Tester l'image par défaut
+        default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
+        default_response = requests.head(default_url, timeout=10)
+        
+        # Tester l'image de l'article 4
+        article_url = "https://www.cmtch.online/static/article_images/img_1756888991.jpg"
+        article_response = requests.head(article_url, timeout=10)
+        
+        return {
+            "default_image": {
+                "url": default_url,
+                "status_code": default_response.status_code,
+                "accessible": default_response.status_code == 200
+            },
+            "article_image": {
+                "url": article_url,
+                "status_code": article_response.status_code,
+                "accessible": article_response.status_code == 200
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/force-cache-refresh")
 async def force_cache_refresh_endpoint():
     """Force le refresh du cache pour résoudre le problème d'images"""
