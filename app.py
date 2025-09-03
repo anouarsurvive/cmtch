@@ -4350,27 +4350,33 @@ async def enable_auto_backup_endpoint():
 async def test_hostgator_image_endpoint():
     """Test pour vérifier l'accessibilité des images HostGator"""
     try:
-        import requests
+        # Test direct via FTP pour vérifier l'existence des fichiers
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
         
-        # Tester l'image par défaut
-        default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
-        default_response = requests.head(default_url, timeout=10)
+        storage = HostGatorPhotoStorage()
         
-        # Tester l'image de l'article 4
-        article_url = "https://www.cmtch.online/static/article_images/img_1756888991.jpg"
-        article_response = requests.head(article_url, timeout=10)
+        # Vérifier l'existence des fichiers
+        default_exists = storage.check_photo_exists("default_article.jpg")
+        article_exists = storage.check_photo_exists("img_1756888991.jpg")
+        
+        # Lister les fichiers dans le dossier
+        try:
+            files_list = storage.list_photos()
+        except:
+            files_list = "Erreur lors du listing"
         
         return {
             "default_image": {
-                "url": default_url,
-                "status_code": default_response.status_code,
-                "accessible": default_response.status_code == 200
+                "filename": "default_article.jpg",
+                "exists": default_exists,
+                "url": "https://www.cmtch.online/static/article_images/default_article.jpg"
             },
             "article_image": {
-                "url": article_url,
-                "status_code": article_response.status_code,
-                "accessible": article_response.status_code == 200
-            }
+                "filename": "img_1756888991.jpg", 
+                "exists": article_exists,
+                "url": "https://www.cmtch.online/static/article_images/img_1756888991.jpg"
+            },
+            "files_in_directory": files_list
         }
         
     except Exception as e:
