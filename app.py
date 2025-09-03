@@ -37,7 +37,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 import urllib.parse
 from fastapi.templating import Jinja2Templates
@@ -4419,6 +4419,7 @@ async def test_photo_upload_endpoint():
     """Test du système de stockage des photos"""
     try:
         from photo_upload_service_hostgator import upload_photo_to_hostgator
+        from photo_upload_service import test_photo_system
         
         # Exécuter le test
         import io
