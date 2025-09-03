@@ -4498,6 +4498,45 @@ async def force_fix_permissions_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/diagnose-server-config")
+async def diagnose_server_config_endpoint():
+    """Diagnostique la configuration du serveur web"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        
+        # Vérifier la structure des dossiers
+        ftp.cwd("/public_html")
+        root_files = ftp.nlst()
+        
+        ftp.cwd("/public_html/static")
+        static_files = ftp.nlst()
+        
+        ftp.cwd("/public_html/static/article_images")
+        images_files = ftp.nlst()
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "diagnosis": {
+                "root_files": root_files,
+                "static_files": static_files,
+                "images_files": images_files,
+                "base_url": storage.base_url,
+                "remote_dir": storage.remote_photos_dir
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/create-parent-htaccess")
 async def create_parent_htaccess_endpoint():
     """Crée un fichier .htaccess dans le dossier parent pour permettre l'accès aux images"""
