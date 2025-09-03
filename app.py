@@ -4455,9 +4455,17 @@ async def test_html_generation_endpoint():
             article_url="https://www.cmtch.online/articles/4"
         )
         
-        # Extraire la balise img du HTML généré
+        # Extraire la balise img du HTML généré (spécifiquement l'image de l'article)
         import re
-        img_match = re.search(r'<img[^>]*src="([^"]*)"[^>]*>', rendered_html)
+        # Chercher l'image avec la classe "article-featured-image"
+        img_match = re.search(r'<img[^>]*class="[^"]*article-featured-image[^"]*"[^>]*src="([^"]*)"[^>]*>', rendered_html)
+        if not img_match:
+            # Si pas trouvé, chercher dans la div "article-image-container"
+            img_match = re.search(r'<div[^>]*class="[^"]*article-image-container[^"]*"[^>]*>.*?<img[^>]*src="([^"]*)"[^>]*>', rendered_html, re.DOTALL)
+        if not img_match:
+            # Si toujours pas trouvé, chercher n'importe quelle image
+            img_match = re.search(r'<img[^>]*src="([^"]*)"[^>]*>', rendered_html)
+        
         img_src_in_html = img_match.group(1) if img_match else "Non trouvé"
         
         return {
