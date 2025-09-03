@@ -4425,6 +4425,39 @@ async def fix_hostgator_permissions_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/test-image-access")
+async def test_image_access_endpoint():
+    """Test simple pour vérifier l'accessibilité des images"""
+    try:
+        import requests
+        
+        # Test avec un timeout plus court
+        test_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
+        
+        try:
+            response = requests.head(test_url, timeout=5)
+            return {
+                "url": test_url,
+                "status_code": response.status_code,
+                "accessible": response.status_code == 200,
+                "headers": dict(response.headers)
+            }
+        except requests.exceptions.Timeout:
+            return {
+                "url": test_url,
+                "error": "Timeout - Le serveur ne répond pas",
+                "accessible": False
+            }
+        except Exception as e:
+            return {
+                "url": test_url,
+                "error": str(e),
+                "accessible": False
+            }
+            
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/force-cache-refresh")
 async def force_cache_refresh_endpoint():
     """Force le refresh du cache pour résoudre le problème d'images"""
