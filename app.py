@@ -4425,6 +4425,78 @@ async def fix_hostgator_permissions_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/create-htaccess")
+async def create_htaccess_endpoint():
+    """Crée un fichier .htaccess pour permettre l'accès aux images"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Contenu du fichier .htaccess
+        htaccess_content = """# Permettre l'accès aux images
+<Files "*.jpg">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.jpeg">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.png">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.gif">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.svg">
+    Order allow,deny
+    Allow from all
+</Files>
+<Files "*.webp">
+    Order allow,deny
+    Allow from all
+</Files>
+
+# Désactiver la protection des répertoires
+Options -Indexes
+
+# Permettre l'accès direct aux fichiers
+<Directory "/public_html/static/article_images">
+    Order allow,deny
+    Allow from all
+</Directory>
+"""
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        ftp.cwd(storage.remote_photos_dir)
+        
+        # Créer le fichier .htaccess
+        from io import StringIO
+        ftp.storlines('STOR .htaccess', StringIO(htaccess_content))
+        
+        # Appliquer les permissions
+        try:
+            ftp.sendcmd("SITE CHMOD 644 .htaccess")
+        except:
+            pass
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "message": "Fichier .htaccess créé avec succès",
+            "location": f"{storage.remote_photos_dir}/.htaccess"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/test-image-access")
 async def test_image_access_endpoint():
     """Test simple pour vérifier l'accessibilité des images"""
