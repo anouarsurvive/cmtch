@@ -4784,6 +4784,50 @@ async def diagnose_database_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/setup-imgbb")
+async def setup_imgbb_endpoint():
+    """Configuration et test d'ImgBB (service d'images gratuit)"""
+    try:
+        # Instructions pour obtenir une clé API ImgBB
+        instructions = {
+            "step1": "Aller sur https://api.imgbb.com/",
+            "step2": "Cliquer sur 'Get API Key'",
+            "step3": "S'inscrire gratuitement (pas de carte de crédit)",
+            "step4": "Copier la clé API",
+            "step5": "Remplacer 'YOUR_IMGBB_API_KEY' dans photo_upload_service_imgbb.py",
+            "benefits": [
+                "Gratuit et illimité",
+                "32MB par image",
+                "URLs permanentes",
+                "Pas de blocage serveur",
+                "Fiable et rapide"
+            ]
+        }
+        
+        return {
+            "status": "success",
+            "message": "Instructions pour configurer ImgBB",
+            "instructions": instructions,
+            "next_step": "Obtenir une clé API ImgBB et la configurer"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/test-imgbb")
+async def test_imgbb_endpoint():
+    """Test du système ImgBB"""
+    try:
+        from photo_upload_service_imgbb import test_imgbb_system
+        return test_imgbb_system()
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur test ImgBB: {str(e)}",
+            "imgbb_working": False
+        }
+
 @app.get("/force-update-all-image-urls")
 async def force_update_all_image_urls_endpoint():
     """Force la mise à jour de TOUTES les URLs d'images"""
