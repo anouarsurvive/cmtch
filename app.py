@@ -26,8 +26,21 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
 import sqlite3
 from datetime import datetime, date, time, timedelta
+
+# Import du service de stockage d'images ImgBB
+try:
+    from photo_upload_service_imgbb import upload_photo_to_imgbb, test_imgbb_system
+except ImportError:
+    # Fallback si l'import échoue
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    from photo_upload_service_imgbb import upload_photo_to_imgbb, test_imgbb_system
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 import smtplib
@@ -3355,7 +3368,6 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 
                 # Upload vers HostGator exclusivement
                 try:
-                    from photo_upload_service_imgbb import upload_photo_to_imgbb
                     result = upload_photo_to_imgbb(file_content, unique_name)
                     if result.get('success'):
                         # Utiliser l'URL complète ImgBB pour la base de données
@@ -3603,7 +3615,6 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                 unique_name = f"{uuid.uuid4().hex}{ext}"
                 # Upload vers ImgBB exclusivement
                 try:
-                    from photo_upload_service_imgbb import upload_photo_to_imgbb
                     result = upload_photo_to_imgbb(file_content, unique_name)
                     if result.get('success'):
                         image_path = result.get('url')
@@ -4950,7 +4961,6 @@ async def test_homepage_data_endpoint():
 async def test_imgbb_endpoint():
     """Test du système ImgBB"""
     try:
-        from photo_upload_service_imgbb import test_imgbb_system
         return test_imgbb_system()
         
     except Exception as e:
