@@ -4317,32 +4317,70 @@ async def fix_production_images_endpoint():
     """Endpoint pour corriger les images en production"""
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
         
-        # Récupérer tous les articles
-        cur.execute("SELECT id, title, image_path FROM articles")
-        articles = cur.fetchall()
-        
-        fixed_count = 0
-        
-        for article_id, title, image_path in articles:
-            # Vérifier si l'image est manquante ou invalide
-            needs_fix = False
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
             
-            if not image_path or image_path == '':
-                needs_fix = True
-            elif not image_path.startswith('https://www.cmtch.online'):
-                needs_fix = True
-            elif 'article_images' in image_path and not image_path.endswith('default_article.jpg'):
-                needs_fix = True
+            # Récupérer tous les articles
+            cur, column_names = execute_with_names("SELECT id, title, image_path FROM articles")
+            articles = cur.fetchall()
+            # Convertir les tuples MySQL en objets avec attributs nommés
+            articles = [convert_mysql_result(article, column_names) for article in articles]
             
-            if needs_fix:
-                # Utiliser l'image par défaut HostGator
-                default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
+            fixed_count = 0
+            
+            for article in articles:
+                article_id = article.id
+                title = article.title
+                image_path = article.image_path
                 
-                cur.execute("UPDATE articles SET image_path = ? WHERE id = ?", (default_url, article_id))
-                conn.commit()
-                fixed_count += 1
+                # Vérifier si l'image est manquante ou invalide
+                needs_fix = False
+                
+                if not image_path or image_path == '':
+                    needs_fix = True
+                elif not image_path.startswith('https://www.cmtch.online'):
+                    needs_fix = True
+                elif 'article_images' in image_path and not image_path.endswith('default_article.jpg'):
+                    needs_fix = True
+                
+                if needs_fix:
+                    # Utiliser l'image par défaut HostGator
+                    default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                    
+                    cur.execute("UPDATE articles SET image_path = %s WHERE id = %s", (default_url, article_id))
+                    conn.commit()
+                    fixed_count += 1
+        else:
+            # SQLite
+            cur = conn.cursor()
+            
+            # Récupérer tous les articles
+            cur.execute("SELECT id, title, image_path FROM articles")
+            articles = cur.fetchall()
+            
+            fixed_count = 0
+            
+            for article_id, title, image_path in articles:
+                # Vérifier si l'image est manquante ou invalide
+                needs_fix = False
+                
+                if not image_path or image_path == '':
+                    needs_fix = True
+                elif not image_path.startswith('https://www.cmtch.online'):
+                    needs_fix = True
+                elif 'article_images' in image_path and not image_path.endswith('default_article.jpg'):
+                    needs_fix = True
+                
+                if needs_fix:
+                    # Utiliser l'image par défaut HostGator
+                    default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                    
+                    cur.execute("UPDATE articles SET image_path = ? WHERE id = ?", (default_url, article_id))
+                    conn.commit()
+                    fixed_count += 1
         
         conn.close()
         
