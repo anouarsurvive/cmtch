@@ -8,7 +8,7 @@ class ImgBBPhotoStorage:
     
     def __init__(self):
         # Clé API ImgBB (gratuite, 32MB par image, illimitée)
-        self.api_key = "YOUR_IMGBB_API_KEY"  # À remplacer par votre clé
+        self.api_key = "e4b5d5cbeabc2e7cfb7b7202c642798f"
         self.base_url = "https://api.imgbb.com/1/upload"
     
     def upload_photo(self, file_data: bytes, filename: str) -> Dict[str, Any]:
