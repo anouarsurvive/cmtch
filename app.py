@@ -107,7 +107,7 @@ templates.env.globals["get_text_direction"] = get_text_direction
 templates.env.globals["get_text_align"] = get_text_align
 
 def ensure_absolute_image_url(image_path: str) -> str:
-    """S'assure que l'URL de l'image est absolue"""
+    """S'assure que l'URL de l'image est absolue (via notre endpoint)"""
     if not image_path:
         return ""
     
@@ -118,15 +118,16 @@ def ensure_absolute_image_url(image_path: str) -> str:
         print(f"✅ URL déjà absolue: {image_path}")
         return image_path
     
-    # Si c'est une URL relative, la convertir en URL absolue HostGator
+    # Si c'est une URL relative, la convertir en URL absolue via notre endpoint
     if image_path.startswith('/static/article_images/'):
-        result = f"https://www.cmtch.online{image_path}"
+        filename = image_path.split('/')[-1]
+        result = f"https://www.cmtch.online/image/{filename}"
         print(f"🔄 URL relative convertie: {image_path} -> {result}")
         return result
     
-    # Si c'est juste le nom du fichier, construire l'URL complète
+    # Si c'est juste le nom du fichier, construire l'URL via notre endpoint
     if not image_path.startswith('/'):
-        result = f"https://www.cmtch.online/static/article_images/{image_path}"
+        result = f"https://www.cmtch.online/image/{image_path}"
         print(f"🔄 Nom de fichier converti: {image_path} -> {result}")
         return result
     
@@ -4541,6 +4542,104 @@ async def test_root_access_endpoint():
             "message": f"Image de test copiée dans la racine",
             "test_url": f"https://www.cmtch.online/{test_image}",
             "instructions": "Testez cette URL pour voir si l'image est accessible"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/image/{filename}")
+async def serve_image(filename: str):
+    """Sert les images via l'application (contournement du blocage HostGator)"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        import io
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        
+        # Aller dans la racine
+        ftp.cwd("/public_html")
+        
+        # Lire le fichier image
+        file_data = io.BytesIO()
+        ftp.retrbinary(f'RETR {filename}', file_data.write)
+        file_data.seek(0)
+        
+        ftp.quit()
+        
+        # Déterminer le type MIME
+        if filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
+            media_type = "image/jpeg"
+        elif filename.lower().endswith('.png'):
+            media_type = "image/png"
+        elif filename.lower().endswith('.gif'):
+            media_type = "image/gif"
+        elif filename.lower().endswith('.svg'):
+            media_type = "image/svg+xml"
+        else:
+            media_type = "application/octet-stream"
+        
+        # Retourner l'image
+        return Response(
+            content=file_data.getvalue(),
+            media_type=media_type,
+            headers={
+                "Cache-Control": "public, max-age=31536000",  # Cache 1 an
+                "Content-Disposition": f"inline; filename={filename}"
+            }
+        )
+        
+    except Exception as e:
+        return {"error": f"Image non trouvée: {str(e)}"}
+
+@app.get("/update-database-to-root-urls")
+async def update_database_to_root_urls_endpoint():
+    """Met à jour la base de données pour utiliser les URLs racine"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import sqlite3
+        
+        # Connexion à la base de données
+        conn = sqlite3.connect('cmtch.db')
+        cursor = conn.cursor()
+        
+        # Récupérer tous les articles
+        cursor.execute("SELECT id, image_path FROM articles WHERE image_path IS NOT NULL")
+        articles = cursor.fetchall()
+        
+        updated_count = 0
+        
+        for article_id, image_path in articles:
+            if not image_path:
+                continue
+            
+            # Extraire le nom du fichier
+            if '/' in image_path:
+                filename = image_path.split('/')[-1]
+            else:
+                filename = image_path
+            
+            # Nouvelle URL racine
+            new_url = f"https://www.cmtch.online/{filename}"
+            
+            # Mettre à jour la base de données
+            cursor.execute("UPDATE articles SET image_path = ? WHERE id = ?", (new_url, article_id))
+            updated_count += 1
+            
+            print(f"✅ Article {article_id}: {image_path} -> {new_url}")
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "message": f"{updated_count} articles mis à jour avec les URLs racine",
+            "updated_count": updated_count,
+            "new_base_url": "https://www.cmtch.online"
         }
         
     except Exception as e:
