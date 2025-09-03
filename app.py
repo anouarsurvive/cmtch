@@ -4477,8 +4477,8 @@ Options -Indexes
         ftp.cwd(storage.remote_photos_dir)
         
         # Créer le fichier .htaccess
-        from io import StringIO
-        ftp.storlines('STOR .htaccess', StringIO(htaccess_content))
+        from io import BytesIO
+        ftp.storbinary('STOR .htaccess', BytesIO(htaccess_content.encode('utf-8')))
         
         # Appliquer les permissions
         try:
