@@ -1,0 +1,82 @@
+{
+  "name": "Club Municipal de Tennis Chihia",
+  "short_name": "CMTCH",
+  "description": "Application de gestion du Club Municipal de Tennis Chihia - Réservations, articles et gestion des membres",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2c5530",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["sports", "lifestyle", "utilities"],
+  "icons": [
+    {
+      "src": "/static/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/favicon-180x180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/images/hero.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Réservations",
+      "short_name": "Réservations",
+      "description": "Accéder rapidement aux réservations",
+      "url": "/reservations",
+      "icons": [
+        {
+          "src": "/static/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Articles",
+      "short_name": "Articles",
+      "description": "Lire les derniers articles",
+      "url": "/articles",
+      "icons": [
+        {
+          "src": "/static/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Espace Membre",
+      "short_name": "Espace",
+      "description": "Accéder à votre espace membre",
+      "url": "/espace",
+      "icons": [
+        {
+          "src": "/static/favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

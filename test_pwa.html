@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test PWA - CMTCH</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#2c5530">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #2c5530;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #1e3a8a; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test PWA - Club Municipal de Tennis Chihia</h1>
+    
+    <div class="test-section">
+        <h2>📱 Vérification PWA</h2>
+        <div id="pwa-status"></div>
+        <button onclick="checkPWAStatus()">Vérifier le statut PWA</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔧 Service Worker</h2>
+        <div id="sw-status"></div>
+        <button onclick="checkServiceWorker()">Vérifier Service Worker</button>
+        <button onclick="unregisterSW()">Désinscrire Service Worker</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>📦 Manifest</h2>
+        <div id="manifest-status"></div>
+        <button onclick="checkManifest()">Vérifier Manifest</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔔 Notifications</h2>
+        <div id="notification-status"></div>
+        <button onclick="requestNotificationPermission()">Demander permission notifications</button>
+        <button onclick="testNotification()">Tester notification</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>💾 Cache</h2>
+        <div id="cache-status"></div>
+        <button onclick="checkCache()">Vérifier Cache</button>
+        <button onclick="clearCache()">Vider Cache</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>📊 Informations détaillées</h2>
+        <div id="details"></div>
+        <button onclick="showDetails()">Afficher détails</button>
+    </div>
+
+    <script>
+        // Vérification du statut PWA
+        function checkPWAStatus() {
+            const statusDiv = document.getElementById('pwa-status');
+            let html = '';
+            
+            // Vérifier si c'est une PWA
+            const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                         window.navigator.standalone === true;
+            
+            html += `<div class="status ${isPWA ? 'success' : 'info'}">
+                Mode PWA: ${isPWA ? '✅ Activé' : '❌ Non activé'}
+            </div>`;
+            
+            // Vérifier HTTPS
+            const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
+            html += `<div class="status ${isHTTPS ? 'success' : 'error'}">
+                HTTPS: ${isHTTPS ? '✅ Activé' : '❌ Requis pour PWA'}
+            </div>`;
+            
+            // Vérifier le manifest
+            const hasManifest = document.querySelector('link[rel="manifest"]');
+            html += `<div class="status ${hasManifest ? 'success' : 'error'}">
+                Manifest: ${hasManifest ? '✅ Présent' : '❌ Manquant'}
+            </div>`;
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        // Vérification du Service Worker
+        function checkServiceWorker() {
+            const statusDiv = document.getElementById('sw-status');
+            let html = '';
+            
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistration().then(registration => {
+                    if (registration) {
+                        html += `<div class="status success">
+                            Service Worker: ✅ Enregistré (${registration.scope})
+                        </div>`;
+                        html += `<div class="status info">
+                            État: ${registration.active ? 'Actif' : 'Inactif'}
+                        </div>`;
+                    } else {
+                        html += `<div class="status warning">
+                            Service Worker: ⚠️ Non enregistré
+                        </div>`;
+                    }
+                    statusDiv.innerHTML = html;
+                });
+            } else {
+                html += `<div class="status error">
+                    Service Worker: ❌ Non supporté
+                </div>`;
+                statusDiv.innerHTML = html;
+            }
+        }
+        
+        // Vérification du Manifest
+        function checkManifest() {
+            const statusDiv = document.getElementById('manifest-status');
+            let html = '';
+            
+            fetch('/static/manifest.json')
+                .then(response => response.json())
+                .then(manifest => {
+                    html += `<div class="status success">
+                        Manifest: ✅ Chargé avec succès
+                    </div>`;
+                    html += `<div class="status info">
+                        Nom: ${manifest.name}
+                    </div>`;
+                    html += `<div class="status info">
+                        Version courte: ${manifest.short_name}
+                    </div>`;
+                    html += `<div class="status info">
+                        Icônes: ${manifest.icons ? manifest.icons.length : 0}
+                    </div>`;
+                    statusDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    html += `<div class="status error">
+                        Manifest: ❌ Erreur de chargement - ${error.message}
+                    </div>`;
+                    statusDiv.innerHTML = html;
+                });
+        }
+        
+        // Gestion des notifications
+        function requestNotificationPermission() {
+            const statusDiv = document.getElementById('notification-status');
+            
+            if ('Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    let html = `<div class="status ${permission === 'granted' ? 'success' : 'warning'}">
+                        Permission notifications: ${permission === 'granted' ? '✅ Accordée' : '❌ Refusée'}
+                    </div>`;
+                    statusDiv.innerHTML = html;
+                });
+            } else {
+                statusDiv.innerHTML = `<div class="status error">
+                    Notifications: ❌ Non supportées
+                </div>`;
+            }
+        }
+        
+        function testNotification() {
+            if (Notification.permission === 'granted') {
+                new Notification('Test CMTCH', {
+                    body: 'Ceci est un test de notification PWA',
+                    icon: '/static/favicon-192x192.png'
+                });
+            } else {
+                alert('Permission de notification requise');
+            }
+        }
+        
+        // Vérification du cache
+        function checkCache() {
+            const statusDiv = document.getElementById('cache-status');
+            let html = '';
+            
+            if ('caches' in window) {
+                caches.keys().then(cacheNames => {
+                    html += `<div class="status success">
+                        Cache: ✅ Supporté
+                    </div>`;
+                    html += `<div class="status info">
+                        Caches disponibles: ${cacheNames.length}
+                    </div>`;
+                    cacheNames.forEach(name => {
+                        html += `<div class="status info">
+                            - ${name}
+                        </div>`;
+                    });
+                    statusDiv.innerHTML = html;
+                });
+            } else {
+                html += `<div class="status error">
+                    Cache: ❌ Non supporté
+                </div>`;
+                statusDiv.innerHTML = html;
+            }
+        }
+        
+        function clearCache() {
+            if ('caches' in window) {
+                caches.keys().then(cacheNames => {
+                    return Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                }).then(() => {
+                    document.getElementById('cache-status').innerHTML = 
+                        '<div class="status success">Cache: ✅ Vidé avec succès</div>';
+                });
+            }
+        }
+        
+        // Désinscrire le Service Worker
+        function unregisterSW() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistration().then(registration => {
+                    if (registration) {
+                        registration.unregister().then(() => {
+                            document.getElementById('sw-status').innerHTML = 
+                                '<div class="status warning">Service Worker: ✅ Désinscrit</div>';
+                        });
+                    }
+                });
+            }
+        }
+        
+        // Affichage des détails
+        function showDetails() {
+            const detailsDiv = document.getElementById('details');
+            const details = {
+                'User Agent': navigator.userAgent,
+                'Platform': navigator.platform,
+                'Language': navigator.language,
+                'Online': navigator.onLine,
+                'Connection': navigator.connection ? navigator.connection.effectiveType : 'Inconnu',
+                'Display Mode': window.matchMedia('(display-mode: standalone)').matches ? 'Standalone' : 'Browser',
+                'Viewport': `${window.innerWidth}x${window.innerHeight}`,
+                'Device Pixel Ratio': window.devicePixelRatio
+            };
+            
+            let html = '';
+            for (const [key, value] of Object.entries(details)) {
+                html += `<div class="status info">
+                    <strong>${key}:</strong> ${value}
+                </div>`;
+            }
+            detailsDiv.innerHTML = html;
+        }
+        
+        // Vérifications automatiques au chargement
+        window.addEventListener('load', () => {
+            checkPWAStatus();
+            checkServiceWorker();
+            checkManifest();
+            checkCache();
+        });
+    </script>
+</body>
+</html>

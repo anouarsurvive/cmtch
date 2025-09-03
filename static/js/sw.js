@@ -3,20 +3,25 @@
  * Version: 1.0.0
  */
 
-const CACHE_NAME = 'cmtch-v1.0.0';
-const STATIC_CACHE = 'cmtch-static-v1.0.0';
-const DYNAMIC_CACHE = 'cmtch-dynamic-v1.0.0';
+const CACHE_NAME = 'cmtch-pwa-v1.1.0';
+const STATIC_CACHE = 'cmtch-static-pwa-v1.1.0';
+const DYNAMIC_CACHE = 'cmtch-dynamic-pwa-v1.1.0';
+const OFFLINE_CACHE = 'cmtch-offline-pwa-v1.1.0';
 
 // Ressources à mettre en cache immédiatement
 const STATIC_ASSETS = [
     '/',
     '/static/css/critical.css',
     '/static/css/style.css',
+    '/static/css/custom.css',
+    '/static/css/rtl.css',
     '/static/js/performance.js',
+    '/static/js/config.js',
     '/static/images/hero.png',
-    '/static/images/logo.png',
-    '/static/fonts/montserrat.woff2',
-    '/static/fonts/montserrat-bold.woff2'
+    '/static/images/logo.jpg',
+    '/static/favicon-192x192.png',
+    '/static/favicon-512x512.png',
+    '/static/manifest.json'
 ];
 
 // Ressources à mettre en cache dynamiquement
@@ -164,7 +169,65 @@ self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'GET_VERSION') {
         event.ports[0].postMessage({ version: CACHE_NAME });
     }
+    
+    // Gestion des notifications push
+    if (event.data && event.data.type === 'PUSH_NOTIFICATION') {
+        showNotification(event.data.title, event.data.body, event.data.icon);
+    }
 });
+
+// Gestion des notifications push
+self.addEventListener('push', (event) => {
+    if (event.data) {
+        const data = event.data.json();
+        const options = {
+            body: data.body || 'Nouvelle notification du CMTCH',
+            icon: '/static/favicon-192x192.png',
+            badge: '/static/favicon-192x192.png',
+            vibrate: [200, 100, 200],
+            data: data.data || {},
+            actions: [
+                {
+                    action: 'open',
+                    title: 'Ouvrir',
+                    icon: '/static/favicon-192x192.png'
+                },
+                {
+                    action: 'close',
+                    title: 'Fermer'
+                }
+            ]
+        };
+        
+        event.waitUntil(
+            self.registration.showNotification(data.title || 'CMTCH', options)
+        );
+    }
+});
+
+// Gestion des clics sur les notifications
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    
+    if (event.action === 'open' || !event.action) {
+        event.waitUntil(
+            clients.openWindow('/')
+        );
+    }
+});
+
+// Fonction pour afficher une notification
+function showNotification(title, body, icon) {
+    const options = {
+        body: body,
+        icon: icon || '/static/favicon-192x192.png',
+        badge: '/static/favicon-192x192.png',
+        vibrate: [200, 100, 200],
+        tag: 'cmtch-notification'
+    };
+    
+    return self.registration.showNotification(title, options);
+}
 
 // Gestion des erreurs
 self.addEventListener('error', (event) => {

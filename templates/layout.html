@@ -12,8 +12,30 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180x180.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192x192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="/static/favicon-512x512.png">
-    <meta name="msapplication-TileColor" content="#1e3a8a">
-    <meta name="theme-color" content="#1e3a8a">
+    <meta name="msapplication-TileColor" content="#2c5530">
+    <meta name="theme-color" content="#2c5530">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="application-name" content="CMTCH">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="CMTCH">
+    <meta name="description" content="Application de gestion du Club Municipal de Tennis Chihia - Réservations, articles et gestion des membres">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="msapplication-config" content="/static/browserconfig.xml">
+    <meta name="msapplication-TileColor" content="#2c5530">
+    <meta name="msapplication-tap-highlight" content="no">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="/static/favicon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/static/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180x180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/static/favicon-192x192.png">
+    
     <!-- Logo et favicon du Club Municipal de Tennis Chihia -->
     
     <!-- Bootstrap CSS -->
@@ -590,6 +612,95 @@
         
         // Ajouter les styles au head
         document.head.insertAdjacentHTML('beforeend', additionalStyles);
+    </script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+        // Enregistrement du Service Worker pour la PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/js/sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker enregistré avec succès:', registration.scope);
+                        
+                        // Vérifier les mises à jour
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // Nouvelle version disponible
+                                    if (confirm('Une nouvelle version de l\'application est disponible. Voulez-vous la charger ?')) {
+                                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.log('Échec de l\'enregistrement du Service Worker:', error);
+                    });
+            });
+        }
+        
+        // Gestion de l'installation PWA
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Empêcher l'affichage automatique du prompt
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Afficher un bouton d'installation personnalisé
+            showInstallButton();
+        });
+        
+        function showInstallButton() {
+            // Créer un bouton d'installation
+            const installButton = document.createElement('button');
+            installButton.innerHTML = '<i class="fas fa-download"></i> Installer l\'app';
+            installButton.className = 'btn btn-primary btn-sm position-fixed';
+            installButton.style.cssText = 'bottom: 20px; right: 20px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+            installButton.onclick = installApp;
+            
+            document.body.appendChild(installButton);
+            
+            // Masquer le bouton après 10 secondes
+            setTimeout(() => {
+                if (installButton.parentNode) {
+                    installButton.remove();
+                }
+            }, 10000);
+        }
+        
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Utilisateur a accepté l\'installation PWA');
+                    } else {
+                        console.log('Utilisateur a refusé l\'installation PWA');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }
+        
+        // Détecter si l'app est installée
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA installée avec succès');
+            // Masquer le bouton d'installation
+            const installButton = document.querySelector('button[onclick="installApp()"]');
+            if (installButton) {
+                installButton.remove();
+            }
+        });
+        
+        // Gestion du mode standalone (app installée)
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('Application en mode standalone');
+            document.body.classList.add('pwa-standalone');
+        }
     </script>
 </body>
 </html>

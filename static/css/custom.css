@@ -855,3 +855,181 @@ h1, h2, h3, h4, h5, h6 {
         opacity: 1;
     }
 }
+
+/* ===== STYLES PWA (Progressive Web App) ===== */
+
+/* Mode standalone (app installée) */
+.pwa-standalone {
+    /* Ajustements pour le mode standalone */
+}
+
+.pwa-standalone .navbar {
+    /* Ajuster la navbar pour le mode standalone */
+    padding-top: env(safe-area-inset-top, 0);
+}
+
+.pwa-standalone .main-content {
+    /* Ajuster le contenu principal */
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Bouton d'installation PWA */
+.pwa-install-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: linear-gradient(135deg, #2c5530 0%, #1e3a8a 100%);
+    border: none;
+    border-radius: 50px;
+    padding: 12px 20px;
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 4px 20px rgba(44, 85, 48, 0.4);
+    transition: all 0.3s ease;
+    animation: pulse 2s infinite;
+}
+
+.pwa-install-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(44, 85, 48, 0.6);
+}
+
+.pwa-install-button:active {
+    transform: translateY(0);
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 4px 20px rgba(44, 85, 48, 0.4);
+    }
+    50% {
+        box-shadow: 0 4px 20px rgba(44, 85, 48, 0.8);
+    }
+    100% {
+        box-shadow: 0 4px 20px rgba(44, 85, 48, 0.4);
+    }
+}
+
+/* Améliorations mobile pour PWA */
+@media (max-width: 768px) {
+    .pwa-standalone .container {
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+    
+    .pwa-standalone .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .pwa-standalone .btn {
+        min-height: 44px; /* Taille minimale recommandée pour les touches tactiles */
+    }
+    
+    .pwa-standalone .form-control {
+        min-height: 44px;
+    }
+    
+    /* Améliorer l'espacement pour les doigts */
+    .pwa-standalone .nav-link {
+        padding: 12px 16px;
+    }
+    
+    .pwa-standalone .card {
+        margin-bottom: 20px;
+    }
+}
+
+/* Mode paysage sur mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .pwa-standalone .hero {
+        min-height: 60vh;
+    }
+    
+    .pwa-standalone .navbar {
+        padding: 8px 0;
+    }
+}
+
+/* Améliorations pour les écrans tactiles */
+@media (hover: none) and (pointer: coarse) {
+    .pwa-standalone .btn:hover {
+        transform: none; /* Désactiver les effets hover sur les écrans tactiles */
+    }
+    
+    .pwa-standalone .card:hover {
+        transform: none;
+    }
+    
+    /* Améliorer la visibilité des éléments interactifs */
+    .pwa-standalone .btn {
+        border: 2px solid transparent;
+    }
+    
+    .pwa-standalone .btn:active {
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+}
+
+/* Styles pour les notifications PWA */
+.pwa-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #2c5530;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 1001;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Améliorations pour l'accessibilité PWA */
+.pwa-standalone .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus visible pour la navigation au clavier */
+.pwa-standalone .btn:focus,
+.pwa-standalone .form-control:focus,
+.pwa-standalone .nav-link:focus {
+    outline: 2px solid #2c5530;
+    outline-offset: 2px;
+}
+
+/* Mode sombre pour PWA (si supporté) */
+@media (prefers-color-scheme: dark) {
+    .pwa-standalone {
+        --bs-body-bg: #1a1a1a;
+        --bs-body-color: #ffffff;
+    }
+    
+    .pwa-standalone .card {
+        background-color: #2d2d2d;
+        border-color: #404040;
+    }
+    
+    .pwa-standalone .navbar {
+        background-color: #1a1a1a !important;
+    }
+}
