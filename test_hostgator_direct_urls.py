@@ -82,7 +82,25 @@ def test_new_upload_with_hostgator():
     print(f"\n🔧 TEST D'UPLOAD AVEC SERVICE HOSTGATOR:")
     
     try:
-        from photo_upload_service_hostgator import upload_photo_to_hostgator
+        # Import dynamique pour éviter les problèmes de résolution
+        import importlib.util
+        import sys
+        
+        # Chemin vers le module
+        module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'photo_upload_service_hostgator.py')
+        
+        if not os.path.exists(module_path):
+            print(f"   ❌ Module non trouvé: {module_path}")
+            return False
+        
+        # Charger le module dynamiquement
+        spec = importlib.util.spec_from_file_location("photo_upload_service_hostgator", module_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["photo_upload_service_hostgator"] = module
+        spec.loader.exec_module(module)
+        
+        # Utiliser la fonction du module
+        upload_photo_to_hostgator = module.upload_photo_to_hostgator
         
         # Créer un contenu de test
         test_content = b"Test content for HostGator direct URL - " + str(int(__import__('time').time())).encode()

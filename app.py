@@ -3296,32 +3296,22 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
                 
-                # Upload vers HostGator au lieu du stockage local
+                # Upload vers HostGator exclusivement
                 try:
                     from photo_upload_service_hostgator import upload_photo_to_hostgator
                     success, message, hostgator_url = upload_photo_to_hostgator(file_content, unique_name)
                     if success:
-                        # Utiliser le chemin relatif pour la cohérence avec la base de données
-                        image_path = f"/article_images/{unique_name}"
+                        # Utiliser l'URL complète HostGator pour la base de données
+                        image_path = hostgator_url
                         print(f"✅ Image uploadée vers HostGator: {hostgator_url}")
                     else:
-                        # Fallback vers stockage local si HostGator échoue
-                        images_dir = os.path.join(BASE_DIR, "static", "article_images")
-                        os.makedirs(images_dir, exist_ok=True)
-                        file_path = os.path.join(images_dir, unique_name)
-                        with open(file_path, "wb") as f:
-                            f.write(file_content)
-                        image_path = f"/article_images/{unique_name}"
-                        print(f"⚠️ Fallback vers stockage local: {image_path}")
+                        # En cas d'échec, utiliser l'image par défaut HostGator
+                        image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                        print(f"⚠️ Échec upload HostGator, utilisation image par défaut: {message}")
                 except Exception as e:
-                    # Fallback vers stockage local en cas d'erreur
-                    images_dir = os.path.join(BASE_DIR, "static", "article_images")
-                    os.makedirs(images_dir, exist_ok=True)
-                    file_path = os.path.join(images_dir, unique_name)
-                    with open(file_path, "wb") as f:
-                        f.write(file_content)
-                    image_path = f"/article_images/{unique_name}"
-                    print(f"❌ Erreur HostGator, fallback local: {e}")
+                    # En cas d'erreur, utiliser l'image par défaut HostGator
+                    image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                    print(f"❌ Erreur HostGator, utilisation image par défaut: {e}")
     else:
         # Analyse du corps form-urlencoded
         form = urllib.parse.parse_qs(body.decode(), keep_blank_values=True)
@@ -3554,7 +3544,7 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                 # Générer un nom unique pour éviter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
-                # Upload vers HostGator au lieu du stockage local
+                # Upload vers HostGator exclusivement
                 try:
                     from photo_upload_service_hostgator import upload_photo_to_hostgator
                     success, message, hostgator_url = upload_photo_to_hostgator(file_content, unique_name)
@@ -3562,19 +3552,13 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                         image_path = hostgator_url
                         print(f"✅ Image uploadée vers HostGator: {hostgator_url}")
                     else:
-                        # Fallback vers stockage local si HostGator échoue
-                        file_path = os.path.join(images_dir, unique_name)
-                        with open(file_path, "wb") as f:
-                            f.write(file_content)
-                        image_path = f"/static/article_images/{unique_name}"
-                        print(f"⚠️ Fallback vers stockage local: {image_path}")
+                        # En cas d'échec, utiliser l'image par défaut HostGator
+                        image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                        print(f"⚠️ Échec upload HostGator, utilisation image par défaut: {message}")
                 except Exception as e:
-                    # Fallback vers stockage local en cas d'erreur
-                    file_path = os.path.join(images_dir, unique_name)
-                    with open(file_path, "wb") as f:
-                        f.write(file_content)
-                    image_path = f"/static/article_images/{unique_name}"
-                    print(f"❌ Erreur HostGator, fallback local: {e}")
+                    # En cas d'erreur, utiliser l'image par défaut HostGator
+                    image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                    print(f"❌ Erreur HostGator, utilisation image par défaut: {e}")
     else:
         # Formulaire standard urlencoded (image_url fourni par l'utilisateur)
         raw_body = await request.body()
