@@ -4837,6 +4837,54 @@ async def setup_imgbb_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/test-db-connection")
+async def test_db_connection_endpoint():
+    """Test de la connexion à la base de données"""
+    try:
+        from database import get_db_connection
+        import os
+        
+        # Test de la connexion
+        conn = get_db_connection()
+        
+        # Vérifier le type de connexion
+        connection_type = "unknown"
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            connection_type = "mysql"
+        elif hasattr(conn, 'execute'):
+            connection_type = "sqlite"
+        elif hasattr(conn, 'cursor'):
+            connection_type = "postgresql"
+        
+        # Test d'une requête simple
+        try:
+            if connection_type == "mysql":
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) as count FROM articles")
+                result = cur.fetchone()
+                article_count = result[0] if result else 0
+            else:
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM articles")
+                result = cur.fetchone()
+                article_count = result[0] if result else 0
+        except Exception as e:
+            article_count = f"Erreur: {str(e)}"
+        
+        conn.close()
+        
+        return {
+            "status": "success",
+            "connection_type": connection_type,
+            "database_url": os.getenv('DATABASE_URL', 'Non défini'),
+            "mysql_available": "mysql.connector" in str(type(conn)),
+            "article_count": article_count,
+            "connection_object": str(type(conn))
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/test-homepage-data")
 async def test_homepage_data_endpoint():
     """Test des données de la page d'accueil"""
