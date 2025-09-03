@@ -3212,7 +3212,7 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
         # hébergée derrière un proxy, request.url donnera l'URL complète.
         article_url = str(request.url)
             
-        # Récupérer les articles récents pour la sidebar
+        # Récupérer les articles récents pour la sidebar (avant de fermer la connexion)
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
@@ -3230,6 +3230,9 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
                 (article_id,)
             )
             recent_articles = cur.fetchall()
+        
+        # Fermer la connexion après avoir récupéré tous les données
+        conn.close()
         
         return templates.TemplateResponse(
             "article_detail.html",
