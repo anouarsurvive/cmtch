@@ -4596,6 +4596,76 @@ async def serve_image(filename: str):
     except Exception as e:
         return {"error": f"Image non trouvée: {str(e)}"}
 
+@app.get("/diagnose-database")
+async def diagnose_database_endpoint():
+    """Diagnostique la base de données"""
+    try:
+        import sqlite3
+        import os
+        
+        # Vérifier si le fichier de base existe
+        db_files = []
+        for db_file in ['cmtch.db', 'database.db', 'database.sqlite']:
+            if os.path.exists(db_file):
+                db_files.append(db_file)
+        
+        if not db_files:
+            return {
+                "error": "Aucun fichier de base de données trouvé",
+                "searched_files": ['cmtch.db', 'database.db', 'database.sqlite']
+            }
+        
+        # Tester chaque base de données
+        results = {}
+        for db_file in db_files:
+            try:
+                conn = sqlite3.connect(db_file)
+                cursor = conn.cursor()
+                
+                # Lister toutes les tables
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = [row[0] for row in cursor.fetchall()]
+                
+                # Vérifier si la table articles existe
+                has_articles = 'articles' in tables
+                
+                if has_articles:
+                    # Compter les articles
+                    cursor.execute("SELECT COUNT(*) FROM articles")
+                    article_count = cursor.fetchone()[0]
+                    
+                    # Récupérer quelques exemples
+                    cursor.execute("SELECT id, title, image_path FROM articles LIMIT 3")
+                    sample_articles = cursor.fetchall()
+                else:
+                    article_count = 0
+                    sample_articles = []
+                
+                conn.close()
+                
+                results[db_file] = {
+                    "exists": True,
+                    "tables": tables,
+                    "has_articles_table": has_articles,
+                    "article_count": article_count,
+                    "sample_articles": sample_articles
+                }
+                
+            except Exception as e:
+                results[db_file] = {
+                    "exists": True,
+                    "error": str(e)
+                }
+        
+        return {
+            "status": "success",
+            "database_files": db_files,
+            "results": results
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/update-database-to-root-urls")
 async def update_database_to_root_urls_endpoint():
     """Met à jour la base de données pour utiliser les URLs racine"""
