@@ -3212,12 +3212,32 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
         # hébergée derrière un proxy, request.url donnera l'URL complète.
         article_url = str(request.url)
             
+        # Récupérer les articles récents pour la sidebar
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names(
+                "SELECT id, title, content, image_path, created_at FROM articles WHERE id != %s ORDER BY created_at DESC LIMIT 5", 
+                (article_id,)
+            )
+            recent_articles = cur.fetchall()
+            # Convertir les tuples MySQL en objets avec attributs nommés
+            recent_articles = [convert_mysql_result(article, column_names) for article in recent_articles]
+        else:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, title, content, image_path, created_at FROM articles WHERE id != ? ORDER BY created_at DESC LIMIT 5", 
+                (article_id,)
+            )
+            recent_articles = cur.fetchall()
+        
         return templates.TemplateResponse(
             "article_detail.html",
             {
                 "request": request,
                 "user": user,
                 "article": article,
+                "recent_articles": recent_articles,
                 "share_url": f"https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(article_url, safe='')}",
             },
         )

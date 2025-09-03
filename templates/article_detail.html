@@ -155,14 +155,30 @@
                             Derniers articles
                         </h4>
                         <div class="recent-articles">
-                            <div class="recent-article-item">
-                                <div class="recent-article-content">
-                                    <h6 class="recent-article-title">
-                                        <a href="#" class="text-decoration-none">Aucun autre article</a>
-                                    </h6>
-                                    <small class="text-muted">Aucun article récent</small>
+                            {% if recent_articles %}
+                                {% for recent_article in recent_articles %}
+                                <div class="recent-article-item">
+                                    <div class="recent-article-content">
+                                        <h6 class="recent-article-title">
+                                            <a href="/articles/{{ recent_article.id }}" class="text-decoration-none">{{ recent_article.title }}</a>
+                                        </h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            {{ recent_article.created_at.strftime('%d/%m/%Y') if recent_article.created_at else 'Date inconnue' }}
+                                        </small>
+                                    </div>
                                 </div>
-                            </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="recent-article-item">
+                                    <div class="recent-article-content">
+                                        <h6 class="recent-article-title">
+                                            <a href="#" class="text-decoration-none">Aucun autre article</a>
+                                        </h6>
+                                        <small class="text-muted">Aucun article récent</small>
+                                    </div>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
 
