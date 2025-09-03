@@ -4371,12 +4371,39 @@ async def test_html_generation_endpoint():
         original_url = article.image_path if hasattr(article, 'image_path') else article[3]
         absolute_url = ensure_absolute_image_url(original_url)
         
+        # Générer le HTML pour voir ce qui est réellement produit
+        from fastapi import Request
+        from fastapi.templating import Jinja2Templates
+        
+        # Créer une requête factice pour le template
+        class MockRequest:
+            def __init__(self):
+                self.url = "https://www.cmtch.online/articles/4"
+        
+        mock_request = MockRequest()
+        
+        # Rendre le template article_detail.html
+        template_html = templates.get_template("article_detail.html")
+        rendered_html = template_html.render(
+            request=mock_request,
+            article=article,
+            user=None,
+            article_url="https://www.cmtch.online/articles/4"
+        )
+        
+        # Extraire la balise img du HTML généré
+        import re
+        img_match = re.search(r'<img[^>]*src="([^"]*)"[^>]*>', rendered_html)
+        img_src_in_html = img_match.group(1) if img_match else "Non trouvé"
+        
         return {
             "article_id": article.id if hasattr(article, 'id') else article[0],
             "title": article.title if hasattr(article, 'title') else article[1],
             "original_image_path": original_url,
             "absolute_image_url": absolute_url,
-            "function_works": original_url != absolute_url or original_url.startswith('https://')
+            "function_works": original_url != absolute_url or original_url.startswith('https://'),
+            "img_src_in_html": img_src_in_html,
+            "html_contains_absolute_url": "https://www.cmtch.online" in img_src_in_html
         }
         
     except Exception as e:
