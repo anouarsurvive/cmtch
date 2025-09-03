@@ -4346,6 +4346,25 @@ async def enable_auto_backup_endpoint():
         }
 
 
+@app.get("/force-cache-refresh")
+async def force_cache_refresh_endpoint():
+    """Force le refresh du cache pour résoudre le problème d'images"""
+    try:
+        # Vider le cache des templates
+        templates.env.cache.clear()
+        
+        # Re-exposer la fonction pour s'assurer qu'elle est bien disponible
+        templates.env.globals["ensure_absolute_image_url"] = ensure_absolute_image_url
+        
+        return {
+            "status": "success",
+            "message": "Cache vidé et fonction re-exposée",
+            "function_available": templates.env.globals.get('ensure_absolute_image_url') is not None
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/test-template-function")
 async def test_template_function_endpoint():
     """Test simple pour vérifier que la fonction est accessible dans les templates"""
