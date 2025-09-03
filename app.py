@@ -4356,12 +4356,14 @@ async def test_hostgator_image_endpoint():
         storage = HostGatorPhotoStorage()
         
         # Vérifier l'existence des fichiers
-        default_exists = storage.check_photo_exists("default_article.jpg")
-        article_exists = storage.check_photo_exists("img_1756888991.jpg")
+        default_exists = storage.photo_exists("default_article.jpg")
+        article_exists = storage.photo_exists("img_1756888991.jpg")
         
         # Lister les fichiers dans le dossier
         try:
-            files_list = storage.list_photos()
+            success, files_list, message = storage.list_photos()
+            if not success:
+                files_list = f"Erreur: {message}"
         except:
             files_list = "Erreur lors du listing"
         
