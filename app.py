@@ -4418,6 +4418,23 @@ async def test_html_generation_endpoint():
         original_url = article.image_path if hasattr(article, 'image_path') else article[3]
         absolute_url = ensure_absolute_image_url(original_url)
         
+        # Vérifier les attributs de l'article
+        article_attrs = {}
+        if hasattr(article, '__dict__'):
+            article_attrs = article.__dict__
+        elif hasattr(article, '_fields'):
+            # Pour les tuples nommés
+            article_attrs = {field: getattr(article, field) for field in article._fields}
+        else:
+            # Pour les tuples simples
+            article_attrs = {
+                'id': article[0] if len(article) > 0 else None,
+                'title': article[1] if len(article) > 1 else None,
+                'content': article[2] if len(article) > 2 else None,
+                'image_path': article[3] if len(article) > 3 else None,
+                'created_at': article[4] if len(article) > 4 else None
+            }
+        
         # Générer le HTML pour voir ce qui est réellement produit
         from fastapi import Request
         from fastapi.templating import Jinja2Templates
@@ -4450,7 +4467,10 @@ async def test_html_generation_endpoint():
             "absolute_image_url": absolute_url,
             "function_works": original_url != absolute_url or original_url.startswith('https://'),
             "img_src_in_html": img_src_in_html,
-            "html_contains_absolute_url": "https://www.cmtch.online" in img_src_in_html
+            "html_contains_absolute_url": "https://www.cmtch.online" in img_src_in_html,
+            "article_attrs": article_attrs,
+            "image_path_in_template": article.image_path if hasattr(article, 'image_path') else article[3],
+            "image_path_is_truthy": bool(article.image_path if hasattr(article, 'image_path') else article[3])
         }
         
     except Exception as e:
