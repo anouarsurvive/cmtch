@@ -4335,6 +4335,45 @@ async def enable_auto_backup_endpoint():
         }
 
 
+@app.get("/test-html-generation")
+async def test_html_generation_endpoint():
+    """Test pour voir le HTML généré avec les URLs d'images"""
+    try:
+        conn = get_db_connection()
+        
+        # Récupérer l'article 4
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (4,))
+            article = cur.fetchone()
+            if article:
+                article = convert_mysql_result(article, column_names)
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (4,))
+            article = cur.fetchone()
+        
+        conn.close()
+        
+        if not article:
+            return {"error": "Article 4 non trouvé"}
+        
+        # Tester la fonction ensure_absolute_image_url
+        original_url = article.image_path if hasattr(article, 'image_path') else article[3]
+        absolute_url = ensure_absolute_image_url(original_url)
+        
+        return {
+            "article_id": article.id if hasattr(article, 'id') else article[0],
+            "title": article.title if hasattr(article, 'title') else article[1],
+            "original_image_path": original_url,
+            "absolute_image_url": absolute_url,
+            "function_works": original_url != absolute_url or original_url.startswith('https://')
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/debug-article-images")
 async def debug_article_images_endpoint():
     """Endpoint pour déboguer les images d'articles"""
