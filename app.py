@@ -4312,6 +4312,61 @@ async def enable_auto_backup_endpoint():
         }
 
 
+@app.get("/debug-article-images")
+async def debug_article_images_endpoint():
+    """Endpoint pour déboguer les images d'articles"""
+    try:
+        conn = get_db_connection()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            
+            # Récupérer tous les articles
+            cur, column_names = execute_with_names("SELECT id, title, image_path FROM articles")
+            articles = cur.fetchall()
+            # Convertir les tuples MySQL en objets avec attributs nommés
+            articles = [convert_mysql_result(article, column_names) for article in articles]
+        else:
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, image_path FROM articles")
+            articles = cur.fetchall()
+        
+        conn.close()
+        
+        debug_info = []
+        for article in articles:
+            if hasattr(article, 'id'):
+                # MySQL
+                article_id = article.id
+                title = article.title
+                image_path = article.image_path
+            else:
+                # SQLite
+                article_id, title, image_path = article
+            
+            debug_info.append({
+                "id": article_id,
+                "title": title,
+                "image_path": image_path,
+                "image_path_type": type(image_path).__name__,
+                "image_path_length": len(str(image_path)) if image_path else 0,
+                "is_hostgator_url": str(image_path).startswith('https://www.cmtch.online') if image_path else False
+            })
+        
+        return {
+            "status": "success",
+            "message": f"Debug info pour {len(debug_info)} articles",
+            "articles": debug_info
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors du debug: {str(e)}"
+        }
+
 @app.get("/fix-production-images")
 async def fix_production_images_endpoint():
     """Endpoint pour corriger les images en production"""
