@@ -107,7 +107,7 @@ templates.env.globals["get_text_direction"] = get_text_direction
 templates.env.globals["get_text_align"] = get_text_align
 
 def ensure_absolute_image_url(image_path: str) -> str:
-    """S'assure que l'URL de l'image est absolue (via notre endpoint)"""
+    """S'assure que l'URL de l'image est absolue (ImgBB ou endpoint)"""
     if not image_path:
         return ""
     
@@ -3333,19 +3333,19 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 
                 # Upload vers HostGator exclusivement
                 try:
-                    from photo_upload_service_hostgator import upload_photo_to_hostgator
-                    success, message, hostgator_url = upload_photo_to_hostgator(file_content, unique_name)
-                    if success:
-                        # Utiliser l'URL complète HostGator pour la base de données
-                        image_path = hostgator_url
-                        print(f"✅ Image uploadée vers HostGator: {hostgator_url}")
+                    from photo_upload_service_imgbb import upload_photo_to_imgbb
+                    result = upload_photo_to_imgbb(file_content, unique_name)
+                    if result.get('success'):
+                        # Utiliser l'URL complète ImgBB pour la base de données
+                        image_path = result.get('url')
+                        print(f"✅ Image uploadée vers ImgBB: {image_path}")
                     else:
-                        # En cas d'échec, utiliser l'image par défaut HostGator
-                        image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
-                        print(f"⚠️ Échec upload HostGator, utilisation image par défaut: {message}")
+                        # En cas d'échec, utiliser l'image par défaut ImgBB
+                        image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
+                        print(f"⚠️ Échec upload ImgBB, utilisation image par défaut: {result.get('error')}")
                 except Exception as e:
-                    # En cas d'erreur, utiliser l'image par défaut HostGator
-                    image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                    # En cas d'erreur, utiliser l'image par défaut ImgBB
+                    image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
                     print(f"❌ Erreur HostGator, utilisation image par défaut: {e}")
     else:
         # Analyse du corps form-urlencoded
@@ -3579,20 +3579,20 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                 # Générer un nom unique pour éviter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
-                # Upload vers HostGator exclusivement
+                # Upload vers ImgBB exclusivement
                 try:
-                    from photo_upload_service_hostgator import upload_photo_to_hostgator
-                    success, message, hostgator_url = upload_photo_to_hostgator(file_content, unique_name)
-                    if success:
-                        image_path = hostgator_url
-                        print(f"✅ Image uploadée vers HostGator: {hostgator_url}")
+                    from photo_upload_service_imgbb import upload_photo_to_imgbb
+                    result = upload_photo_to_imgbb(file_content, unique_name)
+                    if result.get('success'):
+                        image_path = result.get('url')
+                        print(f"✅ Image uploadée vers ImgBB: {image_path}")
                     else:
-                        # En cas d'échec, utiliser l'image par défaut HostGator
-                        image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
-                        print(f"⚠️ Échec upload HostGator, utilisation image par défaut: {message}")
+                        # En cas d'échec, utiliser l'image par défaut ImgBB
+                        image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
+                        print(f"⚠️ Échec upload ImgBB, utilisation image par défaut: {result.get('error')}")
                 except Exception as e:
-                    # En cas d'erreur, utiliser l'image par défaut HostGator
-                    image_path = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                    # En cas d'erreur, utiliser l'image par défaut ImgBB
+                    image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
                     print(f"❌ Erreur HostGator, utilisation image par défaut: {e}")
     else:
         # Formulaire standard urlencoded (image_url fourni par l'utilisateur)
