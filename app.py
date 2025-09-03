@@ -4784,6 +4784,54 @@ async def diagnose_database_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/force-update-all-image-urls")
+async def force_update_all_image_urls_endpoint():
+    """Force la mise à jour de TOUTES les URLs d'images"""
+    try:
+        import sqlite3
+        
+        # Connexion à la base de données
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        
+        # Récupérer tous les articles
+        cursor.execute("SELECT id, image_path FROM articles")
+        articles = cursor.fetchall()
+        
+        updated_count = 0
+        
+        for article_id, image_path in articles:
+            if not image_path:
+                continue
+            
+            # Extraire le nom du fichier
+            if '/' in image_path:
+                filename = image_path.split('/')[-1]
+            else:
+                filename = image_path
+            
+            # Nouvelle URL via notre endpoint
+            new_url = f"https://www.cmtch.online/image/{filename}"
+            
+            # Mettre à jour la base de données
+            cursor.execute("UPDATE articles SET image_path = ? WHERE id = ?", (new_url, article_id))
+            updated_count += 1
+            
+            print(f"✅ Article {article_id}: {image_path} -> {new_url}")
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "message": f"{updated_count} articles mis à jour avec les URLs d'images",
+            "updated_count": updated_count,
+            "new_base_url": "https://www.cmtch.online/image"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/update-database-to-root-urls")
 async def update_database_to_root_urls_endpoint():
     """Met à jour la base de données pour utiliser les URLs racine"""
