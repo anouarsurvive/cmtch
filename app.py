@@ -137,6 +137,9 @@ def ensure_absolute_image_url(image_path: str) -> str:
 # Expose la fonction dans les templates
 templates.env.globals["ensure_absolute_image_url"] = ensure_absolute_image_url
 
+# Test pour vérifier que la fonction est bien exposée
+print(f"🔧 Fonction ensure_absolute_image_url exposée: {templates.env.globals.get('ensure_absolute_image_url') is not None}")
+
 # Montage des fichiers statiques (CSS, images, JS)
 # Montage StaticFiles pour les fichiers CSS/JS locaux
 app.mount(
@@ -4342,6 +4345,31 @@ async def enable_auto_backup_endpoint():
             "message": f"Erreur lors de la réactivation: {str(e)}"
         }
 
+
+@app.get("/test-template-function")
+async def test_template_function_endpoint():
+    """Test simple pour vérifier que la fonction est accessible dans les templates"""
+    try:
+        # Test simple avec un template minimal
+        test_template = """
+        <html>
+        <body>
+            <h1>Test de la fonction ensure_absolute_image_url</h1>
+            <p>URL test: {{ ensure_absolute_image_url('https://www.cmtch.online/static/article_images/test.jpg') }}</p>
+            <p>URL relative: {{ ensure_absolute_image_url('/static/article_images/test.jpg') }}</p>
+            <p>Nom fichier: {{ ensure_absolute_image_url('test.jpg') }}</p>
+        </body>
+        </html>
+        """
+        
+        from jinja2 import Template
+        template = Template(test_template)
+        rendered = template.render(ensure_absolute_image_url=ensure_absolute_image_url)
+        
+        return HTMLResponse(content=rendered)
+        
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/test-html-generation")
 async def test_html_generation_endpoint():
