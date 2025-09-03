@@ -4312,6 +4312,53 @@ async def enable_auto_backup_endpoint():
         }
 
 
+@app.get("/fix-production-images")
+async def fix_production_images_endpoint():
+    """Endpoint pour corriger les images en production"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Récupérer tous les articles
+        cur.execute("SELECT id, title, image_path FROM articles")
+        articles = cur.fetchall()
+        
+        fixed_count = 0
+        
+        for article_id, title, image_path in articles:
+            # Vérifier si l'image est manquante ou invalide
+            needs_fix = False
+            
+            if not image_path or image_path == '':
+                needs_fix = True
+            elif not image_path.startswith('https://www.cmtch.online'):
+                needs_fix = True
+            elif 'article_images' in image_path and not image_path.endswith('default_article.jpg'):
+                needs_fix = True
+            
+            if needs_fix:
+                # Utiliser l'image par défaut HostGator
+                default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
+                
+                cur.execute("UPDATE articles SET image_path = ? WHERE id = ?", (default_url, article_id))
+                conn.commit()
+                fixed_count += 1
+        
+        conn.close()
+        
+        return {
+            "status": "success",
+            "message": f"Correction terminée: {fixed_count} articles corrigés sur {len(articles)}",
+            "fixed_count": fixed_count,
+            "total_articles": len(articles)
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la correction: {str(e)}"
+        }
+
 @app.get("/force-disable-backup")
 async def force_disable_backup_endpoint():
     """Point de terminaison pour forcer la désactivation du système de sauvegarde."""
