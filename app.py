@@ -3202,9 +3202,8 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
             cur.execute("SELECT id, title, content, image_path, created_at FROM articles WHERE id = ?", (article_id,))
             article = cur.fetchone()
         
-        conn.close()
-        
         if article is None:
+            conn.close()
             raise HTTPException(status_code=404, detail="Article introuvable")
             
         user = get_current_user(request)
