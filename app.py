@@ -4673,8 +4673,8 @@ async def update_database_to_root_urls_endpoint():
         from photo_upload_service_hostgator import HostGatorPhotoStorage
         import sqlite3
         
-        # Connexion à la base de données
-        conn = sqlite3.connect('cmtch.db')
+        # Connexion à la base de données (utiliser database.db)
+        conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         
         # Récupérer tous les articles
@@ -4693,8 +4693,8 @@ async def update_database_to_root_urls_endpoint():
             else:
                 filename = image_path
             
-            # Nouvelle URL racine
-            new_url = f"https://www.cmtch.online/{filename}"
+            # Nouvelle URL via notre endpoint
+            new_url = f"https://www.cmtch.online/image/{filename}"
             
             # Mettre à jour la base de données
             cursor.execute("UPDATE articles SET image_path = ? WHERE id = ?", (new_url, article_id))
@@ -4709,7 +4709,7 @@ async def update_database_to_root_urls_endpoint():
             "status": "success",
             "message": f"{updated_count} articles mis à jour avec les URLs racine",
             "updated_count": updated_count,
-            "new_base_url": "https://www.cmtch.online"
+            "new_base_url": "https://www.cmtch.online/image"
         }
         
     except Exception as e:
