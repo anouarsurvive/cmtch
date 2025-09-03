@@ -111,19 +111,27 @@ def ensure_absolute_image_url(image_path: str) -> str:
     if not image_path:
         return ""
     
+    print(f"🔍 ensure_absolute_image_url: Input = '{image_path}'")
+    
     # Si c'est déjà une URL absolue, la retourner telle quelle
     if image_path.startswith(('http://', 'https://')):
+        print(f"✅ URL déjà absolue: {image_path}")
         return image_path
     
     # Si c'est une URL relative, la convertir en URL absolue HostGator
     if image_path.startswith('/static/article_images/'):
-        return f"https://www.cmtch.online{image_path}"
+        result = f"https://www.cmtch.online{image_path}"
+        print(f"🔄 URL relative convertie: {image_path} -> {result}")
+        return result
     
     # Si c'est juste le nom du fichier, construire l'URL complète
     if not image_path.startswith('/'):
-        return f"https://www.cmtch.online/static/article_images/{image_path}"
+        result = f"https://www.cmtch.online/static/article_images/{image_path}"
+        print(f"🔄 Nom de fichier converti: {image_path} -> {result}")
+        return result
     
     # Par défaut, retourner l'URL telle quelle
+    print(f"⚠️ URL non modifiée: {image_path}")
     return image_path
 
 # Expose la fonction dans les templates
