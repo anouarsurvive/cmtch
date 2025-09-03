@@ -4384,6 +4384,47 @@ async def test_hostgator_image_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/fix-hostgator-permissions")
+async def fix_hostgator_permissions_endpoint():
+    """Corrige les permissions des images sur HostGator"""
+    try:
+        from photo_upload_service_hostgator import HostGatorPhotoStorage
+        import ftplib
+        
+        storage = HostGatorPhotoStorage()
+        
+        # Connexion FTP
+        ftp = ftplib.FTP(storage.ftp_host)
+        ftp.login(storage.ftp_user, storage.ftp_password)
+        ftp.cwd(storage.remote_photos_dir)
+        
+        # Lister tous les fichiers
+        files = ftp.nlst()
+        fixed_count = 0
+        
+        for file in files:
+            if file in {'.', '..'}:
+                continue
+            try:
+                # Appliquer les permissions 644
+                ftp.sendcmd(f"SITE CHMOD 644 {file}")
+                fixed_count += 1
+                print(f"✅ Permissions 644 appliquées à {file}")
+            except Exception as e:
+                print(f"⚠️ Erreur permissions pour {file}: {e}")
+        
+        ftp.quit()
+        
+        return {
+            "status": "success",
+            "message": f"Permissions corrigées pour {fixed_count} fichiers",
+            "fixed_count": fixed_count,
+            "total_files": len([f for f in files if f not in {'.', '..'}])
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/force-cache-refresh")
 async def force_cache_refresh_endpoint():
     """Force le refresh du cache pour résoudre le problème d'images"""
