@@ -4596,6 +4596,82 @@ async def serve_image(filename: str):
     except Exception as e:
         return {"error": f"Image non trouvée: {str(e)}"}
 
+@app.get("/debug-latest-articles")
+async def debug_latest_articles_endpoint():
+    """Debug la section 'Derniers articles'"""
+    try:
+        import sqlite3
+        
+        # Connexion à la base de données
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        
+        # Récupérer tous les articles avec leurs détails
+        cursor.execute("""
+            SELECT id, title, content, image_path, created_at, type 
+            FROM articles 
+            ORDER BY created_at DESC 
+            LIMIT 10
+        """)
+        articles = cursor.fetchall()
+        
+        # Récupérer le total d'articles
+        cursor.execute("SELECT COUNT(*) FROM articles")
+        total_count = cursor.fetchone()[0]
+        
+        # Récupérer les articles publiés (type = 'published' ou NULL)
+        cursor.execute("""
+            SELECT COUNT(*) FROM articles 
+            WHERE type = 'published' OR type IS NULL
+        """)
+        published_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        # Analyser chaque article
+        analyzed_articles = []
+        for article in articles:
+            article_id, title, content, image_path, created_at, article_type = article
+            
+            # Vérifier si l'image est accessible
+            image_accessible = False
+            if image_path:
+                if image_path.startswith('https://www.cmtch.online/image/'):
+                    image_accessible = True
+                elif image_path.startswith('/static/article_images/'):
+                    image_accessible = False
+                else:
+                    image_accessible = True
+            
+            analyzed_articles.append({
+                "id": article_id,
+                "title": title,
+                "content_preview": content[:100] + "..." if content and len(content) > 100 else content,
+                "image_path": image_path,
+                "image_accessible": image_accessible,
+                "created_at": created_at,
+                "type": article_type,
+                "has_content": bool(content and content.strip()),
+                "has_title": bool(title and title.strip())
+            })
+        
+        return {
+            "status": "success",
+            "total_articles": total_count,
+            "published_articles": published_count,
+            "latest_articles": analyzed_articles,
+            "diagnosis": {
+                "articles_exist": total_count > 0,
+                "published_exist": published_count > 0,
+                "all_articles_have_content": all(a["has_content"] for a in analyzed_articles),
+                "all_articles_have_title": all(a["has_title"] for a in analyzed_articles),
+                "all_images_accessible": all(a["image_accessible"] for a in analyzed_articles)
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/diagnose-database")
 async def diagnose_database_endpoint():
     """Diagnostique la base de données"""
