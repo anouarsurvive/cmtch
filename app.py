@@ -4814,6 +4814,68 @@ async def setup_imgbb_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/test-homepage-data")
+async def test_homepage_data_endpoint():
+    """Test des données de la page d'accueil"""
+    try:
+        from database import get_db_connection
+        
+        # Récupérer les données comme dans la route home
+        conn = get_db_connection()
+        
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names(
+                "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
+            )
+            latest_articles = cur.fetchall()
+            # Convertir les tuples MySQL en objets avec attributs nommés
+            latest_articles = [convert_mysql_result(article, column_names) for article in latest_articles]
+        else:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
+            )
+            latest_articles = cur.fetchall()
+        
+        conn.close()
+        
+        # Analyser les données
+        analyzed_articles = []
+        for article in latest_articles:
+            if hasattr(article, 'id'):
+                # Objet avec attributs
+                analyzed_articles.append({
+                    "id": article.id,
+                    "title": article.title,
+                    "content": article.content,
+                    "image_path": article.image_path,
+                    "created_at": str(article.created_at),
+                    "type": "object_with_attributes"
+                })
+            else:
+                # Tuple
+                analyzed_articles.append({
+                    "id": article[0],
+                    "title": article[1],
+                    "content": article[2],
+                    "image_path": article[3],
+                    "created_at": str(article[4]),
+                    "type": "tuple"
+                })
+        
+        return {
+            "status": "success",
+            "total_articles": len(latest_articles),
+            "articles": analyzed_articles,
+            "connection_type": "mysql" if hasattr(conn, '_is_mysql') and conn._is_mysql else "sqlite"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/test-imgbb")
 async def test_imgbb_endpoint():
     """Test du système ImgBB"""
