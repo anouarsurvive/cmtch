@@ -34,7 +34,7 @@
   <div class="mb-3">
     <label class="form-label">Image actuelle</label>
     <div>
-      <img src="{{ article.image_path }}" alt="Image actuelle" style="max-width: 200px; max-height: 200px;" class="img-thumbnail">
+      <img src="{{ ensure_absolute_image_url(article.image_path) }}" alt="Image actuelle" style="max-width: 200px; max-height: 200px;" class="img-thumbnail">
       <div class="form-text">Image actuellement associée à cet article</div>
     </div>
   </div>

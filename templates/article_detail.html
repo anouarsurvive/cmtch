@@ -48,7 +48,7 @@
                     <!-- Image de l'article -->
 {% if article.image_path %}
                         <div class="article-image-container">
-                            <img src="{{ article.image_path }}" 
+                            <img src="{{ ensure_absolute_image_url(article.image_path) }}" 
                                  class="article-featured-image" 
                                  alt="Image de l'article {{ article.title }}">
                         </div>

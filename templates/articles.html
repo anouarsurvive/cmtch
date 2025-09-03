@@ -27,7 +27,7 @@
                         <div class="article-card h-100 article-{{ article_direction }}">
                             <div class="article-image-wrapper">
                                                                  {% if article.image_path and article.image_path != '' %}
-                                     <img src="{{ article.image_path }}" 
+                                     <img src="{{ ensure_absolute_image_url(article.image_path) }}" 
                                           class="article-image" 
                                           alt="Image de l'article {{ article.title }}"
                                           loading="lazy">

@@ -106,6 +106,29 @@ templates.env.globals["detect_language"] = detect_language
 templates.env.globals["get_text_direction"] = get_text_direction
 templates.env.globals["get_text_align"] = get_text_align
 
+def ensure_absolute_image_url(image_path: str) -> str:
+    """S'assure que l'URL de l'image est absolue"""
+    if not image_path:
+        return ""
+    
+    # Si c'est déjà une URL absolue, la retourner telle quelle
+    if image_path.startswith(('http://', 'https://')):
+        return image_path
+    
+    # Si c'est une URL relative, la convertir en URL absolue HostGator
+    if image_path.startswith('/static/article_images/'):
+        return f"https://www.cmtch.online{image_path}"
+    
+    # Si c'est juste le nom du fichier, construire l'URL complète
+    if not image_path.startswith('/'):
+        return f"https://www.cmtch.online/static/article_images/{image_path}"
+    
+    # Par défaut, retourner l'URL telle quelle
+    return image_path
+
+# Expose la fonction dans les templates
+templates.env.globals["ensure_absolute_image_url"] = ensure_absolute_image_url
+
 # Montage des fichiers statiques (CSS, images, JS)
 # Montage StaticFiles pour les fichiers CSS/JS locaux
 app.mount(
