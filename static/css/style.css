@@ -1015,10 +1015,28 @@ footer p {
         backdrop-filter: blur(10px);
     }
     
+    .navbar-nav {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100%;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .navbar-nav .nav-item {
+        display: block !important;
+        width: 100%;
+        margin: 0 !important;
+    }
+    
     .navbar-nav .nav-link {
         margin: 0.5rem 0;
         padding: 1rem 1.25rem !important;
         border-radius: var(--border-radius);
+        width: 100%;
+        text-align: left;
+        display: block !important;
+        white-space: normal !important;
     }
     
     .navbar-brand {
@@ -1027,6 +1045,40 @@ footer p {
     
     .navbar-brand img {
         height: 40px;
+    }
+    
+    /* S'assurer que le menu mobile s'affiche correctement */
+    .navbar-toggler {
+        display: block !important;
+    }
+    
+    .navbar-collapse.collapse {
+        display: none !important;
+    }
+    
+    .navbar-collapse.collapse.show {
+        display: block !important;
+    }
+}
+
+/* Correction spécifique pour les écrans très petits */
+@media (max-width: 576px) {
+    .navbar-nav .nav-link {
+        padding: 0.75rem 1rem !important;
+        font-size: 0.9rem;
+    }
+    
+    .navbar-collapse {
+        padding: 1rem;
+        margin-top: 0.5rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1rem;
+    }
+    
+    .navbar-brand img {
+        height: 35px;
     }
 }
 

@@ -41,16 +41,26 @@ self.addEventListener('install', (event) => {
             // Cache des ressources statiques
             caches.open(STATIC_CACHE).then((cache) => {
                 console.log('Caching static assets...');
-                return cache.addAll(STATIC_ASSETS);
+                return cache.addAll(STATIC_ASSETS).catch((error) => {
+                    console.warn('Some static assets failed to cache:', error);
+                    // Continuer même si certaines ressources échouent
+                    return Promise.resolve();
+                });
             }),
             // Cache des ressources dynamiques
             caches.open(DYNAMIC_CACHE).then((cache) => {
                 console.log('Caching dynamic assets...');
-                return cache.addAll(DYNAMIC_ASSETS);
+                return cache.addAll(DYNAMIC_ASSETS).catch((error) => {
+                    console.warn('Some dynamic assets failed to cache:', error);
+                    // Continuer même si certaines ressources échouent
+                    return Promise.resolve();
+                });
             })
         ]).then(() => {
             console.log('Service Worker installed successfully');
             return self.skipWaiting();
+        }).catch((error) => {
+            console.error('Service Worker installation failed:', error);
         })
     );
 });

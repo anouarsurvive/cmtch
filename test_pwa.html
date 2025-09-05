@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -279,12 +280,74 @@
             detailsDiv.innerHTML = html;
         }
         
+        // Fonction pour tester l'installation PWA
+        function testPWAInstall() {
+            const statusDiv = document.getElementById('pwa-status');
+            let html = '';
+            
+            // Vérifier les critères d'installation PWA
+            const hasServiceWorker = 'serviceWorker' in navigator;
+            const hasManifest = document.querySelector('link[rel="manifest"]');
+            const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
+            const hasIcons = document.querySelectorAll('link[rel="icon"]').length > 0;
+            
+            html += `<div class="status ${hasServiceWorker ? 'success' : 'error'}">
+                Service Worker: ${hasServiceWorker ? '✅ Supporté' : '❌ Non supporté'}
+            </div>`;
+            
+            html += `<div class="status ${hasManifest ? 'success' : 'error'}">
+                Manifest: ${hasManifest ? '✅ Présent' : '❌ Manquant'}
+            </div>`;
+            
+            html += `<div class="status ${isHTTPS ? 'success' : 'error'}">
+                HTTPS: ${isHTTPS ? '✅ Activé' : '❌ Requis pour PWA'}
+            </div>`;
+            
+            html += `<div class="status ${hasIcons ? 'success' : 'error'}">
+                Icônes: ${hasIcons ? '✅ Présentes' : '❌ Manquantes'}
+            </div>`;
+            
+            // Vérifier l'éligibilité à l'installation
+            if (hasServiceWorker && hasManifest && isHTTPS && hasIcons) {
+                html += `<div class="status success">
+                    Éligibilité PWA: ✅ Tous les critères sont remplis
+                </div>`;
+                
+                // Tester l'événement beforeinstallprompt
+                let beforeInstallPromptFired = false;
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    beforeInstallPromptFired = true;
+                    html += `<div class="status success">
+                        beforeinstallprompt: ✅ Événement déclenché
+                    </div>`;
+                    statusDiv.innerHTML = html;
+                });
+                
+                // Vérifier après 2 secondes
+                setTimeout(() => {
+                    if (!beforeInstallPromptFired) {
+                        html += `<div class="status warning">
+                            beforeinstallprompt: ⚠️ Événement non déclenché (peut être normal)
+                        </div>`;
+                        statusDiv.innerHTML = html;
+                    }
+                }, 2000);
+            } else {
+                html += `<div class="status error">
+                    Éligibilité PWA: ❌ Critères manquants
+                </div>`;
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+        
         // Vérifications automatiques au chargement
         window.addEventListener('load', () => {
             checkPWAStatus();
             checkServiceWorker();
             checkManifest();
             checkCache();
+            testPWAInstall();
         });
     </script>
 </body>

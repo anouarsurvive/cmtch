@@ -31,16 +31,20 @@ import sqlite3
 from datetime import datetime, date, time, timedelta
 
 # Import du service de stockage d'images ImgBB
+# Ajouter le répertoire courant au path pour s'assurer que l'import fonctionne
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 try:
-    from photo_upload_service_imgbb import upload_photo_to_imgbb, test_imgbb_system
-except ImportError:
-    # Fallback si l'import échoue
-    import sys
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    if current_dir not in sys.path:
-        sys.path.insert(0, current_dir)
-    from photo_upload_service_imgbb import upload_photo_to_imgbb, test_imgbb_system
+    from photo_upload_service_imgbb import upload_photo_to_imgbb, test_imgbb_system  # type: ignore
+except ImportError as e:
+    # Si l'import échoue, créer des fonctions de fallback
+    print(f"Attention: Impossible d'importer photo_upload_service_imgbb: {e}")
+    def upload_photo_to_imgbb(file_data: bytes, filename: str) -> Dict[str, Any]:
+        return {'success': False, 'error': 'Service d\'upload d\'images non disponible'}
+    def test_imgbb_system() -> Dict[str, Any]:
+        return {'status': 'error', 'message': 'Service d\'upload d\'images non disponible', 'imgbb_working': False}
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 import smtplib
@@ -571,6 +575,364 @@ def hash_password(password: str) -> str:
 # Ce système sauvegarde et restaure automatiquement les données
 # pour éviter la perte lors des redémarrages de Render
 
+def backup_database():
+    """Crée une sauvegarde de la base de données."""
+    try:
+        import shutil
+        from datetime import datetime
+        
+        # Créer le dossier de sauvegarde s'il n'existe pas
+        backup_dir = Path("backups")
+        backup_dir.mkdir(exist_ok=True)
+        
+        # Nom du fichier de sauvegarde avec timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"backup_{timestamp}.db"
+        backup_path = backup_dir / backup_filename
+        
+        # Vérifier le type de base de données
+        database_url = os.getenv('DATABASE_URL')
+        
+        if database_url and 'mysql://' in database_url:
+            # Pour MySQL, on ne peut pas faire une copie directe du fichier
+            # On va exporter les données en SQL
+            return backup_mysql_database(backup_path)
+        elif database_url:
+            # Pour PostgreSQL, on ne peut pas faire une copie directe du fichier
+            # On va exporter les données en SQL
+            return backup_postgresql_database(backup_path)
+        else:
+            # Pour SQLite, on peut copier le fichier directement
+            source_db = Path("database.db")
+            if source_db.exists():
+                shutil.copy2(source_db, backup_path)
+                print(f"✅ Sauvegarde SQLite créée: {backup_path}")
+                return str(backup_path)
+            else:
+                print("❌ Fichier de base de données SQLite non trouvé")
+                return None
+                
+    except Exception as e:
+        print(f"❌ Erreur lors de la sauvegarde: {e}")
+        return None
+
+def backup_mysql_database(backup_path):
+    """Crée une sauvegarde de la base de données MySQL."""
+    try:
+        import mysql.connector
+        
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return None
+            
+        # Parser l'URL MySQL
+        url_parts = database_url.replace('mysql://', '').split('@')
+        user_pass = url_parts[0].split(':')
+        host_db = url_parts[1].split('/')
+        host_port = host_db[0].split(':')
+        
+        user = user_pass[0]
+        password = user_pass[1]
+        host = host_port[0]
+        port = int(host_port[1]) if len(host_port) > 1 else 3306
+        database = host_db[1]
+        
+        # Connexion à MySQL
+        conn = mysql.connector.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database=database
+        )
+        
+        # Créer le fichier de sauvegarde SQL
+        sql_backup_path = str(backup_path).replace('.db', '.sql')
+        
+        with open(sql_backup_path, 'w', encoding='utf-8') as f:
+            # Obtenir la liste des tables
+            cursor = conn.cursor()
+            cursor.execute("SHOW TABLES")
+            tables = cursor.fetchall()
+            
+            for table in tables:
+                table_name = table[0]
+                f.write(f"\n-- Table: {table_name}\n")
+                f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n")
+                
+                # Obtenir la structure de la table
+                cursor.execute(f"SHOW CREATE TABLE `{table_name}`")
+                create_table = cursor.fetchone()
+                f.write(f"{create_table[1]};\n\n")
+                
+                # Obtenir les données de la table
+                cursor.execute(f"SELECT * FROM `{table_name}`")
+                rows = cursor.fetchall()
+                
+                if rows:
+                    # Obtenir les noms des colonnes
+                    cursor.execute(f"DESCRIBE `{table_name}`")
+                    columns = [col[0] for col in cursor.fetchall()]
+                    
+                    for row in rows:
+                        values = []
+                        for value in row:
+                            if value is None:
+                                values.append('NULL')
+                            elif isinstance(value, str):
+                                values.append(f"'{value.replace("'", "''")}'")
+                            else:
+                                values.append(str(value))
+                        
+                        f.write(f"INSERT INTO `{table_name}` (`{'`, `'.join(columns)}`) VALUES ({', '.join(values)});\n")
+        
+        conn.close()
+        print(f"✅ Sauvegarde MySQL créée: {sql_backup_path}")
+        return sql_backup_path
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la sauvegarde MySQL: {e}")
+        return None
+
+def backup_postgresql_database(backup_path):
+    """Crée une sauvegarde de la base de données PostgreSQL."""
+    try:
+        import psycopg2
+        
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return None
+            
+        # Connexion à PostgreSQL
+        conn = psycopg2.connect(database_url)
+        cursor = conn.cursor()
+        
+        # Créer le fichier de sauvegarde SQL
+        sql_backup_path = str(backup_path).replace('.db', '.sql')
+        
+        with open(sql_backup_path, 'w', encoding='utf-8') as f:
+            # Obtenir la liste des tables
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            """)
+            tables = cursor.fetchall()
+            
+            for table in tables:
+                table_name = table[0]
+                f.write(f"\n-- Table: {table_name}\n")
+                f.write(f"DROP TABLE IF EXISTS \"{table_name}\" CASCADE;\n")
+                
+                # Obtenir la structure de la table
+                cursor.execute(f"""
+                    SELECT column_name, data_type, is_nullable, column_default
+                    FROM information_schema.columns
+                    WHERE table_name = '{table_name}' AND table_schema = 'public'
+                    ORDER BY ordinal_position
+                """)
+                columns = cursor.fetchall()
+                
+                if columns:
+                    f.write(f"CREATE TABLE \"{table_name}\" (\n")
+                    column_defs = []
+                    for col in columns:
+                        col_name, data_type, is_nullable, default_val = col
+                        col_def = f'    "{col_name}" {data_type}'
+                        if is_nullable == 'NO':
+                            col_def += ' NOT NULL'
+                        if default_val:
+                            col_def += f' DEFAULT {default_val}'
+                        column_defs.append(col_def)
+                    f.write(',\n'.join(column_defs))
+                    f.write("\n);\n\n")
+                
+                # Obtenir les données de la table
+                cursor.execute(f'SELECT * FROM "{table_name}"')
+                rows = cursor.fetchall()
+                
+                if rows:
+                    # Obtenir les noms des colonnes
+                    column_names = [desc[0] for desc in cursor.description]
+                    
+                    for row in rows:
+                        values = []
+                        for value in row:
+                            if value is None:
+                                values.append('NULL')
+                            elif isinstance(value, str):
+                                values.append(f"'{value.replace("'", "''")}'")
+                            else:
+                                values.append(str(value))
+                        
+                        columns_str = '", "'.join(column_names)
+                        f.write(f'INSERT INTO "{table_name}" ("{columns_str}") VALUES ({", ".join(values)});\n')
+        
+        conn.close()
+        print(f"✅ Sauvegarde PostgreSQL créée: {sql_backup_path}")
+        return sql_backup_path
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la sauvegarde PostgreSQL: {e}")
+        return None
+
+def find_latest_backup():
+    """Trouve la sauvegarde la plus récente."""
+    try:
+        backup_dir = Path("backups")
+        if not backup_dir.exists():
+            return None
+            
+        # Chercher les fichiers de sauvegarde
+        backup_files = []
+        for file_path in backup_dir.glob("backup_*.db"):
+            backup_files.append(file_path)
+        for file_path in backup_dir.glob("backup_*.sql"):
+            backup_files.append(file_path)
+            
+        if not backup_files:
+            return None
+            
+        # Retourner le fichier le plus récent
+        latest_backup = max(backup_files, key=lambda x: x.stat().st_mtime)
+        return str(latest_backup)
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la recherche de sauvegarde: {e}")
+        return None
+
+def restore_database(backup_path):
+    """Restaure la base de données depuis une sauvegarde."""
+    try:
+        backup_path = Path(backup_path)
+        if not backup_path.exists():
+            print(f"❌ Fichier de sauvegarde non trouvé: {backup_path}")
+            return False
+            
+        # Vérifier le type de base de données
+        database_url = os.getenv('DATABASE_URL')
+        
+        if database_url and 'mysql://' in database_url:
+            return restore_mysql_database(backup_path)
+        elif database_url:
+            return restore_postgresql_database(backup_path)
+        else:
+            return restore_sqlite_database(backup_path)
+            
+    except Exception as e:
+        print(f"❌ Erreur lors de la restauration: {e}")
+        return False
+
+def restore_sqlite_database(backup_path):
+    """Restaure la base de données SQLite depuis une sauvegarde."""
+    try:
+        import shutil
+        
+        # Sauvegarder la base actuelle
+        current_db = Path("database.db")
+        if current_db.exists():
+            backup_current = Path("database_backup_before_restore.db")
+            shutil.copy2(current_db, backup_current)
+            print(f"✅ Sauvegarde de la base actuelle: {backup_current}")
+        
+        # Restaurer depuis la sauvegarde
+        shutil.copy2(backup_path, current_db)
+        print(f"✅ Base de données SQLite restaurée depuis: {backup_path}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la restauration SQLite: {e}")
+        return False
+
+def restore_mysql_database(backup_path):
+    """Restaure la base de données MySQL depuis une sauvegarde."""
+    try:
+        import mysql.connector
+        
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return False
+            
+        # Parser l'URL MySQL
+        url_parts = database_url.replace('mysql://', '').split('@')
+        user_pass = url_parts[0].split(':')
+        host_db = url_parts[1].split('/')
+        host_port = host_db[0].split(':')
+        
+        user = user_pass[0]
+        password = user_pass[1]
+        host = host_port[0]
+        port = int(host_port[1]) if len(host_port) > 1 else 3306
+        database = host_db[1]
+        
+        # Connexion à MySQL
+        conn = mysql.connector.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database=database
+        )
+        
+        # Lire et exécuter le fichier SQL
+        with open(backup_path, 'r', encoding='utf-8') as f:
+            sql_content = f.read()
+            
+        cursor = conn.cursor()
+        
+        # Exécuter les commandes SQL une par une
+        for statement in sql_content.split(';'):
+            statement = statement.strip()
+            if statement:
+                try:
+                    cursor.execute(statement)
+                except Exception as e:
+                    print(f"⚠️ Erreur lors de l'exécution de: {statement[:50]}... - {e}")
+        
+        conn.commit()
+        conn.close()
+        print(f"✅ Base de données MySQL restaurée depuis: {backup_path}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la restauration MySQL: {e}")
+        return False
+
+def restore_postgresql_database(backup_path):
+    """Restaure la base de données PostgreSQL depuis une sauvegarde."""
+    try:
+        import psycopg2
+        
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return False
+            
+        # Connexion à PostgreSQL
+        conn = psycopg2.connect(database_url)
+        cursor = conn.cursor()
+        
+        # Lire et exécuter le fichier SQL
+        with open(backup_path, 'r', encoding='utf-8') as f:
+            sql_content = f.read()
+            
+        # Exécuter les commandes SQL une par une
+        for statement in sql_content.split(';'):
+            statement = statement.strip()
+            if statement:
+                try:
+                    cursor.execute(statement)
+                except Exception as e:
+                    print(f"⚠️ Erreur lors de l'exécution de: {statement[:50]}... - {e}")
+        
+        conn.commit()
+        conn.close()
+        print(f"✅ Base de données PostgreSQL restaurée depuis: {backup_path}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la restauration PostgreSQL: {e}")
+        return False
+
 def auto_backup_system():
     """Système de sauvegarde automatique pour préserver les données sur Render."""
     try:
@@ -599,7 +961,6 @@ def auto_backup_system():
             if users_count > 0:
                 print(f"✅ Base de données contient {users_count} utilisateur(s) - Sauvegarde uniquement")
                 # Si des données existent, faire seulement une sauvegarde
-                from backup_auto import backup_database
                 backup_file = backup_database()
                 if backup_file:
                     print(f"✅ Sauvegarde créée: {backup_file}")
@@ -608,7 +969,6 @@ def auto_backup_system():
             else:
                 print("📭 Base de données vide - Tentative de restauration")
                 # Si la base est vide, essayer de restaurer
-                from backup_auto import find_latest_backup, restore_database
                 latest_backup = find_latest_backup()
                 if latest_backup:
                     print(f"🔄 Restauration depuis {latest_backup}")
@@ -626,11 +986,7 @@ def auto_backup_system():
             
     except Exception as e:
         print(f"❌ Erreur dans le système de sauvegarde automatique: {e}")
-        # Ne pas bloquer le démarrage de l'application
 
-# IMPORTANT : DÉSACTIVATION COMPLÈTE DU SYSTÈME DE SAUVEGARDE AUTOMATIQUE
-# Le système de sauvegarde automatique est DÉSACTIVÉ par défaut
-# pour éviter toute interférence avec les données existantes
 #
 # Si vous voulez l'activer, utilisez l'endpoint /enable-auto-backup
 # Si vous voulez le désactiver, utilisez l'endpoint /disable-auto-backup
@@ -4258,8 +4614,6 @@ async def fix_admin_endpoint():
 async def restore_backup_endpoint():
     """Point de terminaison pour forcer la restauration depuis une sauvegarde."""
     try:
-        from backup_auto import find_latest_backup, restore_database
-        
         # Trouver la sauvegarde la plus récente
         latest_backup = find_latest_backup()
         
@@ -4380,254 +4734,10 @@ async def enable_auto_backup_endpoint():
         }
 
 
-@app.get("/test-hostgator-image")
-async def test_hostgator_image_endpoint():
-    """Test pour vérifier l'accessibilité des images HostGator"""
-    try:
-        # Test direct via FTP pour vérifier l'existence des fichiers
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Vérifier l'existence des fichiers
-        default_exists = storage.photo_exists("default_article.jpg")
-        article_exists = storage.photo_exists("img_1756888991.jpg")
-        
-        # Lister les fichiers dans le dossier
-        try:
-            success, files_list, message = storage.list_photos()
-            if not success:
-                files_list = f"Erreur: {message}"
-        except:
-            files_list = "Erreur lors du listing"
-        
-        return {
-            "default_image": {
-                "filename": "default_article.jpg",
-                "exists": default_exists,
-                "url": "https://www.cmtch.online/static/article_images/default_article.jpg"
-            },
-            "article_image": {
-                "filename": "img_1756888991.jpg", 
-                "exists": article_exists,
-                "url": "https://www.cmtch.online/static/article_images/img_1756888991.jpg"
-            },
-            "files_in_directory": files_list
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/fix-hostgator-permissions")
-async def fix_hostgator_permissions_endpoint():
-    """Corrige les permissions des images sur HostGator"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        ftp.cwd(storage.remote_photos_dir)
-        
-        # Lister tous les fichiers
-        files = ftp.nlst()
-        fixed_count = 0
-        
-        for file in files:
-            if file in {'.', '..'}:
-                continue
-            try:
-                # Appliquer les permissions 644
-                ftp.sendcmd(f"SITE CHMOD 644 {file}")
-                fixed_count += 1
-                print(f"✅ Permissions 644 appliquées à {file}")
-            except Exception as e:
-                print(f"⚠️ Erreur permissions pour {file}: {e}")
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "message": f"Permissions corrigées pour {fixed_count} fichiers",
-            "fixed_count": fixed_count,
-            "total_files": len([f for f in files if f not in {'.', '..'}])
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/force-fix-permissions")
-async def force_fix_permissions_endpoint():
-    """Force la correction des permissions avec une méthode alternative"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        import io
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        ftp.cwd(storage.remote_photos_dir)
-        
-        # Lister tous les fichiers
-        files = ftp.nlst()
-        fixed_count = 0
-        
-        for file in files:
-            if file in {'.', '..', '.htaccess'}:
-                continue
-            
-            try:
-                # Méthode 1: SITE CHMOD
-                try:
-                    ftp.sendcmd(f"SITE CHMOD 644 {file}")
-                    print(f"✅ Permissions 644 appliquées à {file} (SITE CHMOD)")
-                    fixed_count += 1
-                except:
-                    # Méthode 2: SITE CHMOD avec chemin complet
-                    try:
-                        ftp.sendcmd(f"SITE CHMOD 644 {storage.remote_photos_dir}/{file}")
-                        print(f"✅ Permissions 644 appliquées à {file} (SITE CHMOD complet)")
-                        fixed_count += 1
-                    except:
-                        # Méthode 3: Re-upload avec permissions
-                        try:
-                            # Lire le fichier
-                            file_data = io.BytesIO()
-                            ftp.retrbinary(f'RETR {file}', file_data.write)
-                            file_data.seek(0)
-                            
-                            # Supprimer et re-uploader
-                            ftp.delete(file)
-                            ftp.storbinary(f'STOR {file}', file_data)
-                            
-                            # Essayer les permissions
-                            try:
-                                ftp.sendcmd(f"SITE CHMOD 644 {file}")
-                            except:
-                                pass
-                                
-                            print(f"✅ Fichier {file} re-uploadé avec permissions")
-                            fixed_count += 1
-                        except Exception as e:
-                            print(f"❌ Erreur pour {file}: {e}")
-                            
-            except Exception as e:
-                print(f"❌ Erreur générale pour {file}: {e}")
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "message": f"Permissions forcées pour {fixed_count} fichiers",
-            "fixed_count": fixed_count,
-            "total_files": len([f for f in files if f not in {'.', '..', '.htaccess'}])
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/test-root-access")
-async def test_root_access_endpoint():
-    """Teste l'accès direct depuis la racine du site"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        import io
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        
-        # Aller dans la racine
-        ftp.cwd("/public_html")
-        
-        # Copier une image de test directement dans la racine
-        test_image = "test_image.jpg"
-        
-        # Lire une image existante
-        ftp.cwd("/public_html/photos")
-        file_data = io.BytesIO()
-        ftp.retrbinary(f'RETR img_1756895548.jpg', file_data.write)
-        file_data.seek(0)
-        
-        # Écrire dans la racine
-        ftp.cwd("/public_html")
-        ftp.storbinary(f'STOR {test_image}', file_data)
-        
-        # Appliquer les permissions
-        try:
-            ftp.sendcmd(f"SITE CHMOD 644 {test_image}")
-        except:
-            pass
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "message": f"Image de test copiée dans la racine",
-            "test_url": f"https://www.cmtch.online/{test_image}",
-            "instructions": "Testez cette URL pour voir si l'image est accessible"
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/image/{filename}")
-async def serve_image(filename: str):
-    """Sert les images via l'application (contournement du blocage HostGator)"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        import io
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        
-        # Aller dans la racine
-        ftp.cwd("/public_html")
-        
-        # Lire le fichier image
-        file_data = io.BytesIO()
-        ftp.retrbinary(f'RETR {filename}', file_data.write)
-        file_data.seek(0)
-        
-        ftp.quit()
-        
-        # Déterminer le type MIME
-        if filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
-            media_type = "image/jpeg"
-        elif filename.lower().endswith('.png'):
-            media_type = "image/png"
-        elif filename.lower().endswith('.gif'):
-            media_type = "image/gif"
-        elif filename.lower().endswith('.svg'):
-            media_type = "image/svg+xml"
-        else:
-            media_type = "application/octet-stream"
-        
-        # Retourner l'image
-        return Response(
-            content=file_data.getvalue(),
-            media_type=media_type,
-            headers={
-                "Cache-Control": "public, max-age=31536000",  # Cache 1 an
-                "Content-Disposition": f"inline; filename={filename}"
-            }
-        )
-        
-    except Exception as e:
-        return {"error": f"Image non trouvée: {str(e)}"}
 
 @app.get("/debug-table-structure")
 async def debug_table_structure_endpoint():
@@ -5018,414 +5128,12 @@ async def force_update_all_image_urls_endpoint():
     except Exception as e:
         return {"error": str(e)}
 
-@app.get("/update-database-to-root-urls")
-async def update_database_to_root_urls_endpoint():
-    """Met à jour la base de données pour utiliser les URLs racine"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import sqlite3
-        
-        # Connexion à la base de données (utiliser database.db)
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
-        
-        # Récupérer tous les articles
-        cursor.execute("SELECT id, image_path FROM articles WHERE image_path IS NOT NULL")
-        articles = cursor.fetchall()
-        
-        updated_count = 0
-        
-        for article_id, image_path in articles:
-            if not image_path:
-                continue
-            
-            # Extraire le nom du fichier
-            if '/' in image_path:
-                filename = image_path.split('/')[-1]
-            else:
-                filename = image_path
-            
-            # Nouvelle URL via notre endpoint
-            new_url = f"https://www.cmtch.online/image/{filename}"
-            
-            # Mettre à jour la base de données
-            cursor.execute("UPDATE articles SET image_path = ? WHERE id = ?", (new_url, article_id))
-            updated_count += 1
-            
-            print(f"✅ Article {article_id}: {image_path} -> {new_url}")
-        
-        conn.commit()
-        conn.close()
-        
-        return {
-            "status": "success",
-            "message": f"{updated_count} articles mis à jour avec les URLs racine",
-            "updated_count": updated_count,
-            "new_base_url": "https://www.cmtch.online/image"
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/migrate-all-to-root")
-async def migrate_all_to_root_endpoint():
-    """Migre TOUTES les images vers la racine du site"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        import io
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        
-        # Aller dans le dossier source
-        ftp.cwd("/public_html/photos")
-        source_files = ftp.nlst()
-        
-        # Aller dans la racine
-        ftp.cwd("/public_html")
-        
-        migrated_count = 0
-        
-        for file in source_files:
-            if file in {'.', '..', '.htaccess'}:
-                continue
-            
-            try:
-                # Lire le fichier source
-                file_data = io.BytesIO()
-                ftp.retrbinary(f'RETR /public_html/photos/{file}', file_data.write)
-                file_data.seek(0)
-                
-                # Écrire dans la racine
-                ftp.storbinary(f'STOR {file}', file_data)
-                
-                # Appliquer les permissions
-                try:
-                    ftp.sendcmd(f"SITE CHMOD 644 {file}")
-                except:
-                    pass
-                
-                migrated_count += 1
-                print(f"✅ Fichier {file} migré vers la racine")
-                
-            except Exception as e:
-                print(f"❌ Erreur migration {file}: {e}")
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "message": f"{migrated_count} fichiers migrés vers la racine",
-            "migrated_count": migrated_count,
-            "new_base_url": "https://www.cmtch.online",
-            "test_urls": [
-                "https://www.cmtch.online/img_1756895548.jpg",
-                "https://www.cmtch.online/default_article.jpg"
-            ]
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/migrate-to-photos-folder")
-async def migrate_to_photos_folder_endpoint():
-    """Migre les images vers le dossier /public_html/photos/ qui fonctionne"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        import io
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        
-        # Aller dans le dossier source
-        ftp.cwd("/public_html/static/article_images")
-        source_files = ftp.nlst()
-        
-        # Aller dans le dossier destination
-        ftp.cwd("/public_html/photos")
-        
-        migrated_count = 0
-        
-        for file in source_files:
-            if file in {'.', '..', '.htaccess'}:
-                continue
-            
-            try:
-                # Lire le fichier source
-                file_data = io.BytesIO()
-                ftp.retrbinary(f'RETR /public_html/static/article_images/{file}', file_data.write)
-                file_data.seek(0)
-                
-                # Écrire dans le dossier destination
-                ftp.storbinary(f'STOR {file}', file_data)
-                
-                # Appliquer les permissions
-                try:
-                    ftp.sendcmd(f"SITE CHMOD 644 {file}")
-                except:
-                    pass
-                
-                migrated_count += 1
-                print(f"✅ Fichier {file} migré vers /public_html/photos/")
-                
-            except Exception as e:
-                print(f"❌ Erreur migration {file}: {e}")
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "message": f"{migrated_count} fichiers migrés vers /public_html/photos/",
-            "migrated_count": migrated_count,
-            "new_base_url": "https://www.cmtch.online/photos"
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/diagnose-server-config")
-async def diagnose_server_config_endpoint():
-    """Diagnostique la configuration du serveur web"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        
-        # Vérifier la structure des dossiers
-        ftp.cwd("/public_html")
-        root_files = ftp.nlst()
-        
-        ftp.cwd("/public_html/static")
-        static_files = ftp.nlst()
-        
-        ftp.cwd("/public_html/static/article_images")
-        images_files = ftp.nlst()
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "diagnosis": {
-                "root_files": root_files,
-                "static_files": static_files,
-                "images_files": images_files,
-                "base_url": storage.base_url,
-                "remote_dir": storage.remote_photos_dir
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
 
-@app.get("/create-parent-htaccess")
-async def create_parent_htaccess_endpoint():
-    """Crée un fichier .htaccess dans le dossier parent pour permettre l'accès aux images"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Contenu du fichier .htaccess pour le dossier parent
-        htaccess_content = """# Permettre l'accès aux images dans tous les sous-dossiers
-<Directory "/public_html/static">
-    Order allow,deny
-    Allow from all
-    
-    # Permettre l'accès aux fichiers d'images
-    <FilesMatch "\\.(jpg|jpeg|png|gif|svg|webp)$">
-        Order allow,deny
-        Allow from all
-    </FilesMatch>
-</Directory>
 
-# Règles pour le dossier article_images
-<Directory "/public_html/static/article_images">
-    Order allow,deny
-    Allow from all
-    
-    # Permettre l'accès direct aux fichiers
-    <Files "*">
-        Order allow,deny
-        Allow from all
-    </Files>
-</Directory>
 
-# Désactiver la protection des répertoires
-Options -Indexes
-
-# Permettre l'accès aux fichiers statiques
-<Files "*.jpg">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.jpeg">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.png">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.gif">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.svg">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.webp">
-    Order allow,deny
-    Allow from all
-</Files>
-"""
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        
-        # Aller dans le dossier parent /public_html/static/
-        ftp.cwd("/public_html/static")
-        
-        # Créer le fichier .htaccess
-        from io import BytesIO
-        ftp.storbinary('STOR .htaccess', BytesIO(htaccess_content.encode('utf-8')))
-        
-        # Appliquer les permissions
-        try:
-            ftp.sendcmd("SITE CHMOD 644 .htaccess")
-        except:
-            pass
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "message": "Fichier .htaccess créé dans le dossier parent",
-            "location": "/public_html/static/.htaccess"
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/create-htaccess")
-async def create_htaccess_endpoint():
-    """Crée un fichier .htaccess pour permettre l'accès aux images"""
-    try:
-        from photo_upload_service_hostgator import HostGatorPhotoStorage
-        import ftplib
-        
-        storage = HostGatorPhotoStorage()
-        
-        # Contenu du fichier .htaccess
-        htaccess_content = """# Permettre l'accès aux images
-<Files "*.jpg">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.jpeg">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.png">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.gif">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.svg">
-    Order allow,deny
-    Allow from all
-</Files>
-<Files "*.webp">
-    Order allow,deny
-    Allow from all
-</Files>
-
-# Désactiver la protection des répertoires
-Options -Indexes
-
-# Permettre l'accès direct aux fichiers
-<Directory "/public_html/static/article_images">
-    Order allow,deny
-    Allow from all
-</Directory>
-"""
-        
-        # Connexion FTP
-        ftp = ftplib.FTP(storage.ftp_host)
-        ftp.login(storage.ftp_user, storage.ftp_password)
-        ftp.cwd(storage.remote_photos_dir)
-        
-        # Créer le fichier .htaccess
-        from io import BytesIO
-        ftp.storbinary('STOR .htaccess', BytesIO(htaccess_content.encode('utf-8')))
-        
-        # Appliquer les permissions
-        try:
-            ftp.sendcmd("SITE CHMOD 644 .htaccess")
-        except:
-            pass
-        
-        ftp.quit()
-        
-        return {
-            "status": "success",
-            "message": "Fichier .htaccess créé avec succès",
-            "location": f"{storage.remote_photos_dir}/.htaccess"
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/test-image-access")
-async def test_image_access_endpoint():
-    """Test simple pour vérifier l'accessibilité des images"""
-    try:
-        import requests
-        
-        # Test avec un timeout plus court
-        test_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
-        
-        try:
-            response = requests.head(test_url, timeout=5)
-            return {
-                "url": test_url,
-                "status_code": response.status_code,
-                "accessible": response.status_code == 200,
-                "headers": dict(response.headers)
-            }
-        except requests.exceptions.Timeout:
-            return {
-                "url": test_url,
-                "error": "Timeout - Le serveur ne répond pas",
-                "accessible": False
-            }
-        except Exception as e:
-            return {
-                "url": test_url,
-                "error": str(e),
-                "accessible": False
-            }
-            
-    except Exception as e:
-        return {"error": str(e)}
 
 @app.get("/force-cache-refresh")
 async def force_cache_refresh_endpoint():
@@ -5791,35 +5499,6 @@ async def check_backup_status_endpoint():
         }
 
 
-@app.get("/test-photo-upload")
-async def test_photo_upload_endpoint():
-    """Test du système de stockage des photos"""
-    try:
-        from photo_upload_service_hostgator import upload_photo_to_hostgator
-        from photo_upload_service import test_photo_system
-        
-        # Exécuter le test
-        import io
-        import sys
-        from contextlib import redirect_stdout
-        
-        f = io.StringIO()
-        with redirect_stdout(f):
-            test_photo_system()
-        
-        output = f.getvalue()
-        
-        return {
-            "status": "success",
-            "message": "Test du système de photos terminé",
-            "output": output
-        }
-        
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Erreur lors du test: {str(e)}"
-        }
 
 @app.get("/create-admin")
 async def create_admin_endpoint():
@@ -5885,9 +5564,8 @@ async def backup_database_endpoint(request: Request):
                 "message": "Accès refusé - droits administrateur requis"
             }
         
-        # Importer et exécuter la sauvegarde
-        from backup_database import backup_postgresql_db
-        result = backup_postgresql_db()
+        # Utiliser la fonction de sauvegarde existante
+        result = backup_database()
         
         return result
         
@@ -5909,9 +5587,29 @@ async def list_backups_endpoint(request: Request):
                 "message": "Accès refusé - droits administrateur requis"
             }
         
-        # Importer et exécuter la liste des sauvegardes
-        from backup_database import list_backups
-        result = list_backups()
+        # Lister les sauvegardes disponibles
+        backup_dir = Path("backups")
+        if not backup_dir.exists():
+            return {
+                "status": "success",
+                "message": "Aucune sauvegarde trouvée",
+                "backups": []
+            }
+        
+        backup_files = []
+        for file_path in backup_dir.glob("backup_*"):
+            backup_files.append({
+                "filename": file_path.name,
+                "path": str(file_path),
+                "size": file_path.stat().st_size,
+                "modified": file_path.stat().st_mtime
+            })
+        
+        result = {
+            "status": "success",
+            "message": f"{len(backup_files)} sauvegarde(s) trouvée(s)",
+            "backups": backup_files
+        }
         
         return result
         

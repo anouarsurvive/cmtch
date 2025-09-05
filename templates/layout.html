@@ -53,9 +53,9 @@
         *{box-sizing:border-box}html{scroll-behavior:smooth}body{font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f8fafc;color:#1f2937;line-height:1.6;margin:0;padding:0;font-weight:400;overflow-x:hidden}
         .navbar{background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%)!important;box-shadow:0 2px 4px rgba(0,0,0,.1);padding:.25rem 0;transition:all .3s ease;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         .navbar-brand{display:flex;align-items:center;font-weight:700;font-size:1rem;color:#fff!important;text-decoration:none;transition:transform .3s ease}
-        .navbar-nav{display:flex!important;flex-direction:row!important;align-items:center!important;margin:0!important;padding:0!important}
-        .navbar-nav .nav-item{display:inline-block!important;margin:0 .1rem!important}
-        .navbar-nav .nav-link{color:#fff!important;font-weight:500;padding:.25rem .5rem!important;margin:0!important;border-radius:.25rem;transition:all .3s ease;font-size:.85rem;white-space:nowrap!important;display:inline-block!important}
+        .navbar-nav{display:flex;flex-direction:row;align-items:center;margin:0;padding:0}
+        .navbar-nav .nav-item{display:inline-block;margin:0 .1rem}
+        .navbar-nav .nav-link{color:#fff!important;font-weight:500;padding:.25rem .5rem!important;margin:0!important;border-radius:.25rem;transition:all .3s ease;font-size:.85rem;white-space:nowrap;display:inline-block}
         .navbar-nav .nav-link:hover{background-color:rgba(255,255,255,.1);transform:translateY(-1px)}
         .navbar-brand img{height:30px!important;width:auto;margin-right:.5rem!important}
         .navbar-brand .small{font-size:.75rem!important}
@@ -70,6 +70,7 @@
         .section-title{text-align:center;font-size:clamp(2rem,4vw,3rem);font-weight:800;margin-bottom:4rem;color:#1e3a8a;position:relative;letter-spacing:-.02em}
         .card{border:none;border-radius:.75rem;overflow:hidden;transition:all .4s cubic-bezier(.4,0,.2,1);background:#fff}
         .card:hover{transform:translateY(-8px);box-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 10px 10px -5px rgba(0,0,0,.04)}
+        @media (max-width:991px){.navbar-nav{flex-direction:column!important;width:100%}.navbar-nav .nav-item{display:block!important;width:100%;margin:0}.navbar-nav .nav-link{width:100%;text-align:left;padding:.75rem 1rem!important;white-space:normal!important;display:block!important}}
         @media (max-width:768px){.hero-content h1{font-size:clamp(2rem,8vw,3rem)}.section-title{font-size:clamp(1.75rem,6vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}section{padding:80px 0}}
         @media (max-width:576px){.hero-content h1{font-size:clamp(1.75rem,10vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}}
         .text-gradient{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -124,10 +125,6 @@
                         </a>
                     </li>
                     
-
-                    
-
-                    
                     {% if not user %}
                         <!-- Utilisateur non connecté -->
                         <li class="nav-item">
@@ -140,9 +137,26 @@
                                 <i class="fas fa-sign-in-alt me-1"></i>Connexion
                             </a>
                         </li>
-                                        {% else %}
+                    {% else %}
                         <!-- Utilisateur connecté -->
                         {% if user.is_admin %}
+                            <!-- Menu admin - version mobile -->
+                            <li class="nav-item d-lg-none">
+                                <a class="nav-link" href="/admin/membres">
+                                    <i class="fas fa-users me-1"></i>Gestion des membres
+                                </a>
+                            </li>
+                            <li class="nav-item d-lg-none">
+                                <a class="nav-link" href="/admin/reservations">
+                                    <i class="fas fa-calendar me-1"></i>Gestion des réservations
+                                </a>
+                            </li>
+                            <li class="nav-item d-lg-none">
+                                <a class="nav-link" href="/admin/articles">
+                                    <i class="fas fa-newspaper me-1"></i>Gestion des articles
+                                </a>
+                            </li>
+                            
                             <!-- Menu admin - version desktop -->
                             <li class="nav-item dropdown d-none d-lg-block">
                                 <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -167,6 +181,25 @@
                                 </ul>
                             </li>
                         {% endif %}
+                        
+                        <!-- Menu utilisateur - version mobile -->
+                        {% if user.validated %}
+                            <li class="nav-item d-lg-none">
+                                <a class="nav-link" href="/reservations">
+                                    <i class="fas fa-calendar-check me-1"></i>Réservations
+                                </a>
+                            </li>
+                            <li class="nav-item d-lg-none">
+                                <a class="nav-link" href="/espace">
+                                    <i class="fas fa-user me-1"></i>Mon espace
+                                </a>
+                            </li>
+                        {% endif %}
+                        <li class="nav-item d-lg-none">
+                            <a class="nav-link" href="/deconnexion">
+                                <i class="fas fa-sign-out-alt me-1"></i>Déconnexion
+                            </a>
+                        </li>
                         
                         <!-- Menu utilisateur - version desktop -->
                         <li class="nav-item dropdown d-none d-lg-block">
@@ -194,8 +227,6 @@
                                 </li>
                             </ul>
                         </li>
-                        
-
                     {% endif %}
                 </ul>
             </div>
@@ -274,8 +305,35 @@
     
     <!-- Script personnalisé pour les animations -->
     <script>
-        // Animation au scroll avec Intersection Observer
+        // Correction du menu mobile
         document.addEventListener('DOMContentLoaded', function() {
+            // Forcer l'affichage correct du menu mobile
+            const navbarToggler = document.querySelector('.navbar-toggler');
+            const navbarCollapse = document.querySelector('.navbar-collapse');
+            
+            if (navbarToggler && navbarCollapse) {
+                navbarToggler.addEventListener('click', function() {
+                    // Attendre que Bootstrap ait fait son travail
+                    setTimeout(() => {
+                        if (navbarCollapse.classList.contains('show')) {
+                            // Menu ouvert - s'assurer que les styles sont corrects
+                            navbarCollapse.style.display = 'block';
+                            const navLinks = navbarCollapse.querySelectorAll('.nav-link');
+                            navLinks.forEach(link => {
+                                link.style.display = 'block';
+                                link.style.width = '100%';
+                                link.style.textAlign = 'left';
+                                link.style.whiteSpace = 'normal';
+                            });
+                        } else {
+                            // Menu fermé
+                            navbarCollapse.style.display = 'none';
+                        }
+                    }, 10);
+                });
+            }
+            
+            // Animation au scroll avec Intersection Observer
             // Ajouter la classe active au lien de navigation actuel
             const currentPath = window.location.pathname;
             const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
@@ -645,7 +703,10 @@
         
         // Gestion de l'installation PWA
         let deferredPrompt;
+        let installButton = null;
+        
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('beforeinstallprompt event fired');
             // Empêcher l'affichage automatique du prompt
             e.preventDefault();
             deferredPrompt = e;
@@ -655,34 +716,77 @@
         });
         
         function showInstallButton() {
+            // Vérifier si le bouton existe déjà
+            if (installButton) {
+                return;
+            }
+            
+            // Vérifier si l'app est déjà installée
+            if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+                console.log('App already installed');
+                return;
+            }
+            
             // Créer un bouton d'installation
-            const installButton = document.createElement('button');
-            installButton.innerHTML = '<i class="fas fa-download"></i> Installer l\'app';
-            installButton.className = 'btn btn-primary btn-sm position-fixed';
-            installButton.style.cssText = 'bottom: 20px; right: 20px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+            installButton = document.createElement('button');
+            installButton.innerHTML = '<i class="fas fa-download me-2"></i>Installer l\'app';
+            installButton.className = 'btn btn-success btn-sm position-fixed';
+            installButton.style.cssText = `
+                bottom: 20px; 
+                right: 20px; 
+                z-index: 1000; 
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                border-radius: 25px;
+                padding: 10px 20px;
+                font-weight: 600;
+                animation: pulse 2s infinite;
+            `;
             installButton.onclick = installApp;
+            
+            // Ajouter des styles d'animation
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.05); }
+                    100% { transform: scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
             
             document.body.appendChild(installButton);
             
-            // Masquer le bouton après 10 secondes
+            // Masquer le bouton après 15 secondes
             setTimeout(() => {
-                if (installButton.parentNode) {
+                if (installButton && installButton.parentNode) {
                     installButton.remove();
+                    installButton = null;
                 }
-            }, 10000);
+            }, 15000);
         }
         
         function installApp() {
             if (deferredPrompt) {
+                console.log('Showing install prompt');
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then((choiceResult) => {
+                    console.log('User choice:', choiceResult.outcome);
                     if (choiceResult.outcome === 'accepted') {
                         console.log('Utilisateur a accepté l\'installation PWA');
+                        // Masquer le bouton après installation
+                        if (installButton) {
+                            installButton.remove();
+                            installButton = null;
+                        }
                     } else {
                         console.log('Utilisateur a refusé l\'installation PWA');
                     }
                     deferredPrompt = null;
                 });
+            } else {
+                console.log('No deferred prompt available');
+                // Fallback pour les navigateurs qui ne supportent pas beforeinstallprompt
+                alert('Pour installer cette application, utilisez le menu de votre navigateur (⋮) et sélectionnez "Ajouter à l\'écran d\'accueil" ou "Installer l\'application".');
             }
         }
         
@@ -690,9 +794,9 @@
         window.addEventListener('appinstalled', (evt) => {
             console.log('PWA installée avec succès');
             // Masquer le bouton d'installation
-            const installButton = document.querySelector('button[onclick="installApp()"]');
             if (installButton) {
                 installButton.remove();
+                installButton = null;
             }
         });
         
@@ -700,6 +804,37 @@
         if (window.matchMedia('(display-mode: standalone)').matches) {
             console.log('Application en mode standalone');
             document.body.classList.add('pwa-standalone');
+        }
+        
+        // Vérification périodique de l'éligibilité à l'installation
+        function checkInstallability() {
+            // Vérifier si l'app peut être installée
+            if ('serviceWorker' in navigator && 'PushManager' in window) {
+                console.log('App is installable');
+                
+                // Vérifier si l'événement beforeinstallprompt n'a pas encore été déclenché
+                if (!deferredPrompt && !installButton) {
+                    // Attendre un peu puis afficher le bouton si possible
+                    setTimeout(() => {
+                        if (!deferredPrompt && !installButton) {
+                            showInstallButton();
+                        }
+                    }, 3000);
+                }
+            } else {
+                console.log('App is not installable - missing features');
+            }
+        }
+        
+        // Vérifier l'installabilité au chargement et périodiquement
+        window.addEventListener('load', checkInstallability);
+        setInterval(checkInstallability, 10000); // Vérifier toutes les 10 secondes
+        
+        // Gestion des erreurs de service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('error', (event) => {
+                console.error('Service Worker error:', event);
+            });
         }
     </script>
 </body>
