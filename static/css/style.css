@@ -171,11 +171,13 @@ h3 {
     transform: translateY(-10px);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     backdrop-filter: blur(10px);
+    display: none !important;
 }
 
 .dropdown-menu.show {
     opacity: 1;
     transform: translateY(0);
+    display: block !important;
 }
 
 .dropdown-item {
@@ -1063,6 +1065,27 @@ footer p {
     }
     
     .navbar-nav .nav-item.d-none.d-lg-block {
+        display: none !important;
+    }
+    
+    /* Masquer les dropdowns sur mobile */
+    .navbar-nav .dropdown-menu {
+        display: none !important;
+        position: static !important;
+        float: none !important;
+        width: 100% !important;
+        margin-top: 0 !important;
+        background-color: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+    
+    .navbar-nav .dropdown-menu.show {
+        display: none !important;
+    }
+    
+    /* Masquer les dropdowns toggles sur mobile */
+    .navbar-nav .dropdown-toggle::after {
         display: none !important;
     }
 }

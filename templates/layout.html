@@ -77,6 +77,8 @@
             .navbar-collapse{display:none!important}
             .navbar-collapse.show{display:block!important}
             .navbar-toggler{display:block!important}
+            .dropdown-menu{display:none!important}
+            .dropdown-toggle::after{display:none!important}
         }
         @media (max-width:768px){.hero-content h1{font-size:clamp(2rem,8vw,3rem)}.section-title{font-size:clamp(1.75rem,6vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}section{padding:80px 0}}
         @media (max-width:576px){.hero-content h1{font-size:clamp(1.75rem,10vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}}
@@ -337,6 +339,27 @@
                             item.style.display = 'block';
                             item.style.width = '100%';
                             item.style.margin = '0';
+                        });
+                        
+                        // Masquer tous les dropdowns sur mobile
+                        const dropdownMenus = navbarCollapse.querySelectorAll('.dropdown-menu');
+                        dropdownMenus.forEach(menu => {
+                            menu.style.display = 'none';
+                            menu.classList.remove('show');
+                        });
+                        
+                        // Désactiver les dropdowns toggles sur mobile
+                        const dropdownToggles = navbarCollapse.querySelectorAll('.dropdown-toggle');
+                        dropdownToggles.forEach(toggle => {
+                            toggle.setAttribute('data-bs-toggle', '');
+                            toggle.style.pointerEvents = 'none';
+                        });
+                    } else {
+                        // Réactiver les dropdowns sur desktop
+                        const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
+                        dropdownToggles.forEach(toggle => {
+                            toggle.setAttribute('data-bs-toggle', 'dropdown');
+                            toggle.style.pointerEvents = 'auto';
                         });
                     }
                 }
