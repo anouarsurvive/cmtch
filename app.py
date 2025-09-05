@@ -680,7 +680,7 @@ def backup_mysql_database(backup_path):
                             if value is None:
                                 values.append('NULL')
                             elif isinstance(value, str):
-                                values.append(f"'{value.replace("'", "''")}'")
+                                values.append(f"'{value.replace(chr(39), chr(39)+chr(39))}'")
                             else:
                                 values.append(str(value))
                         
@@ -761,7 +761,7 @@ def backup_postgresql_database(backup_path):
                             if value is None:
                                 values.append('NULL')
                             elif isinstance(value, str):
-                                values.append(f"'{value.replace("'", "''")}'")
+                                values.append(f"'{value.replace(chr(39), chr(39)+chr(39))}'")
                             else:
                                 values.append(str(value))
                         
