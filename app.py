@@ -445,7 +445,15 @@ def should_refresh_token(token: str) -> bool:
 # Fonctions de compatibilité avec l'ancien système
 def create_session_token(user_id: int) -> str:
     """Fonction de compatibilité - utilise le nouveau système sécurisé."""
-    return create_secure_session_token(user_id)
+    try:
+        return create_secure_session_token(user_id)
+    except Exception as e:
+        # Si le nouveau système échoue, utiliser l'ancien système
+        print(f"⚠️ Nouveau système de sessions indisponible, utilisation de l'ancien: {e}")
+        data = str(user_id).encode()
+        signature = hmac.new(SECRET_KEY.encode(), data, hashlib.sha256).hexdigest().encode()
+        token_bytes = data + b":" + signature
+        return base64.urlsafe_b64encode(token_bytes).decode()
 
 
 def parse_session_token(token: Optional[str]) -> Optional[int]:
@@ -453,12 +461,7 @@ def parse_session_token(token: Optional[str]) -> Optional[int]:
     if not token:
         return None
     
-    # Essayer d'abord le nouveau système
-    user_id = validate_session_token(token)
-    if user_id is not None:
-        return user_id
-    
-    # Si le nouveau système échoue, utiliser l'ancien système
+    # Essayer d'abord l'ancien système (plus fiable pour le fallback)
     try:
         token_bytes = base64.urlsafe_b64decode(token.encode())
         user_id_bytes, signature = token_bytes.split(b":", 1)
@@ -467,6 +470,11 @@ def parse_session_token(token: Optional[str]) -> Optional[int]:
             return int(user_id_bytes.decode())
     except Exception:
         pass
+    
+    # Si l'ancien système échoue, essayer le nouveau système
+    user_id = validate_session_token(token)
+    if user_id is not None:
+        return user_id
     
     return None
 
