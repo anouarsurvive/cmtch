@@ -1013,28 +1013,33 @@ footer p {
         padding: 1.5rem;
         box-shadow: var(--shadow-lg);
         backdrop-filter: blur(10px);
+        display: none !important;
+    }
+    
+    .navbar-collapse.show {
+        display: block !important;
     }
     
     .navbar-nav {
         display: flex !important;
         flex-direction: column !important;
-        width: 100%;
+        width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
     }
     
     .navbar-nav .nav-item {
         display: block !important;
-        width: 100%;
+        width: 100% !important;
         margin: 0 !important;
     }
     
     .navbar-nav .nav-link {
-        margin: 0.5rem 0;
+        margin: 0.5rem 0 !important;
         padding: 1rem 1.25rem !important;
         border-radius: var(--border-radius);
-        width: 100%;
-        text-align: left;
+        width: 100% !important;
+        text-align: left !important;
         display: block !important;
         white-space: normal !important;
     }
@@ -1052,12 +1057,13 @@ footer p {
         display: block !important;
     }
     
-    .navbar-collapse.collapse {
-        display: none !important;
+    /* Forcer l'affichage des éléments du menu */
+    .navbar-nav .nav-item.d-lg-none {
+        display: block !important;
     }
     
-    .navbar-collapse.collapse.show {
-        display: block !important;
+    .navbar-nav .nav-item.d-none.d-lg-block {
+        display: none !important;
     }
 }
 

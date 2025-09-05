@@ -70,7 +70,14 @@
         .section-title{text-align:center;font-size:clamp(2rem,4vw,3rem);font-weight:800;margin-bottom:4rem;color:#1e3a8a;position:relative;letter-spacing:-.02em}
         .card{border:none;border-radius:.75rem;overflow:hidden;transition:all .4s cubic-bezier(.4,0,.2,1);background:#fff}
         .card:hover{transform:translateY(-8px);box-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 10px 10px -5px rgba(0,0,0,.04)}
-        @media (max-width:991px){.navbar-nav{flex-direction:column!important;width:100%}.navbar-nav .nav-item{display:block!important;width:100%;margin:0}.navbar-nav .nav-link{width:100%;text-align:left;padding:.75rem 1rem!important;white-space:normal!important;display:block!important}}
+        @media (max-width:991px){
+            .navbar-nav{flex-direction:column!important;width:100%;margin:0!important;padding:0!important}
+            .navbar-nav .nav-item{display:block!important;width:100%;margin:0!important}
+            .navbar-nav .nav-link{width:100%!important;text-align:left!important;padding:.75rem 1rem!important;white-space:normal!important;display:block!important;margin:0!important}
+            .navbar-collapse{display:none!important}
+            .navbar-collapse.show{display:block!important}
+            .navbar-toggler{display:block!important}
+        }
         @media (max-width:768px){.hero-content h1{font-size:clamp(2rem,8vw,3rem)}.section-title{font-size:clamp(1.75rem,6vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}section{padding:80px 0}}
         @media (max-width:576px){.hero-content h1{font-size:clamp(1.75rem,10vw,2.5rem)}.hero{padding:100px 0;min-height:70vh}}
         .text-gradient{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -312,24 +319,46 @@
             const navbarCollapse = document.querySelector('.navbar-collapse');
             
             if (navbarToggler && navbarCollapse) {
+                // Fonction pour appliquer les styles mobiles
+                function applyMobileStyles() {
+                    if (window.innerWidth <= 991) {
+                        const navLinks = navbarCollapse.querySelectorAll('.nav-link');
+                        navLinks.forEach(link => {
+                            link.style.display = 'block';
+                            link.style.width = '100%';
+                            link.style.textAlign = 'left';
+                            link.style.whiteSpace = 'normal';
+                            link.style.padding = '0.75rem 1rem';
+                            link.style.margin = '0';
+                        });
+                        
+                        const navItems = navbarCollapse.querySelectorAll('.nav-item');
+                        navItems.forEach(item => {
+                            item.style.display = 'block';
+                            item.style.width = '100%';
+                            item.style.margin = '0';
+                        });
+                    }
+                }
+                
+                // Appliquer les styles au chargement
+                applyMobileStyles();
+                
+                // Réappliquer les styles lors du redimensionnement
+                window.addEventListener('resize', applyMobileStyles);
+                
                 navbarToggler.addEventListener('click', function() {
                     // Attendre que Bootstrap ait fait son travail
                     setTimeout(() => {
                         if (navbarCollapse.classList.contains('show')) {
                             // Menu ouvert - s'assurer que les styles sont corrects
                             navbarCollapse.style.display = 'block';
-                            const navLinks = navbarCollapse.querySelectorAll('.nav-link');
-                            navLinks.forEach(link => {
-                                link.style.display = 'block';
-                                link.style.width = '100%';
-                                link.style.textAlign = 'left';
-                                link.style.whiteSpace = 'normal';
-                            });
+                            applyMobileStyles();
                         } else {
                             // Menu fermé
                             navbarCollapse.style.display = 'none';
                         }
-                    }, 10);
+                    }, 50);
                 });
             }
             
