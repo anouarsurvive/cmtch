@@ -29,6 +29,8 @@ import os
 import sys
 import sqlite3
 from datetime import datetime, date, time, timedelta
+import secrets
+import json
 
 # Import du service de stockage d'images ImgBB
 # Ajouter le répertoire courant au path pour s'assurer que l'import fonctionne
@@ -71,8 +73,50 @@ DB_PATH = os.path.join(BASE_DIR, "database.db")
 
 app = FastAPI()
 
+# Middleware pour la gestion des sessions sécurisées
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    """Middleware pour gérer les sessions sécurisées et la régénération des tokens."""
+    response = await call_next(request)
+    
+    # Vérifier si l'utilisateur est connecté
+    token = request.cookies.get("session_token")
+    if token:
+        # Vérifier si le token doit être rafraîchi
+        if should_refresh_token(token):
+            try:
+                # Récupérer l'utilisateur actuel
+                user_id = validate_session_token(token)
+                if user_id:
+                    # Créer un nouveau token
+                    ip_address = request.client.host if request.client else None
+                    user_agent = request.headers.get("user-agent")
+                    new_token = create_secure_session_token(user_id, ip_address, user_agent)
+                    
+                    # Désactiver l'ancien token
+                    deactivate_session(token)
+                    
+                    # Mettre à jour le cookie
+                    response.set_cookie(
+                        key="session_token",
+                        value=new_token,
+                        httponly=True,
+                        max_age=60 * 60 * 24 * SESSION_MAX_AGE_DAYS,
+                        secure=False,  # Mettre True en production avec HTTPS
+                        samesite="lax"
+                    )
+            except Exception as e:
+                print(f"Erreur lors de la régénération du token : {e}")
+    
+    return response
+
 # Clé secrète pour signer les cookies de session.
 SECRET_KEY = "change-me-in-production-please"
+
+# Configuration des sessions sécurisées
+SESSION_TIMEOUT_MINUTES = 30  # Timeout d'inactivité
+SESSION_MAX_AGE_DAYS = 7      # Durée maximale de la session
+SESSION_REFRESH_THRESHOLD = 15 # Minutes avant expiration pour régénérer le token
 
 # Configuration email
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -174,45 +218,226 @@ async def serve_article_image(filename: str):
     return RedirectResponse(url=hostgator_url, status_code=302)
 
 
-def create_session_token(user_id: int) -> str:
-    """Crée un jeton de session signé pour un utilisateur donné.
-
-    Le jeton est composé de l'identifiant utilisateur codé en ASCII, suivi
-    d'un séparateur et d'une signature HMAC basée sur SECRET_KEY. Le tout est
-    encodé en base64 URL‑safe afin de pouvoir être stocké dans un cookie.
+def create_secure_session_token(user_id: int, ip_address: str = None, user_agent: str = None) -> str:
+    """Crée un jeton de session sécurisé et l'enregistre en base de données.
 
     Args:
         user_id: identifiant numérique de l'utilisateur.
+        ip_address: adresse IP de l'utilisateur.
+        user_agent: user agent du navigateur.
 
     Returns:
         Chaîne représentant le jeton de session.
     """
-    data = str(user_id).encode()
-    signature = hmac.new(SECRET_KEY.encode(), data, hashlib.sha256).hexdigest().encode()
-    token_bytes = data + b":" + signature
-    return base64.urlsafe_b64encode(token_bytes).decode()
+    # Générer un token aléatoire sécurisé
+    token = secrets.token_urlsafe(32)
+    
+    # Calculer les dates d'expiration
+    now = datetime.now()
+    expires_at = now + timedelta(days=SESSION_MAX_AGE_DAYS)
+    
+    # Enregistrer la session en base de données
+    conn = get_db_connection()
+    try:
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (user_id, token, expires_at.isoformat(), ip_address, user_agent))
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, token, expires_at.isoformat(), ip_address, user_agent))
+        
+        conn.commit()
+        return token
+    finally:
+        conn.close()
 
 
-def parse_session_token(token: Optional[str]) -> Optional[int]:
-    """Vérifie et décode un jeton de session.
+def validate_session_token(token: str, ip_address: str = None) -> Optional[int]:
+    """Valide un jeton de session et retourne l'ID utilisateur si valide.
 
     Args:
-        token: Jeton encodé en base64 récupéré depuis le cookie.
+        token: Jeton de session à valider.
+        ip_address: Adresse IP pour vérification de sécurité.
 
     Returns:
-        L'identifiant de l'utilisateur si la signature est valide, sinon None.
+        L'identifiant de l'utilisateur si la session est valide, sinon None.
     """
     if not token:
         return None
+    
+    conn = get_db_connection()
     try:
-        token_bytes = base64.urlsafe_b64decode(token.encode())
-        user_id_bytes, signature = token_bytes.split(b":", 1)
-        expected_signature = hmac.new(SECRET_KEY.encode(), user_id_bytes, hashlib.sha256).hexdigest().encode()
-        if hmac.compare_digest(signature, expected_signature):
-            return int(user_id_bytes.decode())
-    except Exception:
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT user_id, expires_at, last_activity, is_active, ip_address
+                FROM user_sessions 
+                WHERE session_token = %s AND is_active = 1
+            """, (token,))
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT user_id, expires_at, last_activity, is_active, ip_address
+                FROM user_sessions 
+                WHERE session_token = ? AND is_active = 1
+            """, (token,))
+        
+        session = cur.fetchone()
+        if not session:
+            return None
+        
+        user_id, expires_at_str, last_activity_str, is_active, session_ip = session
+        
+        # Vérifier si la session est expirée
+        expires_at = datetime.fromisoformat(expires_at_str)
+        last_activity = datetime.fromisoformat(last_activity_str)
+        now = datetime.now()
+        
+        if now > expires_at:
+            # Session expirée, la désactiver
+            deactivate_session(token)
+            return None
+        
+        # Vérifier le timeout d'inactivité
+        if now - last_activity > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
+            # Session inactive trop longtemps, la désactiver
+            deactivate_session(token)
+            return None
+        
+        # Vérification optionnelle de l'IP (peut être désactivée pour plus de flexibilité)
+        # if ip_address and session_ip and ip_address != session_ip:
+        #     return None
+        
+        # Mettre à jour la dernière activité
+        update_session_activity(token)
+        
+        return user_id
+        
+    except Exception as e:
+        print(f"Erreur lors de la validation de session: {e}")
         return None
-    return None
+    finally:
+        conn.close()
+
+
+def update_session_activity(token: str) -> None:
+    """Met à jour la dernière activité d'une session."""
+    conn = get_db_connection()
+    try:
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE user_sessions 
+                SET last_activity = %s 
+                WHERE session_token = %s
+            """, (datetime.now().isoformat(), token))
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE user_sessions 
+                SET last_activity = ? 
+                WHERE session_token = ?
+            """, (datetime.now().isoformat(), token))
+        
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def deactivate_session(token: str) -> None:
+    """Désactive une session."""
+    conn = get_db_connection()
+    try:
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE user_sessions 
+                SET is_active = 0 
+                WHERE session_token = %s
+            """, (token,))
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE user_sessions 
+                SET is_active = 0 
+                WHERE session_token = ?
+            """, (token,))
+        
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def cleanup_expired_sessions() -> None:
+    """Nettoie les sessions expirées."""
+    conn = get_db_connection()
+    try:
+        now = datetime.now().isoformat()
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE user_sessions 
+                SET is_active = 0 
+                WHERE expires_at < %s OR last_activity < %s
+            """, (now, (datetime.now() - timedelta(minutes=SESSION_TIMEOUT_MINUTES)).isoformat()))
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE user_sessions 
+                SET is_active = 0 
+                WHERE expires_at < ? OR last_activity < ?
+            """, (now, (datetime.now() - timedelta(minutes=SESSION_TIMEOUT_MINUTES)).isoformat()))
+        
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def should_refresh_token(token: str) -> bool:
+    """Vérifie si un token doit être rafraîchi."""
+    conn = get_db_connection()
+    try:
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT expires_at FROM user_sessions 
+                WHERE session_token = %s AND is_active = 1
+            """, (token,))
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT expires_at FROM user_sessions 
+                WHERE session_token = ? AND is_active = 1
+            """, (token,))
+        
+        result = cur.fetchone()
+        if not result:
+            return False
+        
+        expires_at = datetime.fromisoformat(result[0])
+        refresh_threshold = datetime.now() + timedelta(minutes=SESSION_REFRESH_THRESHOLD)
+        
+        return datetime.now() < refresh_threshold < expires_at
+        
+    finally:
+        conn.close()
+
+
+# Fonctions de compatibilité avec l'ancien système
+def create_session_token(user_id: int) -> str:
+    """Fonction de compatibilité - utilise le nouveau système sécurisé."""
+    return create_secure_session_token(user_id)
+
+
+def parse_session_token(token: Optional[str]) -> Optional[int]:
+    """Fonction de compatibilité - utilise le nouveau système sécurisé."""
+    return validate_session_token(token)
 
 
 
@@ -1005,27 +1230,38 @@ def get_current_user(request: Request) -> Optional[sqlite3.Row]:
         n'est authentifié.
     """
     token = request.cookies.get("session_token")
-    user_id = parse_session_token(token)
+    if not token:
+        return None
+    
+    # Récupérer l'IP et user agent pour la validation
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    
+    # Valider le token avec le nouveau système sécurisé
+    user_id = validate_session_token(token, ip_address)
     if not user_id:
         return None
+    
+    # Récupérer les informations de l'utilisateur
     conn = get_db_connection()
-    
-    # Vérifier si c'est une connexion MySQL
-    if hasattr(conn, '_is_mysql') and conn._is_mysql:
-        # Utiliser le curseur MySQL avec noms de colonnes
-        from database import get_mysql_cursor_with_names, convert_mysql_result
-        execute_with_names = get_mysql_cursor_with_names(conn)
-        cur, column_names = execute_with_names("SELECT * FROM users WHERE id = %s", (user_id,))
-        user = cur.fetchone()
-        user = convert_mysql_result(user, column_names)
-    else:
-        # Connexion SQLite/PostgreSQL normale
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        user = cur.fetchone()
-    
-    conn.close()
-    return user
+    try:
+        # Vérifier si c'est une connexion MySQL
+        if hasattr(conn, '_is_mysql') and conn._is_mysql:
+            # Utiliser le curseur MySQL avec noms de colonnes
+            from database import get_mysql_cursor_with_names, convert_mysql_result
+            execute_with_names = get_mysql_cursor_with_names(conn)
+            cur, column_names = execute_with_names("SELECT * FROM users WHERE id = %s", (user_id,))
+            user = cur.fetchone()
+            user = convert_mysql_result(user, column_names)
+        else:
+            # Connexion SQLite/PostgreSQL normale
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+            user = cur.fetchone()
+        
+        return user
+    finally:
+        conn.close()
 
 
 def require_login(request: Request) -> sqlite3.Row:
@@ -1079,6 +1315,13 @@ async def startup() -> None:
         
     except Exception as e:
         print(f"⚠️ Impossible de vérifier l'état de la base : {e}")
+    
+    # Nettoyer les sessions expirées au démarrage
+    try:
+        cleanup_expired_sessions()
+        print("✅ Nettoyage des sessions expirées effectué")
+    except Exception as e:
+        print(f"⚠️ Erreur lors du nettoyage des sessions : {e}")
     
     print("🎉 Application prête !")
 
@@ -1453,14 +1696,17 @@ async def login(request: Request) -> HTMLResponse:
                 {"request": request, "errors": errors, "username": username},
             )
         
-        # Connexion réussie - créer la session
-        token = create_session_token(user.id)
+        # Connexion réussie - créer la session sécurisée
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        token = create_secure_session_token(user.id, ip_address, user_agent)
+        
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(
             key="session_token", 
             value=token, 
             httponly=True, 
-            max_age=60 * 60 * 24 * 7,  # 7 jours
+            max_age=60 * 60 * 24 * SESSION_MAX_AGE_DAYS,  # Utiliser la constante
             secure=False,  # Mettre True en production avec HTTPS
             samesite="lax"
         )
@@ -1478,9 +1724,29 @@ async def login(request: Request) -> HTMLResponse:
 @app.get("/deconnexion")
 async def logout(request: Request) -> RedirectResponse:
     """Termine la session de l'utilisateur."""
+    token = request.cookies.get("session_token")
+    if token:
+        # Désactiver la session en base de données
+        deactivate_session(token)
+    
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie("session_token")
     return response
+
+
+@app.get("/admin/cleanup-sessions")
+async def cleanup_sessions_admin(request: Request) -> dict:
+    """Endpoint d'administration pour nettoyer les sessions expirées."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    check_admin(user)
+    
+    try:
+        cleanup_expired_sessions()
+        return {"status": "success", "message": "Sessions expirées nettoyées avec succès"}
+    except Exception as e:
+        return {"status": "error", "message": f"Erreur lors du nettoyage : {e}"}
 
 
 def check_admin(user: sqlite3.Row) -> None:

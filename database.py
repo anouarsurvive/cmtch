@@ -214,6 +214,27 @@ def init_mysql_db():
         )
     """)
     
+    # Table des sessions sécurisées
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            session_token VARCHAR(255) UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            ip_address VARCHAR(45),
+            user_agent TEXT,
+            is_active TINYINT(1) DEFAULT 1,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Index pour optimiser les requêtes de sessions
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(session_token)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON user_sessions(expires_at)")
+    
     # Table des notifications
     cur.execute("""
         CREATE TABLE IF NOT EXISTS notifications (
@@ -332,6 +353,27 @@ def init_sqlite_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
+    
+    # Table des sessions sécurisées
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            session_token TEXT UNIQUE NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_activity TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            is_active INTEGER DEFAULT 1,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Index pour optimiser les requêtes de sessions
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(session_token)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON user_sessions(expires_at)")
     
     # Table des notifications
     cur.execute("""
