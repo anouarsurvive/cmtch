@@ -303,8 +303,12 @@ def validate_session_token(token: str, ip_address: str = None) -> Optional[int]:
         user_id, expires_at_str, last_activity_str, is_active, session_ip = session
         
         # Vérifier si la session est expirée
-        expires_at = datetime.fromisoformat(expires_at_str)
-        last_activity = datetime.fromisoformat(last_activity_str)
+        try:
+            expires_at = datetime.fromisoformat(str(expires_at_str)) if expires_at_str else datetime.now()
+            last_activity = datetime.fromisoformat(str(last_activity_str)) if last_activity_str else datetime.now()
+        except (ValueError, TypeError) as e:
+            print(f"⚠️ Erreur de parsing de date: {e}")
+            return None
         now = datetime.now()
         
         if now > expires_at:
@@ -429,10 +433,14 @@ def should_refresh_token(token: str) -> bool:
         if not result:
             return False
         
-        expires_at = datetime.fromisoformat(result[0])
-        refresh_threshold = datetime.now() + timedelta(minutes=SESSION_REFRESH_THRESHOLD)
-        
-        return datetime.now() < refresh_threshold < expires_at
+        try:
+            expires_at = datetime.fromisoformat(str(result[0])) if result[0] else datetime.now()
+            refresh_threshold = datetime.now() + timedelta(minutes=SESSION_REFRESH_THRESHOLD)
+            
+            return datetime.now() < refresh_threshold < expires_at
+        except (ValueError, TypeError) as e:
+            print(f"⚠️ Erreur de parsing de date dans should_refresh_token: {e}")
+            return False
         
     except Exception as e:
         # Si la table n'existe pas encore, ne pas rafraîchir
