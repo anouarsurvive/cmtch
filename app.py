@@ -254,6 +254,14 @@ def create_secure_session_token(user_id: int, ip_address: str = None, user_agent
         
         conn.commit()
         return token
+    except Exception as e:
+        # Si la table user_sessions n'existe pas encore, utiliser l'ancien système
+        print(f"⚠️ Table user_sessions manquante, utilisation de l'ancien système: {e}")
+        # Retourner un token simple pour l'ancien système
+        data = str(user_id).encode()
+        signature = hmac.new(SECRET_KEY.encode(), data, hashlib.sha256).hexdigest().encode()
+        token_bytes = data + b":" + signature
+        return base64.urlsafe_b64encode(token_bytes).decode()
     finally:
         conn.close()
 
@@ -320,7 +328,8 @@ def validate_session_token(token: str, ip_address: str = None) -> Optional[int]:
         return user_id
         
     except Exception as e:
-        print(f"Erreur lors de la validation de session: {e}")
+        # Si la table user_sessions n'existe pas encore, utiliser l'ancien système
+        print(f"⚠️ Table user_sessions manquante, utilisation de l'ancien système: {e}")
         return None
     finally:
         conn.close()
@@ -425,6 +434,10 @@ def should_refresh_token(token: str) -> bool:
         
         return datetime.now() < refresh_threshold < expires_at
         
+    except Exception as e:
+        # Si la table n'existe pas encore, ne pas rafraîchir
+        print(f"⚠️ Erreur lors de la vérification du token (table user_sessions manquante?): {e}")
+        return False
     finally:
         conn.close()
 
@@ -437,7 +450,25 @@ def create_session_token(user_id: int) -> str:
 
 def parse_session_token(token: Optional[str]) -> Optional[int]:
     """Fonction de compatibilité - utilise le nouveau système sécurisé."""
-    return validate_session_token(token)
+    if not token:
+        return None
+    
+    # Essayer d'abord le nouveau système
+    user_id = validate_session_token(token)
+    if user_id is not None:
+        return user_id
+    
+    # Si le nouveau système échoue, utiliser l'ancien système
+    try:
+        token_bytes = base64.urlsafe_b64decode(token.encode())
+        user_id_bytes, signature = token_bytes.split(b":", 1)
+        expected_signature = hmac.new(SECRET_KEY.encode(), user_id_bytes, hashlib.sha256).hexdigest().encode()
+        if hmac.compare_digest(signature, expected_signature):
+            return int(user_id_bytes.decode())
+    except Exception:
+        pass
+    
+    return None
 
 
 
