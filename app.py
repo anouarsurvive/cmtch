@@ -242,15 +242,15 @@ def create_secure_session_token(user_id: int, ip_address: str = None, user_agent
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
             cur.execute("""
-                INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (user_id, token, expires_at.isoformat(), ip_address, user_agent))
+                INSERT INTO user_sessions (user_id, session_token, expires_at, last_activity, ip_address, user_agent)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user_id, token, expires_at.isoformat(), now.isoformat(), ip_address, user_agent))
         else:
             cur = conn.cursor()
             cur.execute("""
-                INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?)
-            """, (user_id, token, expires_at.isoformat(), ip_address, user_agent))
+                INSERT INTO user_sessions (user_id, session_token, expires_at, last_activity, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (user_id, token, expires_at.isoformat(), now.isoformat(), ip_address, user_agent))
         
         conn.commit()
         return token
