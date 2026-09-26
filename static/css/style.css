@@ -738,7 +738,10 @@ section {
     padding: 0.875rem 1.25rem;
     font-size: 1rem;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    background: var(--secondary-color);
+    background: #ffffff !important;
+    color: #1f2937 !important;
+    -webkit-text-fill-color: #1f2937 !important;
+    caret-color: #1f2937 !important;
 }
 
 .form-control:focus {
@@ -1722,18 +1725,49 @@ footer p {
     padding: 0.75rem 1rem;
     font-size: 1rem;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    background: var(--secondary-color);
+    background: #ffffff !important;
+    color: #1f2937 !important;
+    -webkit-text-fill-color: #1f2937 !important;
+    caret-color: #1f2937 !important;
+    opacity: 1 !important;
+    color-scheme: light;
+}
+
+.auth-form .form-control::placeholder {
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+    opacity: 1 !important;
+}
+
+.auth-form .form-control:-webkit-autofill,
+.auth-form .form-control:-webkit-autofill:hover,
+.auth-form .form-control:-webkit-autofill:focus {
+    -webkit-text-fill-color: #1f2937 !important;
+    box-shadow: 0 0 0 1000px #ffffff inset !important;
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+.auth-form .form-select {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    color-scheme: light;
 }
 
 .auth-form .form-control:focus {
     border-color: var(--accent-color);
     box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
     transform: translateY(-2px);
+    color: #1f2937 !important;
+    -webkit-text-fill-color: #1f2937 !important;
 }
 
 .auth-form .form-control-lg {
     padding: 1rem 1.25rem;
     font-size: 1.125rem;
+}
+
+.auth-form .password-input-wrapper .form-control {
+    padding-right: 3rem;
 }
 
 .auth-footer {

@@ -773,6 +773,12 @@
             if (installButton) {
                 return;
             }
+
+            // Ne pas afficher sur les formulaires d'auth (masque la saisie sur mobile)
+            const path = window.location.pathname || '';
+            if (path.indexOf('/inscription') !== -1 || path.indexOf('/connexion') !== -1) {
+                return;
+            }
             
             // Vérifier si l'app est déjà installée
             if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
@@ -780,32 +786,25 @@
                 return;
             }
             
-            // Créer un bouton d'installation
+            // Créer un bouton d'installation (icône seule pour ne pas couvrir le contenu)
             installButton = document.createElement('button');
-            installButton.innerHTML = '<i class="fas fa-download me-2"></i>Installer l\'app';
-            installButton.className = 'btn btn-success btn-sm position-fixed';
+            installButton.innerHTML = '<i class="fas fa-download"></i>';
+            installButton.title = 'Installer l\'app';
+            installButton.setAttribute('aria-label', 'Installer l\'app');
+            installButton.className = 'btn btn-success btn-sm position-fixed pwa-install-fab';
             installButton.style.cssText = `
                 bottom: 20px; 
                 right: 20px; 
-                z-index: 1000; 
+                z-index: 900; 
                 box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                border-radius: 25px;
-                padding: 10px 20px;
+                border-radius: 50%;
+                width: 48px;
+                height: 48px;
+                padding: 0;
                 font-weight: 600;
-                animation: pulse 2s infinite;
+                pointer-events: auto;
             `;
             installButton.onclick = installApp;
-            
-            // Ajouter des styles d'animation
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes pulse {
-                    0% { transform: scale(1); }
-                    50% { transform: scale(1.05); }
-                    100% { transform: scale(1); }
-                }
-            `;
-            document.head.appendChild(style);
             
             document.body.appendChild(installButton);
             
