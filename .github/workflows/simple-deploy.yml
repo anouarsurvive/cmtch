@@ -27,6 +27,10 @@ jobs:
         python -m py_compile app.py
         echo "✅ Syntaxe Python valide"
     
+    - name: Pytest
+      run: |
+        pytest -q --import-mode=importlib
+    
     - name: Notification de succès
       run: |
         echo "🚀 Tests réussis !"

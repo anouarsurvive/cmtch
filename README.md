@@ -17,6 +17,21 @@ Cette application web permet de gérer :
 - **Frontend** : HTML, CSS, JavaScript avec Jinja2 templates
 - **Déploiement** : Render
 
+## 📁 Structure (Phase 1)
+
+```
+app.py                 # entrée mince (FastAPI, middleware, static, routers)
+core/                  # config, i18n, templates, forms, session, deps, middleware
+services/              # email, backup
+routers/               # auth, reservations, articles, admin, ops
+db/sql.py              # helpers SQL multi-backends (? → %s MySQL)
+database.py            # connexions DB
+security_utils.py      # CSRF, cookies, hash
+tests/                 # pytest
+```
+
+Lancer : `uvicorn app:app` — les URLs restent inchangées.
+
 ## 📋 Fonctionnalités
 
 ### Espace public

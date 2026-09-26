@@ -60,3 +60,8 @@ Thumbs.db
 # Fichiers temporaires
 *.tmp
 *.temp
+
+# Artefacts refactor / cache tests
+app.py.monolith.bak
+_phase1_refactor.py
+.pytest_cache/
