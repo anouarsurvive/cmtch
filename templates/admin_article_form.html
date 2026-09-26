@@ -23,12 +23,12 @@
   <div class="mb-3">
     <label for="image_file" class="form-label">Image à télécharger (optionnel)</label>
     <input type="file" class="form-control" id="image_file" name="image_file" accept="image/*">
-    <div class="form-text">Choisissez une image à envoyer depuis votre ordinateur. Si vous utilisez ce champ, l'URL ci-dessous peut rester vide.</div>
+    <div class="form-text">L'upload passe par ImgBB. En cas d'échec, un message d'erreur s'affiche : vous pouvez réessayer ou coller une URL d'image ci-dessous.</div>
   </div>
   <div class="mb-3">
     <label for="image_url" class="form-label">URL de l'image (optionnel)</label>
     <input type="text" class="form-control" id="image_url" name="image_url" value="{{ image_url|default('') }}" placeholder="https://exemple.com/image.jpg">
-    <div class="form-text">Indiquez un lien absolu vers l'image qui illustrera l'article si vous ne téléchargez pas de fichier.</div>
+    <div class="form-text">Indiquez un lien absolu vers l'image qui illustrera l'article si vous ne téléchargez pas de fichier, ou si l'upload ImgBB échoue.</div>
   </div>
   <button type="submit" class="btn btn-primary">Publier</button>
   <a href="/admin/articles" class="btn btn-secondary">Annuler</a>

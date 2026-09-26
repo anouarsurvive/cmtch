@@ -8,13 +8,17 @@ class ImgBBPhotoStorage:
     """Service de stockage de photos utilisant ImgBB."""
 
     def __init__(self):
-        # Clé API uniquement via variable d'environnement (jamais en dur)
-        self.api_key = os.getenv("IMGBB_API_KEY", "").strip()
         self.base_url = "https://api.imgbb.com/1/upload"
+
+    @property
+    def api_key(self) -> str:
+        """Lit la clé API à chaque appel (pas seulement à l'import)."""
+        return os.getenv("IMGBB_API_KEY", "").strip()
 
     def upload_photo(self, file_data: bytes, filename: str) -> Dict[str, Any]:
         """Upload une photo vers ImgBB."""
-        if not self.api_key:
+        api_key = self.api_key
+        if not api_key:
             return {
                 "success": False,
                 "error": "IMGBB_API_KEY non configurée (variable d'environnement requise)",
@@ -22,7 +26,7 @@ class ImgBBPhotoStorage:
         try:
             image_base64 = base64.b64encode(file_data).decode("utf-8")
             payload = {
-                "key": self.api_key,
+                "key": api_key,
                 "image": image_base64,
                 "name": filename,
             }

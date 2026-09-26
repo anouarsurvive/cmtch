@@ -4308,44 +4308,56 @@ async def admin_new_article(request: Request) -> HTMLResponse:
         title = str(form.get("title", "")).strip()
         content_text = str(form.get("content", "")).strip()
         
+        # URL image saisie manuellement (toujours lue en multipart aussi)
+        image_url_field = str(form.get("image_url", "")).strip()
+
         # Gestion du fichier image s'il existe
         file_field = form.get("image_file")
         if file_field and isinstance(file_field, dict):
             filename = file_field.get("filename")
             file_content = file_field.get("content", b"")
             if filename and file_content:
-                # GÃ©nÃ©rer un nom unique pour Ã©viter les collisions
+                # Generer un nom unique pour eviter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
-                
-                # Upload vers HostGator exclusivement
+
+                # Upload vers ImgBB — pas d'image par defaut silencieuse en cas d'echec
                 try:
                     result = upload_photo_to_imgbb(file_content, unique_name)
-                    if result.get('success'):
-                        # Utiliser l'URL complÃ¨te ImgBB pour la base de donnÃ©es
-                        image_path = result.get('url')
-                        print(f"âœ… Image uploadÃ©e vers ImgBB: {image_path}")
+                    if result.get("success"):
+                        image_path = result.get("url") or ""
+                        print(f"Image uploadee vers ImgBB: {image_path}")
                     else:
-                        # En cas d'Ã©chec, utiliser l'image par dÃ©faut ImgBB
-                        image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                        print(f"âš ï¸ Ã‰chec upload ImgBB, utilisation image par dÃ©faut: {result.get('error')}")
+                        detail = result.get("error", "erreur inconnue")
+                        errors.append(
+                            f"Échec de l'upload de l'image (ImgBB): {detail}. "
+                            "Vérifiez IMGBB_API_KEY ou collez une URL d'image."
+                        )
+                        print(f"Échec upload ImgBB: {detail}")
                 except Exception as e:
-                    # En cas d'erreur, utiliser l'image par dÃ©faut ImgBB
-                    image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                    print(f"âŒ Erreur HostGator, utilisation image par dÃ©faut: {e}")
+                    errors.append(
+                        f"Échec de l'upload de l'image (ImgBB): {e}. "
+                        "Vérifiez IMGBB_API_KEY ou collez une URL d'image."
+                    )
+                    print(f"Erreur ImgBB: {e}")
+
+        # Si pas d'upload réussi, utiliser l'URL fournie (sinon vide)
+        if not image_path and image_url_field:
+            image_path = image_url_field
     else:
         # Analyse du corps form-urlencoded
         form = urllib.parse.parse_qs(body.decode(), keep_blank_values=True)
         title = form.get("title", [""])[0].strip()
         content_text = form.get("content", [""])[0].strip()
         image_path = form.get("image_url", [""])[0].strip()
-    
-    # VÃ©rifications
+        image_url_field = image_path
+
+    # Vérifications
     if not title:
         errors.append("Le titre est obligatoire.")
     if not content_text:
         errors.append("Le contenu est obligatoire.")
-    
+
     # Si erreurs, renvoyer le formulaire avec les champs saisis
     if errors:
         return templates.TemplateResponse(
@@ -4356,8 +4368,7 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 "errors": errors,
                 "title": title,
                 "content": content_text,
-                # Si le formulaire multipart a Ã©tÃ© utilisÃ©, l'URL n'est pas disponible
-                "image_url": image_path if "multipart/form-data" not in content_type else "",
+                "image_url": image_url_field if "multipart/form-data" in content_type else image_path,
             },
         )
     
@@ -4553,32 +4564,39 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
         form = parse_multipart_form(body, content_type)
         title = str(form.get("title", "")).strip()
         content_text = str(form.get("content", "")).strip()
+        image_url_field = str(form.get("image_url", "")).strip()
         # Gestion du fichier image s'il existe
         file_field = form.get("image_file")
         if file_field and isinstance(file_field, dict):
             filename = file_field.get("filename")
             file_content = file_field.get("content", b"")
             if filename and file_content:
-                # CrÃ©er un dossier pour les images si nÃ©cessaire
-                images_dir = os.path.join(BASE_DIR, "static", "article_images")
-                os.makedirs(images_dir, exist_ok=True)
-                # GÃ©nÃ©rer un nom unique pour Ã©viter les collisions
+                # Generer un nom unique pour eviter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
-                # Upload vers ImgBB exclusivement
+                # Upload vers ImgBB — pas d'image par defaut silencieuse en cas d'echec
                 try:
                     result = upload_photo_to_imgbb(file_content, unique_name)
-                    if result.get('success'):
-                        image_path = result.get('url')
-                        print(f"âœ… Image uploadÃ©e vers ImgBB: {image_path}")
+                    if result.get("success"):
+                        image_path = result.get("url") or ""
+                        print(f"Image uploadee vers ImgBB: {image_path}")
                     else:
-                        # En cas d'Ã©chec, utiliser l'image par dÃ©faut ImgBB
-                        image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                        print(f"âš ï¸ Ã‰chec upload ImgBB, utilisation image par dÃ©faut: {result.get('error')}")
+                        detail = result.get("error", "erreur inconnue")
+                        errors.append(
+                            f"Échec de l'upload de l'image (ImgBB): {detail}. "
+                            "Vérifiez IMGBB_API_KEY ou collez une URL d'image."
+                        )
+                        print(f"Echec upload ImgBB: {detail}")
                 except Exception as e:
-                    # En cas d'erreur, utiliser l'image par dÃ©faut ImgBB
-                    image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                    print(f"âŒ Erreur HostGator, utilisation image par dÃ©faut: {e}")
+                    errors.append(
+                        f"Échec de l'upload de l'image (ImgBB): {e}. "
+                        "Vérifiez IMGBB_API_KEY ou collez une URL d'image."
+                    )
+                    print(f"Erreur ImgBB: {e}")
+
+        # Si pas d'upload reussi, utiliser l'URL fournie (sinon garder l'image existante)
+        if not image_path and image_url_field:
+            image_path = image_url_field
     else:
         # Formulaire standard urlencoded (image_url fourni par l'utilisateur)
         raw_body = await request.body()
@@ -4587,13 +4605,13 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
         content_text = form.get("content", [""])[0].strip()
         image_path = form.get("image_url", [""])[0].strip()
     
-    # VÃ©rifications
+    # Verifications
     if not title:
         errors.append("Le titre est obligatoire.")
     if not content_text:
         errors.append("Le contenu est obligatoire.")
     
-    # Si erreurs, rÃ©cupÃ©rer l'article et renvoyer le formulaire avec les champs saisis
+    # Si erreurs, recuperer l'article et renvoyer le formulaire avec les champs saisis
     if errors:
         conn = get_db_connection()
         
