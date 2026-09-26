@@ -1,25 +1,24 @@
-"""
+﻿"""
 Application web pour le Club municipal de tennis Chihia.
 
-Ce module définit une application FastAPI simple qui fournit un site web en
-langue française pour le club de tennis de Chihia.  Le site comporte un
-espace public présentant le club, un formulaire d'inscription pour les
-nouveaux membres, un système d'authentification, un espace d'administration
-permettant de valider les inscriptions et de gérer les membres, ainsi qu'un
-module de réservation pour les trois courts du club.
+Ce module dÃ©finit une application FastAPI simple qui fournit un site web en
+langue franÃ§aise pour le club de tennis de Chihia.  Le site comporte un
+espace public prÃ©sentant le club, un formulaire d'inscription pour les
+nouveaux membres, un systÃ¨me d'authentification, un espace d'administration
+permettant de valider les inscriptions et de gÃ©rer les membres, ainsi qu'un
+module de rÃ©servation pour les trois courts du club.
 
-Pour simplifier le déploiement dans cet environnement, aucune dépendance
-externe n'est requise : FastAPI, Starlette et Jinja2 sont déjà fournis.
-La base de données utilise SQLite via le module standard `sqlite3`.  Les
-sessions sont gérées via le middleware de Starlette qui signe un cookie
+Pour simplifier le dÃ©ploiement dans cet environnement, aucune dÃ©pendance
+externe n'est requise : FastAPI, Starlette et Jinja2 sont dÃ©jÃ  fournis.
+La base de donnÃ©es utilise SQLite via le module standard `sqlite3`.  Les
+sessions sont gÃ©rÃ©es via le middleware de Starlette qui signe un cookie
 contant un identifiant d'utilisateur.
 
-Les mots de passe sont hachés avec SHA‑256.  Une entrée administrateur est
-créée automatiquement au démarrage avec le nom d'utilisateur « admin » et
-le mot de passe « admin ».  Nous invitons les responsables du club à
-changer ces identifiants lors du déploiement.
+Les mots de passe sont hachÃ©s avec bcrypt (migration automatique depuis SHA-256).
+Les endpoints de diagnostic / ops sont dÃ©sactivÃ©s par dÃ©faut
+(ENABLE_OPS_ENDPOINTS + SETUP_TOKEN).
 
-Autor: ChatGPT
+Autor: ChatGPT / CMTCH
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ import secrets
 import json
 
 # Import du service de stockage d'images ImgBB
-# Ajouter le répertoire courant au path pour s'assurer que l'import fonctionne
+# Ajouter le rÃ©pertoire courant au path pour s'assurer que l'import fonctionne
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
@@ -41,12 +40,28 @@ if current_dir not in sys.path:
 try:
     from photo_upload_service_imgbb import upload_photo_to_imgbb, test_imgbb_system  # type: ignore
 except ImportError as e:
-    # Si l'import échoue, créer des fonctions de fallback
+    # Si l'import Ã©choue, crÃ©er des fonctions de fallback
     print(f"Attention: Impossible d'importer photo_upload_service_imgbb: {e}")
     def upload_photo_to_imgbb(file_data: bytes, filename: str) -> Dict[str, Any]:
         return {'success': False, 'error': 'Service d\'upload d\'images non disponible'}
     def test_imgbb_system() -> Dict[str, Any]:
         return {'status': 'error', 'message': 'Service d\'upload d\'images non disponible', 'imgbb_working': False}
+
+from security_utils import (
+    SECRET_KEY,
+    COOKIE_SECURE,
+    UNSAFE_METHODS,
+    CSRF_EXEMPT_PREFIXES,
+    generate_csrf_token,
+    csrf_tokens_match,
+    is_ops_path,
+    ops_access_allowed,
+    session_cookie_kwargs,
+    hash_password as secure_hash_password,
+    verify_password as secure_verify_password,
+    needs_rehash as secure_needs_rehash,
+)
+
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 import smtplib
@@ -73,50 +88,129 @@ DB_PATH = os.path.join(BASE_DIR, "database.db")
 
 app = FastAPI()
 
-# Middleware pour la gestion des sessions sécurisées
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    """Bloque les endpoints ops, valide le CSRF, gÃ¨re le cookie CSRF."""
+    path = request.url.path
+
+    # Endpoints de diagnostic / setup : dÃ©sactivÃ©s sans token
+    if is_ops_path(path):
+        setup_token = request.query_params.get("token") or request.headers.get(
+            "X-Setup-Token"
+        )
+        if not ops_access_allowed(setup_token):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+    # Protection CSRF sur les mÃ©thodes mutantes
+    if request.method.upper() in UNSAFE_METHODS and not any(
+        path.startswith(p) for p in CSRF_EXEMPT_PREFIXES
+    ):
+        cookie_token = request.cookies.get("csrf_token")
+        submitted = request.headers.get("X-CSRF-Token")
+
+        # Relire le body une seule fois puis le rejouer (Ã©vite de casser uploads)
+        if not submitted:
+            body = await request.body()
+
+            async def _receive():
+                return {"type": "http.request", "body": body, "more_body": False}
+
+            request = Request(request.scope, _receive)
+
+            content_type = request.headers.get("content-type", "")
+            if "application/x-www-form-urlencoded" in content_type:
+                try:
+                    from urllib.parse import parse_qs
+                    parsed = parse_qs(body.decode("utf-8", errors="ignore"))
+                    vals = parsed.get("csrf_token") or []
+                    submitted = vals[0] if vals else None
+                except Exception:
+                    submitted = None
+            elif "multipart/form-data" in content_type:
+                # Extraire csrf_token sans parser tout le multipart fichier
+                try:
+                    marker = b'name="csrf_token"'
+                    idx = body.find(marker)
+                    if idx != -1:
+                        after = body[idx + len(marker) :]
+                        # sauter jusqu'aux donnÃ©es (aprÃ¨s headers de part)
+                        sep = after.find(b"\r\n\r\n")
+                        if sep != -1:
+                            data = after[sep + 4 :]
+                            end = data.find(b"\r\n")
+                            submitted = data[:end].decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    submitted = None
+
+        if not csrf_tokens_match(cookie_token, submitted if isinstance(submitted, str) else None):
+            accept = request.headers.get("accept", "")
+            if "text/html" in accept:
+                return HTMLResponse(
+                    "<h1>403 â€” Jeton CSRF invalide</h1><p>Rechargez la page et rÃ©essayez.</p>",
+                    status_code=403,
+                )
+            return JSONResponse(
+                {"detail": "Jeton CSRF invalide ou manquant"}, status_code=403
+            )
+
+    # Token CSRF pour la requÃªte / templates
+    csrf = request.cookies.get("csrf_token") or generate_csrf_token()
+    request.state.csrf_token = csrf
+
+    response = await call_next(request)
+
+    if "csrf_token" not in request.cookies:
+        response.set_cookie(
+            key="csrf_token",
+            value=csrf,
+            httponly=False,
+            max_age=60 * 60 * 24 * 7,
+            secure=COOKIE_SECURE,
+            samesite="lax",
+            path="/",
+        )
+    return response
+
+
+# Middleware pour la gestion des sessions sÃ©curisÃ©es
 @app.middleware("http")
 async def session_middleware(request: Request, call_next):
-    """Middleware pour gérer les sessions sécurisées et la régénération des tokens."""
+    """Middleware pour gÃ©rer les sessions sÃ©curisÃ©es et la rÃ©gÃ©nÃ©ration des tokens."""
     response = await call_next(request)
     
-    # Vérifier si l'utilisateur est connecté
+    # VÃ©rifier si l'utilisateur est connectÃ©
     token = request.cookies.get("session_token")
     if token:
-        # Vérifier si le token doit être rafraîchi
+        # VÃ©rifier si le token doit Ãªtre rafraÃ®chi
         if should_refresh_token(token):
             try:
-                # Récupérer l'utilisateur actuel
+                # RÃ©cupÃ©rer l'utilisateur actuel
                 user_id = validate_session_token(token)
                 if user_id:
-                    # Créer un nouveau token
+                    # CrÃ©er un nouveau token
                     ip_address = request.client.host if request.client else None
                     user_agent = request.headers.get("user-agent")
                     new_token = create_secure_session_token(user_id, ip_address, user_agent)
                     
-                    # Désactiver l'ancien token
+                    # DÃ©sactiver l'ancien token
                     deactivate_session(token)
                     
-                    # Mettre à jour le cookie
+                    # Mettre Ã  jour le cookie
                     response.set_cookie(
                         key="session_token",
                         value=new_token,
-                        httponly=True,
-                        max_age=60 * 60 * 24 * SESSION_MAX_AGE_DAYS,
-                        secure=False,  # Mettre True en production avec HTTPS
-                        samesite="lax"
+                        **session_cookie_kwargs(60 * 60 * 24 * SESSION_MAX_AGE_DAYS),
                     )
             except Exception as e:
-                print(f"Erreur lors de la régénération du token : {e}")
+                print(f"Erreur lors de la rÃ©gÃ©nÃ©ration du token : {e}")
     
     return response
 
-# Clé secrète pour signer les cookies de session.
-SECRET_KEY = "change-me-in-production-please"
-
-# Configuration des sessions sécurisées
-SESSION_TIMEOUT_MINUTES = 30  # Timeout d'inactivité
-SESSION_MAX_AGE_DAYS = 7      # Durée maximale de la session
-SESSION_REFRESH_THRESHOLD = 15 # Minutes avant expiration pour régénérer le token
+# Configuration des sessions sÃ©curisÃ©es
+SESSION_TIMEOUT_MINUTES = 30  # Timeout d'inactivitÃ©
+SESSION_MAX_AGE_DAYS = 7      # DurÃ©e maximale de la session
+SESSION_REFRESH_THRESHOLD = 15 # Minutes avant expiration pour rÃ©gÃ©nÃ©rer le token
 
 # Configuration email
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -127,21 +221,21 @@ EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@cmtch.tn")
 
 def detect_language(text: str) -> str:
     """
-    Détecte la langue d'un texte (arabe ou français)
-    Retourne 'ar' pour l'arabe, 'fr' pour le français
+    DÃ©tecte la langue d'un texte (arabe ou franÃ§ais)
+    Retourne 'ar' pour l'arabe, 'fr' pour le franÃ§ais
     """
     if not text or not text.strip():
-        return 'fr'  # Par défaut français
+        return 'fr'  # Par dÃ©faut franÃ§ais
     
-    # Compter les caractères arabes
+    # Compter les caractÃ¨res arabes
     arabic_chars = re.findall(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]', text)
     arabic_count = len(arabic_chars)
     
-    # Compter les caractères français/latins
-    latin_chars = re.findall(r'[a-zA-Zàâäéèêëïîôöùûüÿçñ]', text)
+    # Compter les caractÃ¨res franÃ§ais/latins
+    latin_chars = re.findall(r'[a-zA-ZÃ Ã¢Ã¤Ã©Ã¨ÃªÃ«Ã¯Ã®Ã´Ã¶Ã¹Ã»Ã¼Ã¿Ã§Ã±]', text)
     latin_count = len(latin_chars)
     
-    # Si plus de caractères arabes que latins, c'est de l'arabe
+    # Si plus de caractÃ¨res arabes que latins, c'est de l'arabe
     if arabic_count > latin_count:
         return 'ar'
     else:
@@ -160,47 +254,61 @@ def get_text_align(language: str) -> str:
     return 'right' if language == 'ar' else 'left'
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-# Expose l'objet datetime dans les templates pour afficher l'année dans le pied de page
+# Expose l'objet datetime dans les templates pour afficher l'annÃ©e dans le pied de page
 templates.env.globals["datetime"] = datetime
-# Expose les fonctions de détection de langue dans les templates
+# Expose les fonctions de dÃ©tection de langue dans les templates
 templates.env.globals["detect_language"] = detect_language
 templates.env.globals["get_text_direction"] = get_text_direction
 templates.env.globals["get_text_align"] = get_text_align
+
+_original_template_response = templates.TemplateResponse
+
+def _template_response_with_csrf(name, context, *args, **kwargs):
+    """Injecte automatiquement csrf_token dans le contexte Jinja."""
+    request = context.get("request") if isinstance(context, dict) else None
+    if isinstance(context, dict) and request is not None:
+        context.setdefault(
+            "csrf_token",
+            getattr(request.state, "csrf_token", None) or request.cookies.get("csrf_token") or "",
+        )
+    return _original_template_response(name, context, *args, **kwargs)
+
+templates.TemplateResponse = _template_response_with_csrf  # type: ignore[method-assign]
 
 def ensure_absolute_image_url(image_path: str) -> str:
     """S'assure que l'URL de l'image est absolue (ImgBB ou endpoint)"""
     if not image_path:
         return ""
     
-    print(f"🔍 ensure_absolute_image_url: Input = '{image_path}'")
+    print(f"ðŸ” ensure_absolute_image_url: Input = '{image_path}'")
     
-    # Si c'est déjà une URL absolue, la retourner telle quelle
+    # Si c'est dÃ©jÃ  une URL absolue, la retourner telle quelle
     if image_path.startswith(('http://', 'https://')):
-        print(f"✅ URL déjà absolue: {image_path}")
+        print(f"âœ… URL dÃ©jÃ  absolue: {image_path}")
         return image_path
     
     # Si c'est une URL relative, la convertir en URL absolue via notre endpoint
     if image_path.startswith('/static/article_images/'):
         filename = image_path.split('/')[-1]
         result = f"https://www.cmtch.online/image/{filename}"
-        print(f"🔄 URL relative convertie: {image_path} -> {result}")
+        print(f"ðŸ”„ URL relative convertie: {image_path} -> {result}")
         return result
     
     # Si c'est juste le nom du fichier, construire l'URL via notre endpoint
     if not image_path.startswith('/'):
         result = f"https://www.cmtch.online/image/{image_path}"
-        print(f"🔄 Nom de fichier converti: {image_path} -> {result}")
+        print(f"ðŸ”„ Nom de fichier converti: {image_path} -> {result}")
         return result
     
-    # Par défaut, retourner l'URL telle quelle
-    print(f"⚠️ URL non modifiée: {image_path}")
+    # Par dÃ©faut, retourner l'URL telle quelle
+    print(f"âš ï¸ URL non modifiÃ©e: {image_path}")
     return image_path
 
 # Expose la fonction dans les templates
 templates.env.globals["ensure_absolute_image_url"] = ensure_absolute_image_url
 
-# Test pour vérifier que la fonction est bien exposée
-print(f"🔧 Fonction ensure_absolute_image_url exposée: {templates.env.globals.get('ensure_absolute_image_url') is not None}")
+# Test pour vÃ©rifier que la fonction est bien exposÃ©e
+print(f"ðŸ”§ Fonction ensure_absolute_image_url exposÃ©e: {templates.env.globals.get('ensure_absolute_image_url') is not None}")
 
 # Montage des fichiers statiques (CSS, images, JS)
 # Montage StaticFiles pour les fichiers CSS/JS locaux
@@ -210,33 +318,33 @@ app.mount(
     name="static",
 )
 
-# Route spécifique pour les images d'articles qui redirige vers HostGator
+# Route spÃ©cifique pour les images d'articles qui redirige vers HostGator
 @app.get("/article_images/{filename}")
 async def serve_article_image(filename: str):
-    """Redirige les requêtes d'images d'articles vers HostGator"""
+    """Redirige les requÃªtes d'images d'articles vers HostGator"""
     hostgator_url = f"https://www.cmtch.online/static/article_images/{filename}"
     return RedirectResponse(url=hostgator_url, status_code=302)
 
 
 def create_secure_session_token(user_id: int, ip_address: str = None, user_agent: str = None) -> str:
-    """Crée un jeton de session sécurisé et l'enregistre en base de données.
+    """CrÃ©e un jeton de session sÃ©curisÃ© et l'enregistre en base de donnÃ©es.
 
     Args:
-        user_id: identifiant numérique de l'utilisateur.
+        user_id: identifiant numÃ©rique de l'utilisateur.
         ip_address: adresse IP de l'utilisateur.
         user_agent: user agent du navigateur.
 
     Returns:
-        Chaîne représentant le jeton de session.
+        ChaÃ®ne reprÃ©sentant le jeton de session.
     """
-    # Générer un token aléatoire sécurisé
+    # GÃ©nÃ©rer un token alÃ©atoire sÃ©curisÃ©
     token = secrets.token_urlsafe(32)
     
     # Calculer les dates d'expiration
     now = datetime.now()
     expires_at = now + timedelta(days=SESSION_MAX_AGE_DAYS)
     
-    # Enregistrer la session en base de données
+    # Enregistrer la session en base de donnÃ©es
     conn = get_db_connection()
     try:
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
@@ -255,9 +363,9 @@ def create_secure_session_token(user_id: int, ip_address: str = None, user_agent
         conn.commit()
         return token
     except Exception as e:
-        # Si la table user_sessions n'existe pas encore, utiliser l'ancien système
-        print(f"⚠️ Table user_sessions manquante, utilisation de l'ancien système: {e}")
-        # Retourner un token simple pour l'ancien système
+        # Si la table user_sessions n'existe pas encore, utiliser l'ancien systÃ¨me
+        print(f"âš ï¸ Table user_sessions manquante, utilisation de l'ancien systÃ¨me: {e}")
+        # Retourner un token simple pour l'ancien systÃ¨me
         data = str(user_id).encode()
         signature = hmac.new(SECRET_KEY.encode(), data, hashlib.sha256).hexdigest().encode()
         token_bytes = data + b":" + signature
@@ -270,8 +378,8 @@ def validate_session_token(token: str, ip_address: str = None) -> Optional[int]:
     """Valide un jeton de session et retourne l'ID utilisateur si valide.
 
     Args:
-        token: Jeton de session à valider.
-        ip_address: Adresse IP pour vérification de sécurité.
+        token: Jeton de session Ã  valider.
+        ip_address: Adresse IP pour vÃ©rification de sÃ©curitÃ©.
 
     Returns:
         L'identifiant de l'utilisateur si la session est valide, sinon None.
@@ -302,45 +410,45 @@ def validate_session_token(token: str, ip_address: str = None) -> Optional[int]:
         
         user_id, expires_at_str, last_activity_str, is_active, session_ip = session
         
-        # Vérifier si la session est expirée
+        # VÃ©rifier si la session est expirÃ©e
         try:
             expires_at = datetime.fromisoformat(str(expires_at_str)) if expires_at_str else datetime.now()
             last_activity = datetime.fromisoformat(str(last_activity_str)) if last_activity_str else datetime.now()
         except (ValueError, TypeError) as e:
-            print(f"⚠️ Erreur de parsing de date: {e}")
+            print(f"âš ï¸ Erreur de parsing de date: {e}")
             return None
         now = datetime.now()
         
         if now > expires_at:
-            # Session expirée, la désactiver
+            # Session expirÃ©e, la dÃ©sactiver
             deactivate_session(token)
             return None
         
-        # Vérifier le timeout d'inactivité
+        # VÃ©rifier le timeout d'inactivitÃ©
         if now - last_activity > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-            # Session inactive trop longtemps, la désactiver
+            # Session inactive trop longtemps, la dÃ©sactiver
             deactivate_session(token)
             return None
         
-        # Vérification optionnelle de l'IP (peut être désactivée pour plus de flexibilité)
+        # VÃ©rification optionnelle de l'IP (peut Ãªtre dÃ©sactivÃ©e pour plus de flexibilitÃ©)
         # if ip_address and session_ip and ip_address != session_ip:
         #     return None
         
-        # Mettre à jour la dernière activité
+        # Mettre Ã  jour la derniÃ¨re activitÃ©
         update_session_activity(token)
         
         return user_id
         
     except Exception as e:
-        # Si la table user_sessions n'existe pas encore, utiliser l'ancien système
-        print(f"⚠️ Table user_sessions manquante, utilisation de l'ancien système: {e}")
+        # Si la table user_sessions n'existe pas encore, utiliser l'ancien systÃ¨me
+        print(f"âš ï¸ Table user_sessions manquante, utilisation de l'ancien systÃ¨me: {e}")
         return None
     finally:
         conn.close()
 
 
 def update_session_activity(token: str) -> None:
-    """Met à jour la dernière activité d'une session."""
+    """Met Ã  jour la derniÃ¨re activitÃ© d'une session."""
     conn = get_db_connection()
     try:
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
@@ -364,7 +472,7 @@ def update_session_activity(token: str) -> None:
 
 
 def deactivate_session(token: str) -> None:
-    """Désactive une session."""
+    """DÃ©sactive une session."""
     conn = get_db_connection()
     try:
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
@@ -388,7 +496,7 @@ def deactivate_session(token: str) -> None:
 
 
 def cleanup_expired_sessions() -> None:
-    """Nettoie les sessions expirées."""
+    """Nettoie les sessions expirÃ©es."""
     conn = get_db_connection()
     try:
         now = datetime.now().isoformat()
@@ -413,7 +521,7 @@ def cleanup_expired_sessions() -> None:
 
 
 def should_refresh_token(token: str) -> bool:
-    """Vérifie si un token doit être rafraîchi."""
+    """VÃ©rifie si un token doit Ãªtre rafraÃ®chi."""
     conn = get_db_connection()
     try:
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
@@ -439,25 +547,25 @@ def should_refresh_token(token: str) -> bool:
             
             return datetime.now() < refresh_threshold < expires_at
         except (ValueError, TypeError) as e:
-            print(f"⚠️ Erreur de parsing de date dans should_refresh_token: {e}")
+            print(f"âš ï¸ Erreur de parsing de date dans should_refresh_token: {e}")
             return False
         
     except Exception as e:
-        # Si la table n'existe pas encore, ne pas rafraîchir
-        print(f"⚠️ Erreur lors de la vérification du token (table user_sessions manquante?): {e}")
+        # Si la table n'existe pas encore, ne pas rafraÃ®chir
+        print(f"âš ï¸ Erreur lors de la vÃ©rification du token (table user_sessions manquante?): {e}")
         return False
     finally:
         conn.close()
 
 
-# Fonctions de compatibilité avec l'ancien système
+# Fonctions de compatibilitÃ© avec l'ancien systÃ¨me
 def create_session_token(user_id: int) -> str:
-    """Fonction de compatibilité - utilise le nouveau système sécurisé."""
+    """Fonction de compatibilitÃ© - utilise le nouveau systÃ¨me sÃ©curisÃ©."""
     try:
         return create_secure_session_token(user_id)
     except Exception as e:
-        # Si le nouveau système échoue, utiliser l'ancien système
-        print(f"⚠️ Nouveau système de sessions indisponible, utilisation de l'ancien: {e}")
+        # Si le nouveau systÃ¨me Ã©choue, utiliser l'ancien systÃ¨me
+        print(f"âš ï¸ Nouveau systÃ¨me de sessions indisponible, utilisation de l'ancien: {e}")
         data = str(user_id).encode()
         signature = hmac.new(SECRET_KEY.encode(), data, hashlib.sha256).hexdigest().encode()
         token_bytes = data + b":" + signature
@@ -465,11 +573,11 @@ def create_session_token(user_id: int) -> str:
 
 
 def parse_session_token(token: Optional[str]) -> Optional[int]:
-    """Fonction de compatibilité - utilise le nouveau système sécurisé."""
+    """Fonction de compatibilitÃ© - utilise le nouveau systÃ¨me sÃ©curisÃ©."""
     if not token:
         return None
     
-    # Essayer d'abord l'ancien système (plus fiable pour le fallback)
+    # Essayer d'abord l'ancien systÃ¨me (plus fiable pour le fallback)
     try:
         token_bytes = base64.urlsafe_b64decode(token.encode())
         user_id_bytes, signature = token_bytes.split(b":", 1)
@@ -479,7 +587,7 @@ def parse_session_token(token: Optional[str]) -> Optional[int]:
     except Exception:
         pass
     
-    # Si l'ancien système échoue, essayer le nouveau système
+    # Si l'ancien systÃ¨me Ã©choue, essayer le nouveau systÃ¨me
     user_id = validate_session_token(token)
     if user_id is not None:
         return user_id
@@ -491,26 +599,25 @@ def parse_session_token(token: Optional[str]) -> Optional[int]:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Vérifie qu'un mot de passe correspond à une empreinte enregistrée."""
-    from database import hash_password as hash_pwd
-    return hash_pwd(password) == password_hash
+    """VÃ©rifie qu'un mot de passe correspond Ã  une empreinte (bcrypt ou SHA-256 legacy)."""
+    return secure_verify_password(password, password_hash)
 
 
-# Utilitaire pour analyser les formulaires multipart/form-data sans dépendance
+# Utilitaire pour analyser les formulaires multipart/form-data sans dÃ©pendance
 def parse_multipart_form(body: bytes, content_type: str) -> Dict[str, Any]:
     """Parse un corps multipart/form-data et retourne un dict des champs.
 
-    Cette fonction analyse les données envoyées dans le corps d'une requête
-    multipart/form-data. Les champs simples (texte) sont retournés comme des
-    chaînes de caractères. Les champs de fichier sont retournés sous la forme
-    d'un dictionnaire avec les clés 'filename' et 'content' (contenu binaire).
+    Cette fonction analyse les donnÃ©es envoyÃ©es dans le corps d'une requÃªte
+    multipart/form-data. Les champs simples (texte) sont retournÃ©s comme des
+    chaÃ®nes de caractÃ¨res. Les champs de fichier sont retournÃ©s sous la forme
+    d'un dictionnaire avec les clÃ©s 'filename' et 'content' (contenu binaire).
 
     Args:
-        body: corps brut de la requête en bytes.
-        content_type: valeur de l'en-tête Content-Type (avec le boundary).
+        body: corps brut de la requÃªte en bytes.
+        content_type: valeur de l'en-tÃªte Content-Type (avec le boundary).
 
     Returns:
-        Un dictionnaire où les clés sont les noms de champs.
+        Un dictionnaire oÃ¹ les clÃ©s sont les noms de champs.
     """
     result: Dict[str, Any] = {}
     # Extraire le boundary depuis le header
@@ -518,17 +625,17 @@ def parse_multipart_form(body: bytes, content_type: str) -> Dict[str, Any]:
     if not m:
         return result
     boundary = m.group(1)
-    # Les guillemets autour du boundary sont supprimés le cas échéant
+    # Les guillemets autour du boundary sont supprimÃ©s le cas Ã©chÃ©ant
     if boundary.startswith('"') and boundary.endswith('"'):
         boundary = boundary[1:-1]
     boundary_bytes = ('--' + boundary).encode()
     parts = body.split(boundary_bytes)
-    # On ignore la première et la dernière partie (avant le premier boundary et après le boundary de fermeture)
+    # On ignore la premiÃ¨re et la derniÃ¨re partie (avant le premier boundary et aprÃ¨s le boundary de fermeture)
     for part in parts[1:-1]:
         part = part.strip(b"\r\n")
         if not part:
             continue
-        # Séparer les entêtes du contenu
+        # SÃ©parer les entÃªtes du contenu
         header_block, _, data = part.partition(b"\r\n\r\n")
         headers: Dict[str, str] = {}
         for header_line in header_block.split(b"\r\n"):
@@ -538,7 +645,7 @@ def parse_multipart_form(body: bytes, content_type: str) -> Dict[str, Any]:
             except Exception:
                 continue
         content_disp = headers.get('content-disposition', '')
-        # Extraire les paramètres du Content-Disposition
+        # Extraire les paramÃ¨tres du Content-Disposition
         disp_params = dict(re.findall(r'([^;=\s]+)="?([^";]*)"?', content_disp))
         field_name = disp_params.get('name')
         filename = disp_params.get('filename')
@@ -555,10 +662,10 @@ def parse_multipart_form(body: bytes, content_type: str) -> Dict[str, Any]:
 
 
 def get_db_connection():
-    """Ouvre une connexion à la base de données (SQLite ou PostgreSQL).
+    """Ouvre une connexion Ã  la base de donnÃ©es (SQLite ou PostgreSQL).
 
     Returns:
-        Instance de connexion à la base de données.
+        Instance de connexion Ã  la base de donnÃ©es.
     """
     from database import get_db_connection as get_db_conn
     return get_db_conn()
@@ -573,11 +680,11 @@ def send_email(to_email: str, subject: str, html_content: str, text_content: str
         text_content: Contenu texte alternatif (optionnel)
         
     Returns:
-        True si l'email a été envoyé avec succès, False sinon
+        True si l'email a Ã©tÃ© envoyÃ© avec succÃ¨s, False sinon
     """
     try:
         if not SMTP_USERNAME or not SMTP_PASSWORD:
-            print(f"⚠️ Configuration SMTP manquante - Email non envoyé à {to_email}")
+            print(f"âš ï¸ Configuration SMTP manquante - Email non envoyÃ© Ã  {to_email}")
             return False
             
         msg = MIMEMultipart('alternative')
@@ -600,24 +707,24 @@ def send_email(to_email: str, subject: str, html_content: str, text_content: str
         server.sendmail(EMAIL_FROM, to_email, text)
         server.quit()
         
-        print(f"✅ Email envoyé avec succès à {to_email}")
+        print(f"âœ… Email envoyÃ© avec succÃ¨s Ã  {to_email}")
         return True
         
     except Exception as e:
-        print(f"❌ Erreur lors de l'envoi d'email à {to_email}: {e}")
+        print(f"âŒ Erreur lors de l'envoi d'email Ã  {to_email}: {e}")
         return False
 
 
 def generate_ics_content(event_title: str, event_description: str, start_datetime: datetime, 
                         end_datetime: datetime, location: str = "Club Municipal de Tennis Chihia") -> str:
-    """Génère le contenu d'un fichier ICS (iCalendar).
+    """GÃ©nÃ¨re le contenu d'un fichier ICS (iCalendar).
     
     Args:
-        event_title: Titre de l'événement
-        event_description: Description de l'événement
-        start_datetime: Date et heure de début
+        event_title: Titre de l'Ã©vÃ©nement
+        event_description: Description de l'Ã©vÃ©nement
+        start_datetime: Date et heure de dÃ©but
         end_datetime: Date et heure de fin
-        location: Lieu de l'événement
+        location: Lieu de l'Ã©vÃ©nement
         
     Returns:
         Contenu du fichier ICS
@@ -626,7 +733,7 @@ def generate_ics_content(event_title: str, event_description: str, start_datetim
     def format_datetime(dt):
         return dt.strftime("%Y%m%dT%H%M%SZ")
     
-    # Préparer la description en échappant les caractères spéciaux
+    # PrÃ©parer la description en Ã©chappant les caractÃ¨res spÃ©ciaux
     description = event_description.replace(chr(10), '\\n').replace(chr(13), '')
     
     ics_content = f"""BEGIN:VCALENDAR
@@ -651,37 +758,37 @@ END:VCALENDAR"""
 
 
 def send_reservation_confirmation_email(user_email: str, user_name: str, reservation_data: Dict) -> bool:
-    """Envoie un email de confirmation de réservation.
+    """Envoie un email de confirmation de rÃ©servation.
     
     Args:
         user_email: Email de l'utilisateur
         user_name: Nom de l'utilisateur
-        reservation_data: Données de la réservation
+        reservation_data: DonnÃ©es de la rÃ©servation
         
     Returns:
-        True si l'email a été envoyé avec succès
+        True si l'email a Ã©tÃ© envoyÃ© avec succÃ¨s
     """
-    subject = f"Confirmation de réservation - Court {reservation_data['court_number']}"
+    subject = f"Confirmation de rÃ©servation - Court {reservation_data['court_number']}"
     
     # Contenu texte
     text_content = f"""
-Confirmation de réservation - Club Municipal de Tennis Chihia
+Confirmation de rÃ©servation - Club Municipal de Tennis Chihia
 
 Bonjour {user_name},
 
-Votre réservation a été confirmée avec succès.
+Votre rÃ©servation a Ã©tÃ© confirmÃ©e avec succÃ¨s.
 
-Détails de la réservation :
+DÃ©tails de la rÃ©servation :
 - Date : {reservation_data['date']}
 - Heure : {reservation_data['start_time']} - {reservation_data['end_time']}
 - Court : {reservation_data['court_number']}
-- ID réservation : #{reservation_data['id']}
+- ID rÃ©servation : #{reservation_data['id']}
 
 Lieu : Club Municipal de Tennis Chihia
 
 Merci de votre confiance !
 
-L'équipe du Club Municipal de Tennis Chihia
+L'Ã©quipe du Club Municipal de Tennis Chihia
 """
     
     # Contenu HTML
@@ -704,15 +811,15 @@ L'équipe du Club Municipal de Tennis Chihia
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎾 Confirmation de réservation</h1>
+            <h1>ðŸŽ¾ Confirmation de rÃ©servation</h1>
             <p>Club Municipal de Tennis Chihia</p>
         </div>
         <div class="content">
             <p>Bonjour <strong>{user_name}</strong>,</p>
-            <p>Votre réservation a été confirmée avec succès !</p>
+            <p>Votre rÃ©servation a Ã©tÃ© confirmÃ©e avec succÃ¨s !</p>
             
             <div class="reservation-details">
-                <h3>📅 Détails de votre réservation</h3>
+                <h3>ðŸ“… DÃ©tails de votre rÃ©servation</h3>
                 <div class="detail-item">
                     <span class="label">Date :</span> {reservation_data['date']}
                 </div>
@@ -723,18 +830,18 @@ L'équipe du Club Municipal de Tennis Chihia
                     <span class="label">Court :</span> Court {reservation_data['court_number']}
                 </div>
                 <div class="detail-item">
-                    <span class="label">ID réservation :</span> #{reservation_data['id']}
+                    <span class="label">ID rÃ©servation :</span> #{reservation_data['id']}
                 </div>
             </div>
             
             <p><strong>Lieu :</strong> Club Municipal de Tennis Chihia</p>
             
             <p>Merci de votre confiance !</p>
-            <p>À bientôt sur les courts ! 🎾</p>
+            <p>Ã€ bientÃ´t sur les courts ! ðŸŽ¾</p>
         </div>
         <div class="footer">
             <p>Club Municipal de Tennis Chihia</p>
-            <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+            <p>Cet email a Ã©tÃ© envoyÃ© automatiquement, merci de ne pas y rÃ©pondre.</p>
         </div>
     </div>
 </body>
@@ -750,12 +857,12 @@ def send_member_validation_email(user_email: str, user_name: str, admin_name: st
     Args:
         user_email: Email de l'utilisateur
         user_name: Nom de l'utilisateur
-        admin_name: Nom de l'administrateur qui a validé
+        admin_name: Nom de l'administrateur qui a validÃ©
         
     Returns:
-        True si l'email a été envoyé avec succès
+        True si l'email a Ã©tÃ© envoyÃ© avec succÃ¨s
     """
-    subject = "Votre compte a été validé - Club Municipal de Tennis Chihia"
+    subject = "Votre compte a Ã©tÃ© validÃ© - Club Municipal de Tennis Chihia"
     
     # Contenu texte
     text_content = f"""
@@ -763,16 +870,16 @@ Validation de compte - Club Municipal de Tennis Chihia
 
 Bonjour {user_name},
 
-Excellente nouvelle ! Votre compte a été validé par {admin_name}.
+Excellente nouvelle ! Votre compte a Ã©tÃ© validÃ© par {admin_name}.
 
 Vous pouvez maintenant :
-- Vous connecter à votre espace personnel
-- Effectuer des réservations de courts
-- Accéder à toutes les fonctionnalités du club
+- Vous connecter Ã  votre espace personnel
+- Effectuer des rÃ©servations de courts
+- AccÃ©der Ã  toutes les fonctionnalitÃ©s du club
 
-Connectez-vous dès maintenant sur notre site web !
+Connectez-vous dÃ¨s maintenant sur notre site web !
 
-L'équipe du Club Municipal de Tennis Chihia
+L'Ã©quipe du Club Municipal de Tennis Chihia
 """
     
     # Contenu HTML
@@ -794,33 +901,33 @@ L'équipe du Club Municipal de Tennis Chihia
 <body>
     <div class="container">
         <div class="header">
-            <h1>✅ Compte validé !</h1>
+            <h1>âœ… Compte validÃ© !</h1>
             <p>Club Municipal de Tennis Chihia</p>
         </div>
         <div class="content">
             <p>Bonjour <strong>{user_name}</strong>,</p>
-            <p>Excellente nouvelle ! Votre compte a été validé par <strong>{admin_name}</strong>.</p>
+            <p>Excellente nouvelle ! Votre compte a Ã©tÃ© validÃ© par <strong>{admin_name}</strong>.</p>
             
             <div class="success-box">
-                <h3>🎉 Vous pouvez maintenant :</h3>
+                <h3>ðŸŽ‰ Vous pouvez maintenant :</h3>
                 <ul>
-                    <li>Vous connecter à votre espace personnel</li>
-                    <li>Effectuer des réservations de courts</li>
-                    <li>Accéder à toutes les fonctionnalités du club</li>
+                    <li>Vous connecter Ã  votre espace personnel</li>
+                    <li>Effectuer des rÃ©servations de courts</li>
+                    <li>AccÃ©der Ã  toutes les fonctionnalitÃ©s du club</li>
                 </ul>
             </div>
             
             <p style="text-align: center;">
                 <a href="https://www.cmtch.online/connexion" class="cta-button">
-                    🎾 Se connecter maintenant
+                    ðŸŽ¾ Se connecter maintenant
                 </a>
             </p>
             
-            <p>À bientôt sur les courts !</p>
+            <p>Ã€ bientÃ´t sur les courts !</p>
         </div>
         <div class="footer">
             <p>Club Municipal de Tennis Chihia</p>
-            <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+            <p>Cet email a Ã©tÃ© envoyÃ© automatiquement, merci de ne pas y rÃ©pondre.</p>
         </div>
     </div>
 </body>
@@ -831,29 +938,21 @@ L'équipe du Club Municipal de Tennis Chihia
 
 
 def hash_password(password: str) -> str:
-    """Retourne l'empreinte SHA‑256 d'un mot de passe en clair.
-
-    Args:
-        password: Mot de passe en clair.
-
-    Returns:
-        Chaîne hexadécimale représentant l'empreinte.
-    """
-    from database import hash_password as hash_pwd
-    return hash_pwd(password)
+    """Retourne l'empreinte bcrypt d'un mot de passe en clair."""
+    return secure_hash_password(password)
 
 
-# SYSTÈME DE SAUVEGARDE AUTOMATIQUE POUR RENDER
-# Ce système sauvegarde et restaure automatiquement les données
-# pour éviter la perte lors des redémarrages de Render
+# SYSTÃˆME DE SAUVEGARDE AUTOMATIQUE POUR RENDER
+# Ce systÃ¨me sauvegarde et restaure automatiquement les donnÃ©es
+# pour Ã©viter la perte lors des redÃ©marrages de Render
 
 def backup_database():
-    """Crée une sauvegarde de la base de données."""
+    """CrÃ©e une sauvegarde de la base de donnÃ©es."""
     try:
         import shutil
         from datetime import datetime
         
-        # Créer le dossier de sauvegarde s'il n'existe pas
+        # CrÃ©er le dossier de sauvegarde s'il n'existe pas
         backup_dir = Path("backups")
         backup_dir.mkdir(exist_ok=True)
         
@@ -862,34 +961,34 @@ def backup_database():
         backup_filename = f"backup_{timestamp}.db"
         backup_path = backup_dir / backup_filename
         
-        # Vérifier le type de base de données
+        # VÃ©rifier le type de base de donnÃ©es
         database_url = os.getenv('DATABASE_URL')
         
         if database_url and 'mysql://' in database_url:
             # Pour MySQL, on ne peut pas faire une copie directe du fichier
-            # On va exporter les données en SQL
+            # On va exporter les donnÃ©es en SQL
             return backup_mysql_database(backup_path)
         elif database_url:
             # Pour PostgreSQL, on ne peut pas faire une copie directe du fichier
-            # On va exporter les données en SQL
+            # On va exporter les donnÃ©es en SQL
             return backup_postgresql_database(backup_path)
         else:
             # Pour SQLite, on peut copier le fichier directement
             source_db = Path("database.db")
             if source_db.exists():
                 shutil.copy2(source_db, backup_path)
-                print(f"✅ Sauvegarde SQLite créée: {backup_path}")
+                print(f"âœ… Sauvegarde SQLite crÃ©Ã©e: {backup_path}")
                 return str(backup_path)
             else:
-                print("❌ Fichier de base de données SQLite non trouvé")
+                print("âŒ Fichier de base de donnÃ©es SQLite non trouvÃ©")
                 return None
                 
     except Exception as e:
-        print(f"❌ Erreur lors de la sauvegarde: {e}")
+        print(f"âŒ Erreur lors de la sauvegarde: {e}")
         return None
 
 def backup_mysql_database(backup_path):
-    """Crée une sauvegarde de la base de données MySQL."""
+    """CrÃ©e une sauvegarde de la base de donnÃ©es MySQL."""
     try:
         import mysql.connector
         
@@ -909,7 +1008,7 @@ def backup_mysql_database(backup_path):
         port = int(host_port[1]) if len(host_port) > 1 else 3306
         database = host_db[1]
         
-        # Connexion à MySQL
+        # Connexion Ã  MySQL
         conn = mysql.connector.connect(
             host=host,
             port=port,
@@ -918,7 +1017,7 @@ def backup_mysql_database(backup_path):
             database=database
         )
         
-        # Créer le fichier de sauvegarde SQL
+        # CrÃ©er le fichier de sauvegarde SQL
         sql_backup_path = str(backup_path).replace('.db', '.sql')
         
         with open(sql_backup_path, 'w', encoding='utf-8') as f:
@@ -937,7 +1036,7 @@ def backup_mysql_database(backup_path):
                 create_table = cursor.fetchone()
                 f.write(f"{create_table[1]};\n\n")
                 
-                # Obtenir les données de la table
+                # Obtenir les donnÃ©es de la table
                 cursor.execute(f"SELECT * FROM `{table_name}`")
                 rows = cursor.fetchall()
                 
@@ -959,15 +1058,15 @@ def backup_mysql_database(backup_path):
                         f.write(f"INSERT INTO `{table_name}` (`{'`, `'.join(columns)}`) VALUES ({', '.join(values)});\n")
         
         conn.close()
-        print(f"✅ Sauvegarde MySQL créée: {sql_backup_path}")
+        print(f"âœ… Sauvegarde MySQL crÃ©Ã©e: {sql_backup_path}")
         return sql_backup_path
         
     except Exception as e:
-        print(f"❌ Erreur lors de la sauvegarde MySQL: {e}")
+        print(f"âŒ Erreur lors de la sauvegarde MySQL: {e}")
         return None
 
 def backup_postgresql_database(backup_path):
-    """Crée une sauvegarde de la base de données PostgreSQL."""
+    """CrÃ©e une sauvegarde de la base de donnÃ©es PostgreSQL."""
     try:
         import psycopg2
         
@@ -975,11 +1074,11 @@ def backup_postgresql_database(backup_path):
         if not database_url:
             return None
             
-        # Connexion à PostgreSQL
+        # Connexion Ã  PostgreSQL
         conn = psycopg2.connect(database_url)
         cursor = conn.cursor()
         
-        # Créer le fichier de sauvegarde SQL
+        # CrÃ©er le fichier de sauvegarde SQL
         sql_backup_path = str(backup_path).replace('.db', '.sql')
         
         with open(sql_backup_path, 'w', encoding='utf-8') as f:
@@ -1019,7 +1118,7 @@ def backup_postgresql_database(backup_path):
                     f.write(',\n'.join(column_defs))
                     f.write("\n);\n\n")
                 
-                # Obtenir les données de la table
+                # Obtenir les donnÃ©es de la table
                 cursor.execute(f'SELECT * FROM "{table_name}"')
                 rows = cursor.fetchall()
                 
@@ -1041,15 +1140,15 @@ def backup_postgresql_database(backup_path):
                         f.write(f'INSERT INTO "{table_name}" ("{columns_str}") VALUES ({", ".join(values)});\n')
         
         conn.close()
-        print(f"✅ Sauvegarde PostgreSQL créée: {sql_backup_path}")
+        print(f"âœ… Sauvegarde PostgreSQL crÃ©Ã©e: {sql_backup_path}")
         return sql_backup_path
         
     except Exception as e:
-        print(f"❌ Erreur lors de la sauvegarde PostgreSQL: {e}")
+        print(f"âŒ Erreur lors de la sauvegarde PostgreSQL: {e}")
         return None
 
 def find_latest_backup():
-    """Trouve la sauvegarde la plus récente."""
+    """Trouve la sauvegarde la plus rÃ©cente."""
     try:
         backup_dir = Path("backups")
         if not backup_dir.exists():
@@ -1065,23 +1164,23 @@ def find_latest_backup():
         if not backup_files:
             return None
             
-        # Retourner le fichier le plus récent
+        # Retourner le fichier le plus rÃ©cent
         latest_backup = max(backup_files, key=lambda x: x.stat().st_mtime)
         return str(latest_backup)
         
     except Exception as e:
-        print(f"❌ Erreur lors de la recherche de sauvegarde: {e}")
+        print(f"âŒ Erreur lors de la recherche de sauvegarde: {e}")
         return None
 
 def restore_database(backup_path):
-    """Restaure la base de données depuis une sauvegarde."""
+    """Restaure la base de donnÃ©es depuis une sauvegarde."""
     try:
         backup_path = Path(backup_path)
         if not backup_path.exists():
-            print(f"❌ Fichier de sauvegarde non trouvé: {backup_path}")
+            print(f"âŒ Fichier de sauvegarde non trouvÃ©: {backup_path}")
             return False
             
-        # Vérifier le type de base de données
+        # VÃ©rifier le type de base de donnÃ©es
         database_url = os.getenv('DATABASE_URL')
         
         if database_url and 'mysql://' in database_url:
@@ -1092,11 +1191,11 @@ def restore_database(backup_path):
             return restore_sqlite_database(backup_path)
             
     except Exception as e:
-        print(f"❌ Erreur lors de la restauration: {e}")
+        print(f"âŒ Erreur lors de la restauration: {e}")
         return False
 
 def restore_sqlite_database(backup_path):
-    """Restaure la base de données SQLite depuis une sauvegarde."""
+    """Restaure la base de donnÃ©es SQLite depuis une sauvegarde."""
     try:
         import shutil
         
@@ -1105,19 +1204,19 @@ def restore_sqlite_database(backup_path):
         if current_db.exists():
             backup_current = Path("database_backup_before_restore.db")
             shutil.copy2(current_db, backup_current)
-            print(f"✅ Sauvegarde de la base actuelle: {backup_current}")
+            print(f"âœ… Sauvegarde de la base actuelle: {backup_current}")
         
         # Restaurer depuis la sauvegarde
         shutil.copy2(backup_path, current_db)
-        print(f"✅ Base de données SQLite restaurée depuis: {backup_path}")
+        print(f"âœ… Base de donnÃ©es SQLite restaurÃ©e depuis: {backup_path}")
         return True
         
     except Exception as e:
-        print(f"❌ Erreur lors de la restauration SQLite: {e}")
+        print(f"âŒ Erreur lors de la restauration SQLite: {e}")
         return False
 
 def restore_mysql_database(backup_path):
-    """Restaure la base de données MySQL depuis une sauvegarde."""
+    """Restaure la base de donnÃ©es MySQL depuis une sauvegarde."""
     try:
         import mysql.connector
         
@@ -1137,7 +1236,7 @@ def restore_mysql_database(backup_path):
         port = int(host_port[1]) if len(host_port) > 1 else 3306
         database = host_db[1]
         
-        # Connexion à MySQL
+        # Connexion Ã  MySQL
         conn = mysql.connector.connect(
             host=host,
             port=port,
@@ -1146,32 +1245,32 @@ def restore_mysql_database(backup_path):
             database=database
         )
         
-        # Lire et exécuter le fichier SQL
+        # Lire et exÃ©cuter le fichier SQL
         with open(backup_path, 'r', encoding='utf-8') as f:
             sql_content = f.read()
             
         cursor = conn.cursor()
         
-        # Exécuter les commandes SQL une par une
+        # ExÃ©cuter les commandes SQL une par une
         for statement in sql_content.split(';'):
             statement = statement.strip()
             if statement:
                 try:
                     cursor.execute(statement)
                 except Exception as e:
-                    print(f"⚠️ Erreur lors de l'exécution de: {statement[:50]}... - {e}")
+                    print(f"âš ï¸ Erreur lors de l'exÃ©cution de: {statement[:50]}... - {e}")
         
         conn.commit()
         conn.close()
-        print(f"✅ Base de données MySQL restaurée depuis: {backup_path}")
+        print(f"âœ… Base de donnÃ©es MySQL restaurÃ©e depuis: {backup_path}")
         return True
         
     except Exception as e:
-        print(f"❌ Erreur lors de la restauration MySQL: {e}")
+        print(f"âŒ Erreur lors de la restauration MySQL: {e}")
         return False
 
 def restore_postgresql_database(backup_path):
-    """Restaure la base de données PostgreSQL depuis une sauvegarde."""
+    """Restaure la base de donnÃ©es PostgreSQL depuis une sauvegarde."""
     try:
         import psycopg2
         
@@ -1179,120 +1278,120 @@ def restore_postgresql_database(backup_path):
         if not database_url:
             return False
             
-        # Connexion à PostgreSQL
+        # Connexion Ã  PostgreSQL
         conn = psycopg2.connect(database_url)
         cursor = conn.cursor()
         
-        # Lire et exécuter le fichier SQL
+        # Lire et exÃ©cuter le fichier SQL
         with open(backup_path, 'r', encoding='utf-8') as f:
             sql_content = f.read()
             
-        # Exécuter les commandes SQL une par une
+        # ExÃ©cuter les commandes SQL une par une
         for statement in sql_content.split(';'):
             statement = statement.strip()
             if statement:
                 try:
                     cursor.execute(statement)
                 except Exception as e:
-                    print(f"⚠️ Erreur lors de l'exécution de: {statement[:50]}... - {e}")
+                    print(f"âš ï¸ Erreur lors de l'exÃ©cution de: {statement[:50]}... - {e}")
         
         conn.commit()
         conn.close()
-        print(f"✅ Base de données PostgreSQL restaurée depuis: {backup_path}")
+        print(f"âœ… Base de donnÃ©es PostgreSQL restaurÃ©e depuis: {backup_path}")
         return True
         
     except Exception as e:
-        print(f"❌ Erreur lors de la restauration PostgreSQL: {e}")
+        print(f"âŒ Erreur lors de la restauration PostgreSQL: {e}")
         return False
 
 def auto_backup_system():
-    """Système de sauvegarde automatique pour préserver les données sur Render."""
+    """SystÃ¨me de sauvegarde automatique pour prÃ©server les donnÃ©es sur Render."""
     try:
-        print("🔄 Démarrage du système de sauvegarde automatique...")
+        print("ðŸ”„ DÃ©marrage du systÃ¨me de sauvegarde automatique...")
         
-        # Vérifier si le système est désactivé
+        # VÃ©rifier si le systÃ¨me est dÃ©sactivÃ©
         flag_file = Path("DISABLE_AUTO_BACKUP")
         if flag_file.exists():
-            print("🚫 Système de sauvegarde automatique désactivé par l'utilisateur")
+            print("ðŸš« SystÃ¨me de sauvegarde automatique dÃ©sactivÃ© par l'utilisateur")
             return
         
-        # Vérifier si on est sur Render (présence de DATABASE_URL)
+        # VÃ©rifier si on est sur Render (prÃ©sence de DATABASE_URL)
         if not os.getenv('DATABASE_URL'):
-            print("ℹ️ Pas sur Render - système de sauvegarde ignoré")
+            print("â„¹ï¸ Pas sur Render - systÃ¨me de sauvegarde ignorÃ©")
             return
         
-        # Vérifier d'abord si la base de données contient des données
+        # VÃ©rifier d'abord si la base de donnÃ©es contient des donnÃ©es
         conn = get_db_connection()
         cur = conn.cursor()
         
         try:
-            # Vérifier si la table users existe et contient des données
+            # VÃ©rifier si la table users existe et contient des donnÃ©es
             cur.execute("SELECT COUNT(*) FROM users")
             users_count = cur.fetchone()[0]
             
             if users_count > 0:
-                print(f"✅ Base de données contient {users_count} utilisateur(s) - Sauvegarde uniquement")
-                # Si des données existent, faire seulement une sauvegarde
+                print(f"âœ… Base de donnÃ©es contient {users_count} utilisateur(s) - Sauvegarde uniquement")
+                # Si des donnÃ©es existent, faire seulement une sauvegarde
                 backup_file = backup_database()
                 if backup_file:
-                    print(f"✅ Sauvegarde créée: {backup_file}")
+                    print(f"âœ… Sauvegarde crÃ©Ã©e: {backup_file}")
                 else:
-                    print("⚠️ Échec de la sauvegarde")
+                    print("âš ï¸ Ã‰chec de la sauvegarde")
             else:
-                print("📭 Base de données vide - Tentative de restauration")
+                print("ðŸ“­ Base de donnÃ©es vide - Tentative de restauration")
                 # Si la base est vide, essayer de restaurer
                 latest_backup = find_latest_backup()
                 if latest_backup:
-                    print(f"🔄 Restauration depuis {latest_backup}")
+                    print(f"ðŸ”„ Restauration depuis {latest_backup}")
                     if restore_database(latest_backup):
-                        print("✅ Restauration réussie")
+                        print("âœ… Restauration rÃ©ussie")
                     else:
-                        print("❌ Échec de la restauration")
+                        print("âŒ Ã‰chec de la restauration")
                 else:
-                    print("📭 Aucune sauvegarde trouvée")
+                    print("ðŸ“­ Aucune sauvegarde trouvÃ©e")
                     
         except Exception as e:
-            print(f"❌ Erreur lors de la vérification de la base: {e}")
+            print(f"âŒ Erreur lors de la vÃ©rification de la base: {e}")
         finally:
             conn.close()
             
     except Exception as e:
-        print(f"❌ Erreur dans le système de sauvegarde automatique: {e}")
+        print(f"âŒ Erreur dans le systÃ¨me de sauvegarde automatique: {e}")
 
 #
 # Si vous voulez l'activer, utilisez l'endpoint /enable-auto-backup
-# Si vous voulez le désactiver, utilisez l'endpoint /disable-auto-backup
+# Si vous voulez le dÃ©sactiver, utilisez l'endpoint /disable-auto-backup
 #
 # auto_backup_system()
 
 
 def get_current_user(request: Request) -> Optional[sqlite3.Row]:
-    """Retourne l'utilisateur actuellement connecté à partir du cookie de session.
+    """Retourne l'utilisateur actuellement connectÃ© Ã  partir du cookie de session.
 
     Args:
         request: L'objet Request en cours.
 
     Returns:
-        Une ligne représentant l'utilisateur, ou None si aucun utilisateur
-        n'est authentifié.
+        Une ligne reprÃ©sentant l'utilisateur, ou None si aucun utilisateur
+        n'est authentifiÃ©.
     """
     token = request.cookies.get("session_token")
     if not token:
         return None
     
-    # Récupérer l'IP et user agent pour la validation
+    # RÃ©cupÃ©rer l'IP et user agent pour la validation
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
     
-    # Valider le token avec le nouveau système sécurisé
+    # Valider le token avec le nouveau systÃ¨me sÃ©curisÃ©
     user_id = validate_session_token(token, ip_address)
     if not user_id:
         return None
     
-    # Récupérer les informations de l'utilisateur
+    # RÃ©cupÃ©rer les informations de l'utilisateur
     conn = get_db_connection()
     try:
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             # Utiliser le curseur MySQL avec noms de colonnes
             from database import get_mysql_cursor_with_names, convert_mysql_result
@@ -1312,15 +1411,15 @@ def get_current_user(request: Request) -> Optional[sqlite3.Row]:
 
 
 def require_login(request: Request) -> sqlite3.Row:
-    """Décorateur simple pour s'assurer qu'un utilisateur est connecté.
+    """DÃ©corateur simple pour s'assurer qu'un utilisateur est connectÃ©.
 
-    Si aucun utilisateur n'est connecté, redirige vers la page de connexion.
+    Si aucun utilisateur n'est connectÃ©, redirige vers la page de connexion.
 
     Args:
         request: L'objet Request en cours.
 
     Returns:
-        La ligne représentant l'utilisateur connecté.
+        La ligne reprÃ©sentant l'utilisateur connectÃ©.
     """
     user = get_current_user(request)
     if user is None:
@@ -1330,20 +1429,20 @@ def require_login(request: Request) -> sqlite3.Row:
 
 @app.on_event("startup")
 async def startup() -> None:
-    """Appelé au démarrage de l'application."""
-    print("🚀 Démarrage de l'application...")
+    """AppelÃ© au dÃ©marrage de l'application."""
+    print("ðŸš€ DÃ©marrage de l'application...")
     
-    # IMPORTANT : AUCUNE initialisation automatique de la base de données
-    # Les tables et données existantes doivent être préservées
-    print("ℹ️ Initialisation automatique de la base de données désactivée")
-    print("ℹ️ Les données existantes sont préservées")
+    # IMPORTANT : AUCUNE initialisation automatique de la base de donnÃ©es
+    # Les tables et donnÃ©es existantes doivent Ãªtre prÃ©servÃ©es
+    print("â„¹ï¸ Initialisation automatique de la base de donnÃ©es dÃ©sactivÃ©e")
+    print("â„¹ï¸ Les donnÃ©es existantes sont prÃ©servÃ©es")
     
-    # Vérifier seulement la connexion à la base
+    # VÃ©rifier seulement la connexion Ã  la base
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Compter les données existantes
+        # Compter les donnÃ©es existantes
         cur.execute("SELECT COUNT(*) FROM users")
         users_count = cur.fetchone()[0]
         
@@ -1353,32 +1452,32 @@ async def startup() -> None:
         cur.execute("SELECT COUNT(*) FROM reservations")
         reservations_count = cur.fetchone()[0]
         
-        print(f"📊 État de la base de données au démarrage :")
+        print(f"ðŸ“Š Ã‰tat de la base de donnÃ©es au dÃ©marrage :")
         print(f"   - Utilisateurs : {users_count}")
         print(f"   - Articles : {articles_count}")
-        print(f"   - Réservations : {reservations_count}")
+        print(f"   - RÃ©servations : {reservations_count}")
         
         conn.close()
         
     except Exception as e:
-        print(f"⚠️ Impossible de vérifier l'état de la base : {e}")
+        print(f"âš ï¸ Impossible de vÃ©rifier l'Ã©tat de la base : {e}")
     
-    # Nettoyer les sessions expirées au démarrage
+    # Nettoyer les sessions expirÃ©es au dÃ©marrage
     try:
         cleanup_expired_sessions()
-        print("✅ Nettoyage des sessions expirées effectué")
+        print("âœ… Nettoyage des sessions expirÃ©es effectuÃ©")
     except Exception as e:
-        print(f"⚠️ Erreur lors du nettoyage des sessions : {e}")
+        print(f"âš ï¸ Erreur lors du nettoyage des sessions : {e}")
     
-    print("🎉 Application prête !")
+    print("ðŸŽ‰ Application prÃªte !")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
     """Page d'accueil du site.
 
-    Affiche une présentation du club, les coordonnées et un lien vers les
-    différentes sections selon le rôle de l'utilisateur.
+    Affiche une prÃ©sentation du club, les coordonnÃ©es et un lien vers les
+    diffÃ©rentes sections selon le rÃ´le de l'utilisateur.
     """
     user = get_current_user(request)
     # Informations publiques sur le club provenant de sources fiables.
@@ -1386,13 +1485,13 @@ async def home(request: Request) -> HTMLResponse:
     telephone = "+216 29 60 03 40"
     email = "club.tennis.chihia@gmail.com"
     description = (
-        "Club municipal de tennis Chihia est un lieu spécialement conçu pour les personnes "
+        "Club municipal de tennis Chihia est un lieu spÃ©cialement conÃ§u pour les personnes "
         "souhaitant pratiquer le Tennis."
     )
-    # Récupérer les trois derniers articles pour les mettre en avant sur l'accueil
+    # RÃ©cupÃ©rer les trois derniers articles pour les mettre en avant sur l'accueil
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
@@ -1400,7 +1499,7 @@ async def home(request: Request) -> HTMLResponse:
             "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
         )
         latest_articles = cur.fetchall()
-        # Convertir les tuples MySQL en objets avec attributs nommés
+        # Convertir les tuples MySQL en objets avec attributs nommÃ©s
         latest_articles = [convert_mysql_result(article, column_names) for article in latest_articles]
     else:
         cur = conn.cursor()
@@ -1429,7 +1528,7 @@ async def home(request: Request) -> HTMLResponse:
 async def registration_form(request: Request) -> HTMLResponse:
     """Affiche le formulaire d'inscription pour les nouveaux membres."""
     user = get_current_user(request)
-    # Si un utilisateur est déjà connecté, on le redirige vers l'accueil
+    # Si un utilisateur est dÃ©jÃ  connectÃ©, on le redirige vers l'accueil
     if user:
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(
@@ -1442,16 +1541,16 @@ async def registration_form(request: Request) -> HTMLResponse:
 async def register(request: Request) -> HTMLResponse:
     """Traite la soumission du formulaire d'inscription.
 
-    Si le nom d'utilisateur est déjà pris ou si les mots de passe ne
+    Si le nom d'utilisateur est dÃ©jÃ  pris ou si les mots de passe ne
     correspondent pas, la page renvoie un message d'erreur.
-    L'utilisateur est créé avec l'attribut `validated` à 0 et ne pourra pas se
-    connecter tant qu'un administrateur ne l'aura pas validé.
+    L'utilisateur est crÃ©Ã© avec l'attribut `validated` Ã  0 et ne pourra pas se
+    connecter tant qu'un administrateur ne l'aura pas validÃ©.
     """
     try:
-        # Utiliser Form pour une gestion plus robuste des données
+        # Utiliser Form pour une gestion plus robuste des donnÃ©es
         form_data = await request.form()
         
-        # Récupération des données du formulaire
+        # RÃ©cupÃ©ration des donnÃ©es du formulaire
         username = str(form_data.get("username", "")).strip()
         full_name = str(form_data.get("full_name", "")).strip()
         email = str(form_data.get("email", "")).strip()
@@ -1462,7 +1561,7 @@ async def register(request: Request) -> HTMLResponse:
         confirm_password = str(form_data.get("confirm_password", ""))
         role = str(form_data.get("role", "member"))
         
-        # Vérifications de base
+        # VÃ©rifications de base
         errors: List[str] = []
         
         if not username:
@@ -1470,12 +1569,12 @@ async def register(request: Request) -> HTMLResponse:
         if not full_name:
             errors.append("Le nom complet est obligatoire.")
         if not email:
-            errors.append("L'adresse e‑mail est obligatoire.")
+            errors.append("L'adresse eâ€‘mail est obligatoire.")
         if not phone:
-            errors.append("Le téléphone est obligatoire.")
-        # Le numéro IJIN n'est plus obligatoire
+            errors.append("Le tÃ©lÃ©phone est obligatoire.")
+        # Le numÃ©ro IJIN n'est plus obligatoire
         # if not ijin_number:
-        #     errors.append("Le numéro IJIN est obligatoire.")
+        #     errors.append("Le numÃ©ro IJIN est obligatoire.")
         if not birth_date:
             errors.append("La date de naissance est obligatoire.")
         if not password:
@@ -1483,50 +1582,50 @@ async def register(request: Request) -> HTMLResponse:
         if password != confirm_password:
             errors.append("Les mots de passe ne correspondent pas.")
         if len(password) < 6:
-            errors.append("Le mot de passe doit contenir au moins 6 caractères.")
+            errors.append("Le mot de passe doit contenir au moins 6 caractÃ¨res.")
             
-        # Vérifier que le nom d'utilisateur, l'email et le téléphone n'existent pas déjà
+        # VÃ©rifier que le nom d'utilisateur, l'email et le tÃ©lÃ©phone n'existent pas dÃ©jÃ 
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
-            # Vérifier le nom d'utilisateur
+            # VÃ©rifier le nom d'utilisateur
             cur.execute("SELECT id, username FROM users WHERE username = %s", (username,))
             existing_user = cur.fetchone()
             if existing_user:
-                errors.append("Ce nom d'utilisateur est déjà utilisé.")
+                errors.append("Ce nom d'utilisateur est dÃ©jÃ  utilisÃ©.")
             
-            # Vérifier l'email
+            # VÃ©rifier l'email
             cur.execute("SELECT id, username, email FROM users WHERE email = %s", (email,))
             existing_email = cur.fetchone()
             if existing_email:
-                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Cette adresse email ({email}) est dÃ©jÃ  utilisÃ©e par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
             
-            # Vérifier le téléphone
+            # VÃ©rifier le tÃ©lÃ©phone
             cur.execute("SELECT id, username, phone FROM users WHERE phone = %s", (phone,))
             existing_phone = cur.fetchone()
             if existing_phone:
-                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Ce numÃ©ro de tÃ©lÃ©phone ({phone}) est dÃ©jÃ  utilisÃ© par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
         else:
             cur = conn.cursor()
-            # Vérifier le nom d'utilisateur
+            # VÃ©rifier le nom d'utilisateur
             cur.execute("SELECT id, username FROM users WHERE username = ?", (username,))
             existing_user = cur.fetchone()
             if existing_user:
-                errors.append("Ce nom d'utilisateur est déjà utilisé.")
+                errors.append("Ce nom d'utilisateur est dÃ©jÃ  utilisÃ©.")
             
-            # Vérifier l'email
+            # VÃ©rifier l'email
             cur.execute("SELECT id, username, email FROM users WHERE email = ?", (email,))
             existing_email = cur.fetchone()
             if existing_email:
-                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Cette adresse email ({email}) est dÃ©jÃ  utilisÃ©e par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
             
-            # Vérifier le téléphone
+            # VÃ©rifier le tÃ©lÃ©phone
             cur.execute("SELECT id, username, phone FROM users WHERE phone = ?", (phone,))
             existing_phone = cur.fetchone()
             if existing_phone:
-                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Ce numÃ©ro de tÃ©lÃ©phone ({phone}) est dÃ©jÃ  utilisÃ© par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
             
         if errors:
             conn.close()
@@ -1545,15 +1644,15 @@ async def register(request: Request) -> HTMLResponse:
                 },
             )
             
-        # Création de l'utilisateur
+        # CrÃ©ation de l'utilisateur
         pwd_hash = hash_password(password)
         is_trainer = 1 if role == "trainer" else 0
         
-        # Vérification email désactivée - marquer directement comme vérifié
+        # VÃ©rification email dÃ©sactivÃ©e - marquer directement comme vÃ©rifiÃ©
         email_verification_token = None
         email_verified = 1
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute(
                 "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
@@ -1569,9 +1668,9 @@ async def register(request: Request) -> HTMLResponse:
         conn.commit()
         conn.close()
         
-        print(f"✅ Utilisateur créé avec succès: {username}")
+        print(f"âœ… Utilisateur crÃ©Ã© avec succÃ¨s: {username}")
         
-        # Vérification email désactivée - redirection simple
+        # VÃ©rification email dÃ©sactivÃ©e - redirection simple
         return templates.TemplateResponse(
             "register_success.html",
             {
@@ -1583,7 +1682,7 @@ async def register(request: Request) -> HTMLResponse:
         )
         
     except Exception as e:
-        print(f"❌ Erreur lors de l'inscription: {e}")
+        print(f"âŒ Erreur lors de l'inscription: {e}")
         return templates.TemplateResponse(
             "register.html",
             {
@@ -1606,7 +1705,7 @@ async def verify_email(request: Request, token: str) -> HTMLResponse:
     try:
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
             cur.execute(
@@ -1628,7 +1727,7 @@ async def verify_email(request: Request, token: str) -> HTMLResponse:
                 "email_verification_error.html",
                 {
                     "request": request,
-                    "error": "Token de validation invalide ou expiré."
+                    "error": "Token de validation invalide ou expirÃ©."
                 }
             )
         
@@ -1640,11 +1739,11 @@ async def verify_email(request: Request, token: str) -> HTMLResponse:
                 "email_verification_error.html",
                 {
                     "request": request,
-                    "error": "Cette adresse email a déjà été validée."
+                    "error": "Cette adresse email a dÃ©jÃ  Ã©tÃ© validÃ©e."
                 }
             )
         
-        # Marquer l'email comme vérifié
+        # Marquer l'email comme vÃ©rifiÃ©
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute(
                 "UPDATE users SET email_verified = 1, email_verification_token = NULL WHERE id = %s",
@@ -1669,7 +1768,7 @@ async def verify_email(request: Request, token: str) -> HTMLResponse:
         )
         
     except Exception as e:
-        print(f"❌ Erreur lors de la validation email: {e}")
+        print(f"âŒ Erreur lors de la validation email: {e}")
         return templates.TemplateResponse(
             "email_verification_error.html",
             {
@@ -1692,22 +1791,22 @@ async def login_form(request: Request) -> HTMLResponse:
 async def login(request: Request) -> HTMLResponse:
     """Valide les informations de connexion et ouvre une session."""
     try:
-        # Utiliser Form pour une gestion plus robuste des données
+        # Utiliser Form pour une gestion plus robuste des donnÃ©es
         form_data = await request.form()
         username = form_data.get("username", "").strip()
         password = form_data.get("password", "")
         
-        # Validation des données
+        # Validation des donnÃ©es
         if not username or not password:
             return templates.TemplateResponse(
                 "login.html",
                 {"request": request, "errors": ["Veuillez remplir tous les champs."], "username": username},
             )
         
-        # Connexion à la base de données
+        # Connexion Ã  la base de donnÃ©es
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             # Utiliser le curseur MySQL avec noms de colonnes
             from database import get_mysql_cursor_with_names, convert_mysql_result
@@ -1725,16 +1824,16 @@ async def login(request: Request) -> HTMLResponse:
         
         errors: List[str] = []
         
-        # Vérification de l'utilisateur
+        # VÃ©rification de l'utilisateur
         if user is None:
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
         elif not verify_password(password, user.password_hash):
             errors.append("Nom d'utilisateur ou mot de passe incorrect.")
         elif not user.validated:
-            errors.append("Votre inscription n'a pas encore été validée par un administrateur.")
-        # Vérification email désactivée pour l'instant
+            errors.append("Votre inscription n'a pas encore Ã©tÃ© validÃ©e par un administrateur.")
+        # VÃ©rification email dÃ©sactivÃ©e pour l'instant
         # elif not user.get("email_verified", True) and not user.get("is_admin", False):
-        #     errors.append("Votre adresse email n'a pas encore été validée. Veuillez vérifier votre boîte mail et cliquer sur le lien de confirmation.")
+        #     errors.append("Votre adresse email n'a pas encore Ã©tÃ© validÃ©e. Veuillez vÃ©rifier votre boÃ®te mail et cliquer sur le lien de confirmation.")
         
         # Si erreurs, afficher le formulaire avec les erreurs
         if errors:
@@ -1743,19 +1842,39 @@ async def login(request: Request) -> HTMLResponse:
                 {"request": request, "errors": errors, "username": username},
             )
         
-        # Connexion réussie - créer la session sécurisée
+        # Connexion rÃ©ussie - crÃ©er la session sÃ©curisÃ©e
+        # Migration progressive SHA-256 â†’ bcrypt
+        try:
+            pwd_hash = user.password_hash if hasattr(user, "password_hash") else user["password_hash"]
+            user_id_val = user.id if hasattr(user, "id") else user["id"]
+            if secure_needs_rehash(pwd_hash):
+                new_hash = hash_password(password)
+                mig_conn = get_db_connection()
+                mig_cur = mig_conn.cursor()
+                if hasattr(mig_conn, "_is_mysql") and mig_conn._is_mysql:
+                    mig_cur.execute(
+                        "UPDATE users SET password_hash = %s WHERE id = %s",
+                        (new_hash, user_id_val),
+                    )
+                else:
+                    mig_cur.execute(
+                        "UPDATE users SET password_hash = ? WHERE id = ?",
+                        (new_hash, user_id_val),
+                    )
+                mig_conn.commit()
+                mig_conn.close()
+        except Exception as mig_err:
+            print(f"âš ï¸ Migration hash mot de passe: {mig_err}")
+
         ip_address = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent")
         token = create_secure_session_token(user.id, ip_address, user_agent)
         
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(
-            key="session_token", 
-            value=token, 
-            httponly=True, 
-            max_age=60 * 60 * 24 * SESSION_MAX_AGE_DAYS,  # Utiliser la constante
-            secure=False,  # Mettre True en production avec HTTPS
-            samesite="lax"
+            key="session_token",
+            value=token,
+            **session_cookie_kwargs(60 * 60 * 24 * SESSION_MAX_AGE_DAYS),
         )
         return response
         
@@ -1764,7 +1883,7 @@ async def login(request: Request) -> HTMLResponse:
         print(f"Erreur lors de la connexion: {e}")
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "errors": ["Une erreur s'est produite. Veuillez réessayer."], "username": username if 'username' in locals() else ""},
+            {"request": request, "errors": ["Une erreur s'est produite. Veuillez rÃ©essayer."], "username": username if 'username' in locals() else ""},
         )
 
 
@@ -1773,7 +1892,7 @@ async def logout(request: Request) -> RedirectResponse:
     """Termine la session de l'utilisateur."""
     token = request.cookies.get("session_token")
     if token:
-        # Désactiver la session en base de données
+        # DÃ©sactiver la session en base de donnÃ©es
         deactivate_session(token)
     
     response = RedirectResponse(url="/", status_code=303)
@@ -1783,39 +1902,39 @@ async def logout(request: Request) -> RedirectResponse:
 
 @app.get("/admin/cleanup-sessions")
 async def cleanup_sessions_admin(request: Request) -> dict:
-    """Endpoint d'administration pour nettoyer les sessions expirées."""
+    """Endpoint d'administration pour nettoyer les sessions expirÃ©es."""
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Non autorisé")
+        raise HTTPException(status_code=401, detail="Non autorisÃ©")
     check_admin(user)
     
     try:
         cleanup_expired_sessions()
-        return {"status": "success", "message": "Sessions expirées nettoyées avec succès"}
+        return {"status": "success", "message": "Sessions expirÃ©es nettoyÃ©es avec succÃ¨s"}
     except Exception as e:
         return {"status": "error", "message": f"Erreur lors du nettoyage : {e}"}
 
 
 @app.get("/admin/create-sessions-table")
 async def create_sessions_table_admin(request: Request) -> dict:
-    """Endpoint d'administration pour créer la table user_sessions."""
-    # Vérifier l'authentification de manière plus permissive
+    """Endpoint d'administration pour crÃ©er la table user_sessions."""
+    # VÃ©rifier l'authentification de maniÃ¨re plus permissive
     user = get_current_user(request)
     if not user:
-        # Si pas d'utilisateur, essayer de créer la table quand même (pour le déploiement)
-        print("⚠️ Aucun utilisateur connecté, création de la table autorisée")
+        # Si pas d'utilisateur, essayer de crÃ©er la table quand mÃªme (pour le dÃ©ploiement)
+        print("âš ï¸ Aucun utilisateur connectÃ©, crÃ©ation de la table autorisÃ©e")
     else:
-        # Vérifier si c'est un admin
+        # VÃ©rifier si c'est un admin
         try:
             check_admin(user)
         except:
-            print("⚠️ Utilisateur non-admin, création de la table autorisée")
+            print("âš ï¸ Utilisateur non-admin, crÃ©ation de la table autorisÃ©e")
     
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier si la table existe déjà
+        # VÃ©rifier si la table existe dÃ©jÃ 
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute("""
                 SELECT COUNT(*) 
@@ -1831,9 +1950,9 @@ async def create_sessions_table_admin(request: Request) -> dict:
         table_exists = cur.fetchone()[0] > 0
         
         if table_exists:
-            return {"status": "info", "message": "Table user_sessions existe déjà"}
+            return {"status": "info", "message": "Table user_sessions existe dÃ©jÃ "}
         
-        # Créer la table
+        # CrÃ©er la table
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute("""
                 CREATE TABLE user_sessions (
@@ -1850,7 +1969,7 @@ async def create_sessions_table_admin(request: Request) -> dict:
                 )
             """)
             
-            # Créer les index
+            # CrÃ©er les index
             cur.execute("CREATE INDEX idx_sessions_token ON user_sessions(session_token)")
             cur.execute("CREATE INDEX idx_sessions_user ON user_sessions(user_id)")
             cur.execute("CREATE INDEX idx_sessions_expires ON user_sessions(expires_at)")
@@ -1870,7 +1989,7 @@ async def create_sessions_table_admin(request: Request) -> dict:
                 )
             """)
             
-            # Créer les index
+            # CrÃ©er les index
             cur.execute("CREATE INDEX idx_sessions_token ON user_sessions(session_token)")
             cur.execute("CREATE INDEX idx_sessions_user ON user_sessions(user_id)")
             cur.execute("CREATE INDEX idx_sessions_expires ON user_sessions(expires_at)")
@@ -1878,20 +1997,20 @@ async def create_sessions_table_admin(request: Request) -> dict:
         conn.commit()
         conn.close()
         
-        return {"status": "success", "message": "Table user_sessions créée avec succès"}
+        return {"status": "success", "message": "Table user_sessions crÃ©Ã©e avec succÃ¨s"}
         
     except Exception as e:
-        return {"status": "error", "message": f"Erreur lors de la création de la table : {e}"}
+        return {"status": "error", "message": f"Erreur lors de la crÃ©ation de la table : {e}"}
 
 
 @app.get("/create-sessions-table")
 async def create_sessions_table_public() -> dict:
-    """Endpoint public pour créer la table user_sessions (pour le déploiement)."""
+    """Endpoint public pour crÃ©er la table user_sessions (pour le dÃ©ploiement)."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier si la table existe déjà
+        # VÃ©rifier si la table existe dÃ©jÃ 
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute("""
                 SELECT COUNT(*) 
@@ -1907,9 +2026,9 @@ async def create_sessions_table_public() -> dict:
         table_exists = cur.fetchone()[0] > 0
         
         if table_exists:
-            return {"status": "info", "message": "Table user_sessions existe déjà"}
+            return {"status": "info", "message": "Table user_sessions existe dÃ©jÃ "}
         
-        # Créer la table
+        # CrÃ©er la table
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute("""
                 CREATE TABLE user_sessions (
@@ -1926,7 +2045,7 @@ async def create_sessions_table_public() -> dict:
                 )
             """)
             
-            # Créer les index
+            # CrÃ©er les index
             cur.execute("CREATE INDEX idx_sessions_token ON user_sessions(session_token)")
             cur.execute("CREATE INDEX idx_sessions_user ON user_sessions(user_id)")
             cur.execute("CREATE INDEX idx_sessions_expires ON user_sessions(expires_at)")
@@ -1946,7 +2065,7 @@ async def create_sessions_table_public() -> dict:
                 )
             """)
             
-            # Créer les index
+            # CrÃ©er les index
             cur.execute("CREATE INDEX idx_sessions_token ON user_sessions(session_token)")
             cur.execute("CREATE INDEX idx_sessions_user ON user_sessions(user_id)")
             cur.execute("CREATE INDEX idx_sessions_expires ON user_sessions(expires_at)")
@@ -1954,24 +2073,24 @@ async def create_sessions_table_public() -> dict:
         conn.commit()
         conn.close()
         
-        return {"status": "success", "message": "Table user_sessions créée avec succès"}
+        return {"status": "success", "message": "Table user_sessions crÃ©Ã©e avec succÃ¨s"}
         
     except Exception as e:
-        return {"status": "error", "message": f"Erreur lors de la création de la table : {e}"}
+        return {"status": "error", "message": f"Erreur lors de la crÃ©ation de la table : {e}"}
 
 
 def check_admin(user: sqlite3.Row) -> None:
-    """Lève une exception si l'utilisateur n'est pas administrateur."""
+    """LÃ¨ve une exception si l'utilisateur n'est pas administrateur."""
     if not user or not user.is_admin:
-        raise HTTPException(status_code=403, detail="Accès réservé à l'administration.")
+        raise HTTPException(status_code=403, detail="AccÃ¨s rÃ©servÃ© Ã  l'administration.")
 
 
 @app.get("/reservations", response_class=HTMLResponse)
 async def reservations_page(request: Request) -> HTMLResponse:
-    """Affiche la page de réservation pour les membres validés.
+    """Affiche la page de rÃ©servation pour les membres validÃ©s.
 
-    Montre les réservations existantes pour le jour sélectionné et permet
-    d'effectuer une nouvelle réservation si l'horaire est libre.
+    Montre les rÃ©servations existantes pour le jour sÃ©lectionnÃ© et permet
+    d'effectuer une nouvelle rÃ©servation si l'horaire est libre.
     """
     user = get_current_user(request)
     if not user:
@@ -1979,10 +2098,10 @@ async def reservations_page(request: Request) -> HTMLResponse:
     if not user.validated:
         return templates.TemplateResponse(
             "not_validated.html",
-            {"request": request, "message": "Votre inscription doit être validée pour accéder aux réservations."},
+            {"request": request, "message": "Votre inscription doit Ãªtre validÃ©e pour accÃ©der aux rÃ©servations."},
         )
     
-    # Paramètres de la requête
+    # ParamÃ¨tres de la requÃªte
     today_str = date.today().isoformat()
     selected_date = request.query_params.get("date", today_str)
     view_type = request.query_params.get("view", "day")  # day, week, month
@@ -1999,7 +2118,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
         week_start = selected_date_obj - timedelta(days=days_since_monday)
         week_end = week_start + timedelta(days=6)
         
-        # Générer toutes les dates de la semaine avec informations formatées
+        # GÃ©nÃ©rer toutes les dates de la semaine avec informations formatÃ©es
         current_date = week_start
         while current_date <= week_end:
             day_names = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
@@ -2011,14 +2130,14 @@ async def reservations_page(request: Request) -> HTMLResponse:
             })
             current_date += timedelta(days=1)
     
-    # Récupérer les réservations
+    # RÃ©cupÃ©rer les rÃ©servations
     conn = get_db_connection()
     
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
         
-        # Réservations pour la date sélectionnée ou la semaine
+        # RÃ©servations pour la date sÃ©lectionnÃ©e ou la semaine
         if view_type == "week" and week_dates:
             # Extraire les dates des objets week_dates
             dates_list = [week_date["date"] for week_date in week_dates]
@@ -2037,7 +2156,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
         reservations = cur.fetchall()
         reservations = [convert_mysql_result(res, column_names) for res in reservations]
         
-        # Réservations de l'utilisateur (toutes)
+        # RÃ©servations de l'utilisateur (toutes)
         cur, column_names = execute_with_names(
             "SELECT * FROM reservations WHERE user_id = %s ORDER BY date DESC, start_time",
             (user.id,),
@@ -2088,21 +2207,21 @@ async def reservations_page(request: Request) -> HTMLResponse:
     
     conn.close()
     
-    # Générer des créneaux horaires améliorés (6h-23h)
+    # GÃ©nÃ©rer des crÃ©neaux horaires amÃ©liorÃ©s (6h-23h)
     time_slots: List[Tuple[str, str]] = []
     for hour in range(6, 23):
         start_slot = time(hour, 0)
         end_slot = time(hour + 1, 0) if hour < 22 else time(23, 0)
         time_slots.append((start_slot.strftime("%H:%M"), end_slot.strftime("%H:%M")))
     
-    # Préparer la disponibilité avec informations enrichies
+    # PrÃ©parer la disponibilitÃ© avec informations enrichies
     availability: Dict[int, Dict[Tuple[str, str], dict]] = {1: {}, 2: {}, 3: {}}
     reservations_by_court = {1: [], 2: [], 3: []}
     
     for res in reservations:
         reservations_by_court[res.court_number].append(res)
     
-    # Pour chaque court et chaque créneau, déterminer la disponibilité
+    # Pour chaque court et chaque crÃ©neau, dÃ©terminer la disponibilitÃ©
     for court in (1, 2, 3):
         court_reservations = reservations_by_court.get(court, [])
         for start_str, end_str in time_slots:
@@ -2144,7 +2263,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
                 "reservation_info": reservation_info
             }
     
-    # Préparer les données pour la vue semaine (disponibilité par court et par jour)
+    # PrÃ©parer les donnÃ©es pour la vue semaine (disponibilitÃ© par court et par jour)
     week_availability = {}
     month_availability = {}
     
@@ -2156,7 +2275,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
             for court in (1, 2, 3):
                 week_availability[date_str][court] = {}
                 for start_str, end_str in time_slots:
-                    # Chercher les réservations pour ce court, cette date et ce créneau
+                    # Chercher les rÃ©servations pour ce court, cette date et ce crÃ©neau
                     reserved = False
                     reservation_info = None
                     
@@ -2199,16 +2318,16 @@ async def reservations_page(request: Request) -> HTMLResponse:
                         "reservation_info": reservation_info
                     }
     
-    # Préparer les données pour la vue mois
+    # PrÃ©parer les donnÃ©es pour la vue mois
     if view_type == "month":
-        # Calculer le début et la fin du mois
+        # Calculer le dÃ©but et la fin du mois
         selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
         month_start = selected_date_obj.replace(day=1)
         
         # Formater le titre du mois
         month_names = [
-            "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-            "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+            "Janvier", "FÃ©vrier", "Mars", "Avril", "Mai", "Juin",
+            "Juillet", "AoÃ»t", "Septembre", "Octobre", "Novembre", "DÃ©cembre"
         ]
         month_title = f"{month_names[selected_date_obj.month - 1]} {selected_date_obj.year}"
         
@@ -2218,7 +2337,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
         else:
             month_end = month_start.replace(month=month_start.month + 1, day=1) - timedelta(days=1)
         
-        # Générer toutes les dates du mois
+        # GÃ©nÃ©rer toutes les dates du mois
         month_dates = []
         current_date = month_start
         while current_date <= month_end:
@@ -2229,7 +2348,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
             })
             current_date += timedelta(days=1)
         
-        # Ajouter les jours de la semaine précédente pour compléter la première semaine
+        # Ajouter les jours de la semaine prÃ©cÃ©dente pour complÃ©ter la premiÃ¨re semaine
         days_before = month_start.weekday()
         for i in range(days_before - 1, -1, -1):
             prev_date = month_start - timedelta(days=i + 1)
@@ -2239,7 +2358,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
                 "is_current_month": False
             })
         
-        # Ajouter les jours de la semaine suivante pour compléter la dernière semaine
+        # Ajouter les jours de la semaine suivante pour complÃ©ter la derniÃ¨re semaine
         days_after = 6 - month_end.weekday()
         for i in range(1, days_after + 1):
             next_date = month_end + timedelta(days=i)
@@ -2249,7 +2368,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
                 "is_current_month": False
             })
         
-        # Calculer la disponibilité pour chaque jour du mois
+        # Calculer la disponibilitÃ© pour chaque jour du mois
         for date_info in month_dates:
             date_str = date_info["date"]
             month_availability[date_str] = {}
@@ -2299,7 +2418,7 @@ async def reservations_page(request: Request) -> HTMLResponse:
                         "reservation_info": reservation_info
                     }
     
-    # Préparer les données pour le template
+    # PrÃ©parer les donnÃ©es pour le template
     template_data = {
         "request": request,
         "user": user,
@@ -2326,10 +2445,10 @@ async def reservations_page(request: Request) -> HTMLResponse:
 
 @app.post("/reservations", response_class=HTMLResponse)
 async def create_reservation(request: Request) -> HTMLResponse:
-    """Crée une réservation si l'horaire est disponible.
+    """CrÃ©e une rÃ©servation si l'horaire est disponible.
 
-    Vérifie les conflits avec les réservations existantes sur le même court
-    avant d'insérer une nouvelle ligne.
+    VÃ©rifie les conflits avec les rÃ©servations existantes sur le mÃªme court
+    avant d'insÃ©rer une nouvelle ligne.
     """
     user = get_current_user(request)
     if not user:
@@ -2337,7 +2456,7 @@ async def create_reservation(request: Request) -> HTMLResponse:
     if not user.validated:
         return templates.TemplateResponse(
             "not_validated.html",
-            {"request": request, "message": "Votre inscription doit être validée pour accéder aux réservations."},
+            {"request": request, "message": "Votre inscription doit Ãªtre validÃ©e pour accÃ©der aux rÃ©servations."},
         )
     raw_body = await request.body()
     form = urllib.parse.parse_qs(raw_body.decode(), keep_blank_values=True)
@@ -2356,11 +2475,11 @@ async def create_reservation(request: Request) -> HTMLResponse:
         _start = datetime.strptime(start_time, "%H:%M").time()
         _end = datetime.strptime(end_time, "%H:%M").time()
         if _start >= _end:
-            errors.append("L'heure de fin doit être postérieure à l'heure de début.")
+            errors.append("L'heure de fin doit Ãªtre postÃ©rieure Ã  l'heure de dÃ©but.")
     except ValueError:
         errors.append("Format de date ou d'heure invalide.")
     if court_number not in (1, 2, 3):
-        errors.append("Numéro de court invalide.")
+        errors.append("NumÃ©ro de court invalide.")
     if errors:
         return templates.TemplateResponse(
             "reservation_error.html",
@@ -2371,10 +2490,10 @@ async def create_reservation(request: Request) -> HTMLResponse:
                 "selected_date": date_field,
             },
         )
-    # Vérifier les conflits
+    # VÃ©rifier les conflits
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
         cur.execute(
@@ -2417,12 +2536,12 @@ async def create_reservation(request: Request) -> HTMLResponse:
                 "request": request,
                 "user": user,
                 "errors": [
-                    "Ce créneau n'est pas disponible pour le court choisi. Veuillez sélectionner un autre horaire."
+                    "Ce crÃ©neau n'est pas disponible pour le court choisi. Veuillez sÃ©lectionner un autre horaire."
                 ],
                 "selected_date": date_field,
             },
         )
-    # Insertion de la réservation
+    # Insertion de la rÃ©servation
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur.execute(
             "INSERT INTO reservations (user_id, court_number, date, start_time, end_time) "
@@ -2435,7 +2554,7 @@ async def create_reservation(request: Request) -> HTMLResponse:
             "VALUES (?, ?, ?, ?, ?)",
             (user.id, court_number, _date.isoformat(), start_time, end_time),
         )
-    # Récupérer l'ID de la réservation créée
+    # RÃ©cupÃ©rer l'ID de la rÃ©servation crÃ©Ã©e
     reservation_id = cur.lastrowid
     
     conn.commit()
@@ -2450,7 +2569,7 @@ async def create_reservation(request: Request) -> HTMLResponse:
         'court_number': court_number
     }
     
-    # Récupérer les informations de l'utilisateur pour l'email
+    # RÃ©cupÃ©rer les informations de l'utilisateur pour l'email
     conn = get_db_connection()
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
@@ -2472,14 +2591,14 @@ async def create_reservation(request: Request) -> HTMLResponse:
 
 @app.get("/reservations/{reservation_id}/export-ics")
 async def export_reservation_ics(request: Request, reservation_id: int) -> FileResponse:
-    """Exporte une réservation vers un fichier ICS pour le calendrier personnel."""
+    """Exporte une rÃ©servation vers un fichier ICS pour le calendrier personnel."""
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Non autorisé")
+        raise HTTPException(status_code=401, detail="Non autorisÃ©")
     
     conn = get_db_connection()
     
-    # Récupérer les détails de la réservation
+    # RÃ©cupÃ©rer les dÃ©tails de la rÃ©servation
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
         cur.execute(
@@ -2498,20 +2617,20 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
     conn.close()
     
     if not reservation:
-        raise HTTPException(status_code=404, detail="Réservation introuvable")
+        raise HTTPException(status_code=404, detail="RÃ©servation introuvable")
     
-    # Vérifier que l'utilisateur est propriétaire de la réservation ou admin
+    # VÃ©rifier que l'utilisateur est propriÃ©taire de la rÃ©servation ou admin
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
-        reservation_user_id = reservation[1]  # user_id est à l'index 1
-        reservation_full_name = reservation[5]  # full_name est à l'index 5
+        reservation_user_id = reservation[1]  # user_id est Ã  l'index 1
+        reservation_full_name = reservation[5]  # full_name est Ã  l'index 5
     else:
         reservation_user_id = reservation['user_id']
         reservation_full_name = reservation['full_name']
     
     if reservation_user_id != user.id and not user.is_admin:
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
+        raise HTTPException(status_code=403, detail="AccÃ¨s non autorisÃ©")
     
-    # Convertir les données de la réservation
+    # Convertir les donnÃ©es de la rÃ©servation
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         # MySQL retourne un tuple
         date_str = reservation[3]  # date
@@ -2527,13 +2646,13 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
     
     # Parser les dates et heures
     try:
-        # Gérer le cas où date_str est déjà un objet date (MySQL)
+        # GÃ©rer le cas oÃ¹ date_str est dÃ©jÃ  un objet date (MySQL)
         if isinstance(date_str, date):
             reservation_date = date_str
         else:
             reservation_date = datetime.strptime(str(date_str), "%Y-%m-%d").date()
         
-        # Gérer les différents formats de temps (string ou timedelta)
+        # GÃ©rer les diffÃ©rents formats de temps (string ou timedelta)
         if isinstance(start_time_str, str):
             start_time = datetime.strptime(start_time_str, "%H:%M").time()
         else:
@@ -2552,21 +2671,21 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
             minutes = (total_seconds % 3600) // 60
             end_time = time(hours, minutes)
         
-        # Créer les datetime complets
+        # CrÃ©er les datetime complets
         start_datetime = datetime.combine(reservation_date, start_time)
         end_datetime = datetime.combine(reservation_date, end_time)
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erreur de format de date: {e}")
     
-    # Générer le contenu ICS
+    # GÃ©nÃ©rer le contenu ICS
     event_title = f"Tennis - Court {court_number}"
-    event_description = f"Réservation de tennis sur le court {court_number} avec {reservation_full_name}"
+    event_description = f"RÃ©servation de tennis sur le court {court_number} avec {reservation_full_name}"
     location = "Club Municipal de Tennis Chihia"
     
     ics_content = generate_ics_content(event_title, event_description, start_datetime, end_datetime, location)
     
-    # Créer un fichier temporaire
+    # CrÃ©er un fichier temporaire
     import tempfile
     with tempfile.NamedTemporaryFile(mode='w', suffix='.ics', delete=False, encoding='utf-8') as f:
         f.write(ics_content)
@@ -2581,11 +2700,11 @@ async def export_reservation_ics(request: Request, reservation_id: int) -> FileR
     )
 
 
-# ===== NOUVELLES ROUTES POUR LES FONCTIONNALITÉS AMÉLIORÉES =====
+# ===== NOUVELLES ROUTES POUR LES FONCTIONNALITÃ‰S AMÃ‰LIORÃ‰ES =====
 
 @app.post("/reservations/recurring", response_class=HTMLResponse)
 async def create_recurring_reservation(request: Request) -> HTMLResponse:
-    """Crée une réservation récurrente."""
+    """CrÃ©e une rÃ©servation rÃ©currente."""
     user = get_current_user(request)
     if not user or not user.validated:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -2623,14 +2742,14 @@ async def create_recurring_reservation(request: Request) -> HTMLResponse:
 
 @app.delete("/reservations/{reservation_id}")
 async def cancel_reservation(request: Request, reservation_id: int) -> JSONResponse:
-    """Annule une réservation."""
+    """Annule une rÃ©servation."""
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Non autorisé")
+        raise HTTPException(status_code=401, detail="Non autorisÃ©")
     
     conn = get_db_connection()
     
-    # Vérifier que l'utilisateur est propriétaire de la réservation
+    # VÃ©rifier que l'utilisateur est propriÃ©taire de la rÃ©servation
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM reservations WHERE id = %s", (reservation_id,))
@@ -2641,14 +2760,14 @@ async def cancel_reservation(request: Request, reservation_id: int) -> JSONRespo
         reservation = cur.fetchone()
     
     if not reservation:
-        raise HTTPException(status_code=404, detail="Réservation introuvable")
+        raise HTTPException(status_code=404, detail="RÃ©servation introuvable")
     
     reservation_user_id = reservation[0] if hasattr(conn, '_is_mysql') and conn._is_mysql else reservation['user_id']
     
     if reservation_user_id != user.id and not user.is_admin:
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
+        raise HTTPException(status_code=403, detail="AccÃ¨s non autorisÃ©")
     
-    # Supprimer la réservation
+    # Supprimer la rÃ©servation
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur.execute("DELETE FROM reservations WHERE id = %s", (reservation_id,))
     else:
@@ -2657,15 +2776,15 @@ async def cancel_reservation(request: Request, reservation_id: int) -> JSONRespo
     conn.commit()
     conn.close()
     
-    return JSONResponse({"success": True, "message": "Réservation annulée"})
+    return JSONResponse({"success": True, "message": "RÃ©servation annulÃ©e"})
 
 
 @app.get("/reservations/calendar")
 async def get_calendar_data(request: Request) -> JSONResponse:
-    """Retourne les données du calendrier pour l'API."""
+    """Retourne les donnÃ©es du calendrier pour l'API."""
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Non autorisé")
+        raise HTTPException(status_code=401, detail="Non autorisÃ©")
     
     start_date = request.query_params.get("start")
     end_date = request.query_params.get("end")
@@ -2691,7 +2810,7 @@ async def get_calendar_data(request: Request) -> JSONResponse:
     
     conn.close()
     
-    # Formater les données pour le calendrier
+    # Formater les donnÃ©es pour le calendrier
     calendar_events = []
     for res in reservations:
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
@@ -2720,7 +2839,7 @@ async def get_notifications(request: Request) -> JSONResponse:
     """Retourne les notifications de l'utilisateur."""
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Non autorisé")
+        raise HTTPException(status_code=401, detail="Non autorisÃ©")
     
     conn = get_db_connection()
     
@@ -2746,10 +2865,10 @@ async def get_notifications(request: Request) -> JSONResponse:
 
 @app.post("/reservations/favorites")
 async def add_favorite_slot(request: Request) -> JSONResponse:
-    """Ajoute un créneau favori."""
+    """Ajoute un crÃ©neau favori."""
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Non autorisé")
+        raise HTTPException(status_code=401, detail="Non autorisÃ©")
     
     form = await request.form()
     court_number = int(form.get("court_number"))
@@ -2777,7 +2896,7 @@ async def add_favorite_slot(request: Request) -> JSONResponse:
     conn.commit()
     conn.close()
     
-    return JSONResponse({"success": True, "message": "Créneau favori ajouté"})
+    return JSONResponse({"success": True, "message": "CrÃ©neau favori ajoutÃ©"})
 
 
 @app.get("/reservations/stats")
@@ -2785,13 +2904,13 @@ async def get_user_stats(request: Request) -> JSONResponse:
     """Retourne les statistiques de l'utilisateur."""
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Non autorisé")
+        raise HTTPException(status_code=401, detail="Non autorisÃ©")
     
     conn = get_db_connection()
     
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
-        # Statistiques générales
+        # Statistiques gÃ©nÃ©rales
         cur.execute(
             "SELECT COUNT(*) as total, COUNT(DISTINCT date) as days, "
             "COUNT(DISTINCT court_number) as courts FROM reservations WHERE user_id = %s",
@@ -2807,7 +2926,7 @@ async def get_user_stats(request: Request) -> JSONResponse:
         )
         monthly_stats = cur.fetchall()
         
-        # Court préféré
+        # Court prÃ©fÃ©rÃ©
         cur.execute(
             "SELECT court_number, COUNT(*) as count FROM reservations WHERE user_id = %s "
             "GROUP BY court_number ORDER BY count DESC LIMIT 1",
@@ -2817,7 +2936,7 @@ async def get_user_stats(request: Request) -> JSONResponse:
         
     else:
         cur = conn.cursor()
-        # Statistiques générales
+        # Statistiques gÃ©nÃ©rales
         cur.execute(
             "SELECT COUNT(*) as total, COUNT(DISTINCT date) as days, "
             "COUNT(DISTINCT court_number) as courts FROM reservations WHERE user_id = ?",
@@ -2833,7 +2952,7 @@ async def get_user_stats(request: Request) -> JSONResponse:
         )
         monthly_stats = cur.fetchall()
         
-        # Court préféré
+        # Court prÃ©fÃ©rÃ©
         cur.execute(
             "SELECT court_number, COUNT(*) as count FROM reservations WHERE user_id = ? "
             "GROUP BY court_number ORDER BY count DESC LIMIT 1",
@@ -2866,7 +2985,7 @@ async def admin_members(request: Request) -> HTMLResponse:
         return RedirectResponse(url="/connexion", status_code=303)
     check_admin(user)
     
-    # Récupération des paramètres de pagination
+    # RÃ©cupÃ©ration des paramÃ¨tres de pagination
     page = int(request.query_params.get("page", 1))
     per_page = int(request.query_params.get("per_page", 20))
     
@@ -2880,7 +2999,7 @@ async def admin_members(request: Request) -> HTMLResponse:
     cur.execute("SELECT COUNT(*) FROM users")
     total_members = cur.fetchone()[0]
     
-    # Récupérer les membres pour la page courante
+    # RÃ©cupÃ©rer les membres pour la page courante
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
@@ -2890,7 +3009,7 @@ async def admin_members(request: Request) -> HTMLResponse:
             ()
         )
         members = cur.fetchall()
-        # Convertir les tuples MySQL en objets avec attributs nommés
+        # Convertir les tuples MySQL en objets avec attributs nommÃ©s
         members = [convert_mysql_result(member, column_names) for member in members]
     else:
         cur.execute(
@@ -2906,7 +3025,7 @@ async def admin_members(request: Request) -> HTMLResponse:
     has_prev = page > 1
     has_next = page < total_pages
     
-    # Générer les liens de pagination
+    # GÃ©nÃ©rer les liens de pagination
     pagination_links = []
     if total_pages > 1:
         start_page = max(1, page - 2)
@@ -2963,10 +3082,10 @@ async def admin_add_member(request: Request) -> HTMLResponse:
     check_admin(user)
     
     try:
-        # Utiliser Form pour une gestion plus robuste des données
+        # Utiliser Form pour une gestion plus robuste des donnÃ©es
         form_data = await request.form()
         
-        # Récupération des données du formulaire
+        # RÃ©cupÃ©ration des donnÃ©es du formulaire
         username = str(form_data.get("username", "")).strip()
         full_name = str(form_data.get("full_name", "")).strip()
         email = str(form_data.get("email", "")).strip()
@@ -2979,7 +3098,7 @@ async def admin_add_member(request: Request) -> HTMLResponse:
         validated = form_data.get("validated", "0") == "1"
         email_verified = form_data.get("email_verified", "0") == "1"
         
-        # Vérifications de base
+        # VÃ©rifications de base
         errors: List[str] = []
         
         if not username:
@@ -2987,9 +3106,9 @@ async def admin_add_member(request: Request) -> HTMLResponse:
         if not full_name:
             errors.append("Le nom complet est obligatoire.")
         if not email:
-            errors.append("L'adresse e‑mail est obligatoire.")
+            errors.append("L'adresse eâ€‘mail est obligatoire.")
         if not phone:
-            errors.append("Le téléphone est obligatoire.")
+            errors.append("Le tÃ©lÃ©phone est obligatoire.")
         if not birth_date:
             errors.append("La date de naissance est obligatoire.")
         if not password:
@@ -2997,50 +3116,50 @@ async def admin_add_member(request: Request) -> HTMLResponse:
         if password != confirm_password:
             errors.append("Les mots de passe ne correspondent pas.")
         if len(password) < 6:
-            errors.append("Le mot de passe doit contenir au moins 6 caractères.")
+            errors.append("Le mot de passe doit contenir au moins 6 caractÃ¨res.")
             
-        # Vérifier que le nom d'utilisateur, l'email et le téléphone n'existent pas déjà
+        # VÃ©rifier que le nom d'utilisateur, l'email et le tÃ©lÃ©phone n'existent pas dÃ©jÃ 
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
-            # Vérifier le nom d'utilisateur
+            # VÃ©rifier le nom d'utilisateur
             cur.execute("SELECT id, username FROM users WHERE username = %s", (username,))
             existing_user = cur.fetchone()
             if existing_user:
-                errors.append("Ce nom d'utilisateur est déjà utilisé.")
+                errors.append("Ce nom d'utilisateur est dÃ©jÃ  utilisÃ©.")
             
-            # Vérifier l'email
+            # VÃ©rifier l'email
             cur.execute("SELECT id, username, email FROM users WHERE email = %s", (email,))
             existing_email = cur.fetchone()
             if existing_email:
-                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Cette adresse email ({email}) est dÃ©jÃ  utilisÃ©e par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
             
-            # Vérifier le téléphone
+            # VÃ©rifier le tÃ©lÃ©phone
             cur.execute("SELECT id, username, phone FROM users WHERE phone = %s", (phone,))
             existing_phone = cur.fetchone()
             if existing_phone:
-                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Ce numÃ©ro de tÃ©lÃ©phone ({phone}) est dÃ©jÃ  utilisÃ© par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
         else:
             cur = conn.cursor()
-            # Vérifier le nom d'utilisateur
+            # VÃ©rifier le nom d'utilisateur
             cur.execute("SELECT id, username FROM users WHERE username = ?", (username,))
             existing_user = cur.fetchone()
             if existing_user:
-                errors.append("Ce nom d'utilisateur est déjà utilisé.")
+                errors.append("Ce nom d'utilisateur est dÃ©jÃ  utilisÃ©.")
             
-            # Vérifier l'email
+            # VÃ©rifier l'email
             cur.execute("SELECT id, username, email FROM users WHERE email = ?", (email,))
             existing_email = cur.fetchone()
             if existing_email:
-                errors.append(f"Cette adresse email ({email}) est déjà utilisée par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Cette adresse email ({email}) est dÃ©jÃ  utilisÃ©e par l'utilisateur '{existing_email[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
             
-            # Vérifier le téléphone
+            # VÃ©rifier le tÃ©lÃ©phone
             cur.execute("SELECT id, username, phone FROM users WHERE phone = ?", (phone,))
             existing_phone = cur.fetchone()
             if existing_phone:
-                errors.append(f"Ce numéro de téléphone ({phone}) est déjà utilisé par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez récupérer votre mot de passe.")
+                errors.append(f"Ce numÃ©ro de tÃ©lÃ©phone ({phone}) est dÃ©jÃ  utilisÃ© par l'utilisateur '{existing_phone[1]}'. Si c'est votre compte, vous pouvez rÃ©cupÃ©rer votre mot de passe.")
             
         if errors:
             conn.close()
@@ -3062,16 +3181,16 @@ async def admin_add_member(request: Request) -> HTMLResponse:
                 },
             )
             
-        # Création de l'utilisateur
+        # CrÃ©ation de l'utilisateur
         pwd_hash = hash_password(password)
         is_trainer = 1 if role == "trainer" else 0
         is_admin = 1 if role == "admin" else 0
         
-        # Vérification email désactivée - marquer directement comme vérifié
+        # VÃ©rification email dÃ©sactivÃ©e - marquer directement comme vÃ©rifiÃ©
         email_verification_token = None
         email_verified = 1
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute(
                 "INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, photo_path, is_admin, validated, is_trainer, email_verification_token, email_verified) "
@@ -3087,12 +3206,12 @@ async def admin_add_member(request: Request) -> HTMLResponse:
         conn.commit()
         conn.close()
         
-        print(f"✅ Membre ajouté avec succès par l'admin: {username}")
+        print(f"âœ… Membre ajoutÃ© avec succÃ¨s par l'admin: {username}")
         
         return RedirectResponse(url="/admin/membres", status_code=303)
         
     except Exception as e:
-        print(f"❌ Erreur lors de l'ajout du membre: {e}")
+        print(f"âŒ Erreur lors de l'ajout du membre: {e}")
         return templates.TemplateResponse(
             "admin_add_member.html",
             {
@@ -3127,7 +3246,7 @@ async def validate_member(request: Request) -> HTMLResponse:
         return RedirectResponse(url="/admin/membres", status_code=303)
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
         cur.execute("SELECT validated FROM users WHERE id = %s", (user_id,))
@@ -3147,9 +3266,9 @@ async def validate_member(request: Request) -> HTMLResponse:
         new_state = 0 if row["validated"] else 1
         cur.execute("UPDATE users SET validated = ? WHERE id = ?", (new_state, user_id))
     
-    # Si le membre vient d'être validé, envoyer un email de confirmation
+    # Si le membre vient d'Ãªtre validÃ©, envoyer un email de confirmation
     if new_state == 1:
-        # Récupérer les informations du membre validé
+        # RÃ©cupÃ©rer les informations du membre validÃ©
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute("SELECT email, full_name FROM users WHERE id = %s", (user_id,))
             member_info = cur.fetchone()
@@ -3169,7 +3288,7 @@ async def validate_member(request: Request) -> HTMLResponse:
 
 @app.post("/admin/membres/supprimer", response_class=HTMLResponse)
 async def admin_delete_member(request: Request) -> HTMLResponse:
-    """Permet à un administrateur de supprimer un membre."""
+    """Permet Ã  un administrateur de supprimer un membre."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3184,11 +3303,11 @@ async def admin_delete_member(request: Request) -> HTMLResponse:
         
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
             
-            # Vérifier que l'utilisateur existe et n'est pas admin
+            # VÃ©rifier que l'utilisateur existe et n'est pas admin
             cur.execute("SELECT username, is_admin FROM users WHERE id = %s", (user_id,))
             member = cur.fetchone()
             
@@ -3196,7 +3315,7 @@ async def admin_delete_member(request: Request) -> HTMLResponse:
                 conn.close()
                 return RedirectResponse(url="/admin/membres", status_code=303)
             
-            if member[1]:  # MySQL retourne un tuple, is_admin est à l'index 1
+            if member[1]:  # MySQL retourne un tuple, is_admin est Ã  l'index 1
                 conn.close()
                 return RedirectResponse(url="/admin/membres", status_code=303)
             
@@ -3205,7 +3324,7 @@ async def admin_delete_member(request: Request) -> HTMLResponse:
         else:
             cur = conn.cursor()
             
-            # Vérifier que l'utilisateur existe et n'est pas admin
+            # VÃ©rifier que l'utilisateur existe et n'est pas admin
             cur.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
             member = cur.fetchone()
             
@@ -3232,7 +3351,7 @@ async def admin_delete_member(request: Request) -> HTMLResponse:
 
 @app.post("/admin/membres/supprimer-groupe", response_class=HTMLResponse)
 async def admin_delete_members_bulk(request: Request) -> HTMLResponse:
-    """Permet à un administrateur de supprimer plusieurs membres en lot."""
+    """Permet Ã  un administrateur de supprimer plusieurs membres en lot."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3260,18 +3379,18 @@ async def admin_delete_members_bulk(request: Request) -> HTMLResponse:
         
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
             
-            # Vérifier que les utilisateurs existent et ne sont pas admin
+            # VÃ©rifier que les utilisateurs existent et ne sont pas admin
             placeholders = ','.join(['%s' for _ in valid_user_ids])
             cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
             members = cur.fetchall()
             
             # Filtrer les membres non-admin (MySQL retourne des tuples)
-            non_admin_members = [m for m in members if not m[2]]  # is_admin est à l'index 2
-            non_admin_ids = [m[0] for m in non_admin_members]  # id est à l'index 0
+            non_admin_members = [m for m in members if not m[2]]  # is_admin est Ã  l'index 2
+            non_admin_ids = [m[0] for m in non_admin_members]  # id est Ã  l'index 0
             
             if non_admin_ids:
                 # Supprimer les membres non-admin
@@ -3279,11 +3398,11 @@ async def admin_delete_members_bulk(request: Request) -> HTMLResponse:
                 cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
                 conn.commit()
                 
-                print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
+                print(f"âœ… {len(non_admin_ids)} membres supprimÃ©s en lot")
         else:
             cur = conn.cursor()
             
-            # Vérifier que les utilisateurs existent et ne sont pas admin
+            # VÃ©rifier que les utilisateurs existent et ne sont pas admin
             placeholders = ','.join(['?' for _ in valid_user_ids])
             cur.execute(f"SELECT id, username, is_admin FROM users WHERE id IN ({placeholders})", valid_user_ids)
             members = cur.fetchall()
@@ -3298,29 +3417,29 @@ async def admin_delete_members_bulk(request: Request) -> HTMLResponse:
                 cur.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_admin_ids)
                 conn.commit()
                 
-                print(f"✅ {len(non_admin_ids)} membres supprimés en lot")
+                print(f"âœ… {len(non_admin_ids)} membres supprimÃ©s en lot")
         
         conn.close()
         
         return RedirectResponse(url="/admin/membres", status_code=303)
         
     except Exception as e:
-        print(f"Erreur lors de la suppression groupée: {e}")
+        print(f"Erreur lors de la suppression groupÃ©e: {e}")
         return RedirectResponse(url="/admin/membres", status_code=303)
 
 
 @app.get("/admin/membres/{member_id}/details")
 async def admin_member_details(request: Request, member_id: int):
-    """Retourne les détails d'un membre en JSON pour le modal."""
+    """Retourne les dÃ©tails d'un membre en JSON pour le modal."""
     user = get_current_user(request)
     if not user:
-        return {"status": "error", "message": "Non autorisé"}
+        return {"status": "error", "message": "Non autorisÃ©"}
     check_admin(user)
     
     try:
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
@@ -3335,9 +3454,9 @@ async def admin_member_details(request: Request, member_id: int):
         conn.close()
         
         if not member:
-            return {"status": "error", "message": "Membre non trouvé"}
+            return {"status": "error", "message": "Membre non trouvÃ©"}
         
-        # Générer le HTML pour le modal
+        # GÃ©nÃ©rer le HTML pour le modal
         html = f"""
         <div class="member-details-content">
             <div class="row">
@@ -3345,15 +3464,15 @@ async def admin_member_details(request: Request, member_id: int):
                     <h6>Informations personnelles</h6>
                     <p><strong>Nom complet:</strong> {member['full_name']}</p>
                     <p><strong>Nom d'utilisateur:</strong> {member['username']}</p>
-                    <p><strong>Email:</strong> {member['email'] or 'Non renseigné'}</p>
-                    <p><strong>Téléphone:</strong> {member['phone'] or 'Non renseigné'}</p>
+                    <p><strong>Email:</strong> {member['email'] or 'Non renseignÃ©'}</p>
+                    <p><strong>TÃ©lÃ©phone:</strong> {member['phone'] or 'Non renseignÃ©'}</p>
                 </div>
                 <div class="col-md-6">
-                    <h6>Informations supplémentaires</h6>
-                    <p><strong>Numéro IJIN:</strong> {member['ijin_number'] or 'Non renseigné'}</p>
-                    <p><strong>Date de naissance:</strong> {member['birth_date'] or 'Non renseignée'}</p>
-                    <p><strong>Rôle:</strong> {'Administrateur' if member['is_admin'] else 'Entraîneur' if member['is_trainer'] else 'Membre'}</p>
-                    <p><strong>Statut:</strong> {'Validé' if member['validated'] else 'En attente'}</p>
+                    <h6>Informations supplÃ©mentaires</h6>
+                    <p><strong>NumÃ©ro IJIN:</strong> {member['ijin_number'] or 'Non renseignÃ©'}</p>
+                    <p><strong>Date de naissance:</strong> {member['birth_date'] or 'Non renseignÃ©e'}</p>
+                    <p><strong>RÃ´le:</strong> {'Administrateur' if member['is_admin'] else 'EntraÃ®neur' if member['is_trainer'] else 'Membre'}</p>
+                    <p><strong>Statut:</strong> {'ValidÃ©' if member['validated'] else 'En attente'}</p>
                 </div>
             </div>
         </div>
@@ -3367,7 +3486,7 @@ async def admin_member_details(request: Request, member_id: int):
 
 @app.get("/admin/membres/{member_id}/edit", response_class=HTMLResponse)
 async def admin_edit_member_form(request: Request, member_id: int) -> HTMLResponse:
-    """Affiche le formulaire d'édition d'un membre."""
+    """Affiche le formulaire d'Ã©dition d'un membre."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3376,7 +3495,7 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
     try:
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
@@ -3391,7 +3510,7 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
         conn.close()
         
         if not member:
-            raise HTTPException(status_code=404, detail="Membre non trouvé")
+            raise HTTPException(status_code=404, detail="Membre non trouvÃ©")
         
         return templates.TemplateResponse(
             "admin_member_edit.html",
@@ -3404,13 +3523,13 @@ async def admin_edit_member_form(request: Request, member_id: int) -> HTMLRespon
         )
         
     except Exception as e:
-        print(f"Erreur lors de l'édition: {e}")
+        print(f"Erreur lors de l'Ã©dition: {e}")
         return RedirectResponse(url="/admin/membres", status_code=303)
 
 
 @app.post("/admin/membres/{member_id}/edit", response_class=HTMLResponse)
 async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
-    """Traite la soumission du formulaire d'édition d'un membre."""
+    """Traite la soumission du formulaire d'Ã©dition d'un membre."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3419,7 +3538,7 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
     try:
         form_data = await request.form()
         
-        # Récupération des données du formulaire
+        # RÃ©cupÃ©ration des donnÃ©es du formulaire
         username = str(form_data.get("username", "")).strip()
         full_name = str(form_data.get("full_name", "")).strip()
         email = str(form_data.get("email", "")).strip()
@@ -3431,7 +3550,7 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         validated = bool(form_data.get("validated"))
         is_trainer = bool(form_data.get("is_trainer"))
         
-        # Vérifications de base
+        # VÃ©rifications de base
         errors: List[str] = []
         
         if not username:
@@ -3439,10 +3558,10 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         if not full_name:
             errors.append("Le nom complet est obligatoire.")
         
-        # Vérifier que le nom d'utilisateur n'existe pas déjà (sauf pour le membre actuel)
+        # VÃ©rifier que le nom d'utilisateur n'existe pas dÃ©jÃ  (sauf pour le membre actuel)
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
             cur.execute("SELECT id FROM users WHERE username = %s AND id != %s", (username, member_id))
@@ -3451,10 +3570,10 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
             cur.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username, member_id))
         
         if cur.fetchone():
-            errors.append("Ce nom d'utilisateur est déjà utilisé par un autre membre.")
+            errors.append("Ce nom d'utilisateur est dÃ©jÃ  utilisÃ© par un autre membre.")
         
         if errors:
-            # Récupérer les données du membre pour réafficher le formulaire
+            # RÃ©cupÃ©rer les donnÃ©es du membre pour rÃ©afficher le formulaire
             if hasattr(conn, '_is_mysql') and conn._is_mysql:
                 from database import get_mysql_cursor_with_names, convert_mysql_result
                 execute_with_names = get_mysql_cursor_with_names(conn)
@@ -3477,7 +3596,7 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
                 },
             )
         
-        # Mise à jour du membre
+        # Mise Ã  jour du membre
         update_fields = []
         update_values = []
         
@@ -3515,7 +3634,7 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         # Si un nouveau mot de passe est fourni
         if new_password:
             if len(new_password) < 6:
-                errors.append("Le mot de passe doit contenir au moins 6 caractères.")
+                errors.append("Le mot de passe doit contenir au moins 6 caractÃ¨res.")
             else:
                 if hasattr(conn, '_is_mysql') and conn._is_mysql:
                     update_fields.append("password_hash = %s")
@@ -3524,7 +3643,7 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
                 update_values.append(hash_password(new_password))
         
         if errors:
-            # Récupérer les données du membre pour réafficher le formulaire
+            # RÃ©cupÃ©rer les donnÃ©es du membre pour rÃ©afficher le formulaire
             if hasattr(conn, '_is_mysql') and conn._is_mysql:
                 from database import get_mysql_cursor_with_names, convert_mysql_result
                 execute_with_names = get_mysql_cursor_with_names(conn)
@@ -3547,10 +3666,10 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
                 },
             )
         
-        # Ajouter l'ID du membre à la fin pour la clause WHERE
+        # Ajouter l'ID du membre Ã  la fin pour la clause WHERE
         update_values.append(member_id)
         
-        # Exécuter la mise à jour
+        # ExÃ©cuter la mise Ã  jour
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = %s"
         else:
@@ -3560,37 +3679,37 @@ async def admin_edit_member(request: Request, member_id: int) -> HTMLResponse:
         conn.commit()
         conn.close()
         
-        print(f"✅ Membre {username} mis à jour avec succès")
+        print(f"âœ… Membre {username} mis Ã  jour avec succÃ¨s")
         
         return RedirectResponse(url="/admin/membres", status_code=303)
         
     except Exception as e:
-        print(f"❌ Erreur lors de la mise à jour du membre: {e}")
+        print(f"âŒ Erreur lors de la mise Ã  jour du membre: {e}")
         return RedirectResponse(url="/admin/membres", status_code=303)
 
 
 @app.get("/admin/reservations", response_class=HTMLResponse)
 async def admin_reservations(request: Request) -> HTMLResponse:
-    """Affiche toutes les réservations pour les administrateurs avec pagination."""
+    """Affiche toutes les rÃ©servations pour les administrateurs avec pagination."""
     try:
-        # 1. Vérifier l'utilisateur
+        # 1. VÃ©rifier l'utilisateur
         user = get_current_user(request)
         if not user:
             return RedirectResponse(url="/connexion", status_code=303)
         
-        # 2. Vérifier les droits admin
+        # 2. VÃ©rifier les droits admin
         if not user.is_admin:
                 return templates.TemplateResponse(
                     "error.html",
                     {
                         "request": request,
                     "status_code": 403,
-                    "detail": "Accès réservé à l'administration. Vous devez être administrateur."
+                    "detail": "AccÃ¨s rÃ©servÃ© Ã  l'administration. Vous devez Ãªtre administrateur."
                     },
                 status_code=403
                 )
             
-        # 3. Récupération des paramètres de pagination
+        # 3. RÃ©cupÃ©ration des paramÃ¨tres de pagination
         page = int(request.query_params.get("page", 1))
         per_page = int(request.query_params.get("per_page", 20))
             
@@ -3600,17 +3719,17 @@ async def admin_reservations(request: Request) -> HTMLResponse:
         conn = get_db_connection()
         cur = conn.cursor()
                 
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
             
-            # Compter le nombre total de réservations
+            # Compter le nombre total de rÃ©servations
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM reservations")
             total_bookings = cur.fetchone()[0]
             
-            # Récupérer les réservations pour la page courante avec informations utilisateur
+            # RÃ©cupÃ©rer les rÃ©servations pour la page courante avec informations utilisateur
             cur, column_names = execute_with_names(f"""
                 SELECT r.*, u.username, u.full_name as user_full_name 
                 FROM reservations r 
@@ -3619,16 +3738,16 @@ async def admin_reservations(request: Request) -> HTMLResponse:
                 LIMIT {per_page} OFFSET {offset}
             """, ())
             bookings = cur.fetchall()
-            # Convertir les tuples MySQL en objets avec attributs nommés
+            # Convertir les tuples MySQL en objets avec attributs nommÃ©s
             bookings = [convert_mysql_result(booking, column_names) for booking in bookings]
         else:
             cur = conn.cursor()
             
-            # Compter le nombre total de réservations
+            # Compter le nombre total de rÃ©servations
             cur.execute("SELECT COUNT(*) FROM reservations")
             total_bookings = cur.fetchone()[0]
             
-            # Récupérer les réservations pour la page courante avec informations utilisateur
+            # RÃ©cupÃ©rer les rÃ©servations pour la page courante avec informations utilisateur
             cur.execute("""
                 SELECT r.*, u.username, u.full_name as user_full_name 
                 FROM reservations r 
@@ -3639,7 +3758,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             bookings = cur.fetchall()
         conn.close()
         
-        # Convertir les dates en chaînes pour la compatibilité avec le template
+        # Convertir les dates en chaÃ®nes pour la compatibilitÃ© avec le template
         for booking in bookings:
             if hasattr(booking.date, 'isoformat'):
                 booking.date = booking.date.isoformat()
@@ -3653,7 +3772,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
         has_prev = page > 1
         has_next = page < total_pages
         
-        # Générer les liens de pagination
+        # GÃ©nÃ©rer les liens de pagination
         pagination_links = []
         if total_pages > 1:
             start_page = max(1, page - 2)
@@ -3688,13 +3807,13 @@ async def admin_reservations(request: Request) -> HTMLResponse:
             )
         
     except Exception as e:
-        print(f"❌ Erreur dans admin_reservations: {e}")
+        print(f"âŒ Erreur dans admin_reservations: {e}")
         return templates.TemplateResponse(
             "error.html",
             {
                 "request": request,
                 "status_code": 500,
-                "detail": f"Erreur lors du chargement des réservations: {str(e)}"
+                "detail": f"Erreur lors du chargement des rÃ©servations: {str(e)}"
             },
             status_code=500
         )
@@ -3702,7 +3821,7 @@ async def admin_reservations(request: Request) -> HTMLResponse:
 
 @app.post("/admin/reservations/supprimer", response_class=HTMLResponse)
 async def admin_delete_reservation(request: Request) -> HTMLResponse:
-    """Permet à un administrateur de supprimer une réservation."""
+    """Permet Ã  un administrateur de supprimer une rÃ©servation."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3715,7 +3834,7 @@ async def admin_delete_reservation(request: Request) -> HTMLResponse:
         return RedirectResponse(url="/admin/reservations", status_code=303)
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
         cur.execute("DELETE FROM reservations WHERE id = %s", (booking_id,))
@@ -3730,7 +3849,7 @@ async def admin_delete_reservation(request: Request) -> HTMLResponse:
 
 @app.post("/admin/reservations/supprimer-lot", response_class=HTMLResponse)
 async def admin_delete_reservations_bulk(request: Request) -> HTMLResponse:
-    """Permet à un administrateur de supprimer plusieurs réservations en lot."""
+    """Permet Ã  un administrateur de supprimer plusieurs rÃ©servations en lot."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3754,20 +3873,20 @@ async def admin_delete_reservations_bulk(request: Request) -> HTMLResponse:
         if not valid_ids:
             return RedirectResponse(url="/admin/reservations", status_code=303)
         
-        # Supprimer les réservations
+        # Supprimer les rÃ©servations
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
             
-            # Utiliser une requête avec IN pour supprimer en lot
+            # Utiliser une requÃªte avec IN pour supprimer en lot
             placeholders = ','.join(['%s' for _ in valid_ids])
             cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
         else:
             cur = conn.cursor()
             
-            # Utiliser une requête avec IN pour supprimer en lot
+            # Utiliser une requÃªte avec IN pour supprimer en lot
             placeholders = ','.join(['?' for _ in valid_ids])
             cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
         
@@ -3775,17 +3894,17 @@ async def admin_delete_reservations_bulk(request: Request) -> HTMLResponse:
         conn.commit()
         conn.close()
         
-        print(f"✅ {deleted_count} réservation(s) supprimée(s) en lot")
+        print(f"âœ… {deleted_count} rÃ©servation(s) supprimÃ©e(s) en lot")
         
     except Exception as e:
-        print(f"❌ Erreur lors de la suppression en lot: {e}")
+        print(f"âŒ Erreur lors de la suppression en lot: {e}")
     
     return RedirectResponse(url="/admin/reservations", status_code=303)
 
 
 @app.post("/admin/reservations/annuler-lot", response_class=HTMLResponse)
 async def admin_cancel_reservations_bulk(request: Request) -> HTMLResponse:
-    """Permet à un administrateur d'annuler plusieurs réservations en lot (les supprime)."""
+    """Permet Ã  un administrateur d'annuler plusieurs rÃ©servations en lot (les supprime)."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3809,20 +3928,20 @@ async def admin_cancel_reservations_bulk(request: Request) -> HTMLResponse:
         if not valid_ids:
             return RedirectResponse(url="/admin/reservations", status_code=303)
         
-        # Supprimer les réservations (annulation = suppression)
+        # Supprimer les rÃ©servations (annulation = suppression)
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur = conn.cursor()
             
-            # Utiliser une requête avec IN pour supprimer en lot
+            # Utiliser une requÃªte avec IN pour supprimer en lot
             placeholders = ','.join(['%s' for _ in valid_ids])
             cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
         else:
             cur = conn.cursor()
             
-            # Utiliser une requête avec IN pour supprimer en lot
+            # Utiliser une requÃªte avec IN pour supprimer en lot
             placeholders = ','.join(['?' for _ in valid_ids])
             cur.execute(f"DELETE FROM reservations WHERE id IN ({placeholders})", valid_ids)
         
@@ -3830,17 +3949,17 @@ async def admin_cancel_reservations_bulk(request: Request) -> HTMLResponse:
         conn.commit()
         conn.close()
         
-        print(f"✅ {cancelled_count} réservation(s) annulée(s) en lot")
+        print(f"âœ… {cancelled_count} rÃ©servation(s) annulÃ©e(s) en lot")
         
     except Exception as e:
-        print(f"❌ Erreur lors de l'annulation en lot: {e}")
+        print(f"âŒ Erreur lors de l'annulation en lot: {e}")
     
     return RedirectResponse(url="/admin/reservations", status_code=303)
 
 
 @app.get("/admin/reservations/export")
 async def admin_export_reservations(request: Request):
-    """Exporte toutes les réservations au format CSV."""
+    """Exporte toutes les rÃ©servations au format CSV."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -3850,7 +3969,7 @@ async def admin_export_reservations(request: Request):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Récupérer toutes les réservations avec les informations utilisateur
+        # RÃ©cupÃ©rer toutes les rÃ©servations avec les informations utilisateur
         cur.execute("""
             SELECT r.id, r.date, r.start_time, r.end_time, r.court_number,
                    u.username, u.full_name, u.email, u.phone
@@ -3861,13 +3980,13 @@ async def admin_export_reservations(request: Request):
         reservations = cur.fetchall()
         conn.close()
         
-        # Créer le contenu CSV
-        csv_content = "ID,Date,Début,Fin,Court,Utilisateur,Nom complet,Email,Téléphone\n"
+        # CrÃ©er le contenu CSV
+        csv_content = "ID,Date,DÃ©but,Fin,Court,Utilisateur,Nom complet,Email,TÃ©lÃ©phone\n"
         
         for res in reservations:
             csv_content += f"{res[0]},{res[1]},{res[2]},{res[3]},{res[4]},{res[5]},{res[6]},{res[7] or ''},{res[8] or ''}\n"
         
-        # Générer le nom de fichier avec la date
+        # GÃ©nÃ©rer le nom de fichier avec la date
         from datetime import datetime
         filename = f"reservations_cmtch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
@@ -3878,21 +3997,21 @@ async def admin_export_reservations(request: Request):
         )
         
     except Exception as e:
-        print(f"❌ Erreur lors de l'export: {e}")
+        print(f"âŒ Erreur lors de l'export: {e}")
     return RedirectResponse(url="/admin/reservations", status_code=303)
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLResponse:
-    """Gestion personnalisée des exceptions HTTP pour les redirections.
+    """Gestion personnalisÃ©e des exceptions HTTP pour les redirections.
 
-    Permet de renvoyer des redirections à partir d'une HTTPException avec le
+    Permet de renvoyer des redirections Ã  partir d'une HTTPException avec le
     code 302 et un champ `detail` indiquant l'URL cible.
     """
-    # Si le code est 302, on redirige plutôt que d'afficher l'erreur
+    # Si le code est 302, on redirige plutÃ´t que d'afficher l'erreur
     if exc.status_code == 302 and exc.detail:
         return RedirectResponse(url=exc.detail, status_code=exc.status_code)
-    # Sinon, on renvoie une page d'erreur générique
+    # Sinon, on renvoie une page d'erreur gÃ©nÃ©rique
     return templates.TemplateResponse(
         "error.html",
         {"request": request, "status_code": exc.status_code, "detail": exc.detail},
@@ -3905,19 +4024,19 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLRe
 
 @app.get("/articles", response_class=HTMLResponse)
 async def articles_list(request: Request) -> HTMLResponse:
-    """Affiche la liste des articles publiés avec pagination.
+    """Affiche la liste des articles publiÃ©s avec pagination.
 
-    Les articles sont ordonnés par date de création décroissante. Chaque entrée
-    présente le titre, une image s'il y en a une et un extrait du contenu.
+    Les articles sont ordonnÃ©s par date de crÃ©ation dÃ©croissante. Chaque entrÃ©e
+    prÃ©sente le titre, une image s'il y en a une et un extrait du contenu.
 
     Args:
-        request: objet Request pour récupérer la session et les URLs.
+        request: objet Request pour rÃ©cupÃ©rer la session et les URLs.
 
     Returns:
         Page HTML contenant la liste des articles.
     """
     try:
-        # Récupération des paramètres de pagination
+        # RÃ©cupÃ©ration des paramÃ¨tres de pagination
         page = int(request.query_params.get("page", 1))
         per_page = int(request.query_params.get("per_page", 6))  # 6 articles par page
         
@@ -3926,7 +4045,7 @@ async def articles_list(request: Request) -> HTMLResponse:
         
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
@@ -3936,7 +4055,7 @@ async def articles_list(request: Request) -> HTMLResponse:
             cur.execute("SELECT COUNT(*) FROM articles")
             total_articles = cur.fetchone()[0]
         
-            # Récupérer les articles pour la page courante
+            # RÃ©cupÃ©rer les articles pour la page courante
             cur, column_names = execute_with_names("""
                 SELECT id, title, content, image_path, created_at, 
                        COALESCE(image_path, '') as image_path_clean
@@ -3945,7 +4064,7 @@ async def articles_list(request: Request) -> HTMLResponse:
                 LIMIT %s OFFSET %s
             """, (per_page, offset))
             articles = cur.fetchall()
-            # Convertir les tuples MySQL en objets avec attributs nommés
+            # Convertir les tuples MySQL en objets avec attributs nommÃ©s
             articles = [convert_mysql_result(article, column_names) for article in articles]
         else:
             cur = conn.cursor()
@@ -3954,7 +4073,7 @@ async def articles_list(request: Request) -> HTMLResponse:
             cur.execute("SELECT COUNT(*) FROM articles")
             total_articles = cur.fetchone()[0]
             
-            # Récupérer les articles pour la page courante
+            # RÃ©cupÃ©rer les articles pour la page courante
             cur.execute("""
                 SELECT id, title, content, image_path, created_at, 
                        COALESCE(image_path, '') as image_path_clean
@@ -3972,7 +4091,7 @@ async def articles_list(request: Request) -> HTMLResponse:
         has_prev = page > 1
         has_next = page < total_pages
         
-        # Générer les liens de pagination
+        # GÃ©nÃ©rer les liens de pagination
         pagination_links = []
         if total_pages > 1:
             start_page = max(1, page - 2)
@@ -4006,7 +4125,7 @@ async def articles_list(request: Request) -> HTMLResponse:
         )
         
     except Exception as e:
-        print(f"❌ Erreur lors de la récupération des articles: {e}")
+        print(f"âŒ Erreur lors de la rÃ©cupÃ©ration des articles: {e}")
         # En cas d'erreur, retourner une page avec message d'erreur
         user = get_current_user(request)
         return templates.TemplateResponse(
@@ -4022,11 +4141,11 @@ async def articles_list(request: Request) -> HTMLResponse:
 
 @app.get("/articles/{article_id}", response_class=HTMLResponse)
 async def article_detail(request: Request, article_id: int) -> HTMLResponse:
-    """Affiche le détail d'un article de presse.
+    """Affiche le dÃ©tail d'un article de presse.
 
     Args:
         request: objet Request.
-        article_id: identifiant de l'article à afficher.
+        article_id: identifiant de l'article Ã  afficher.
 
     Returns:
         Page HTML avec le contenu de l'article ou page d'erreur si introuvable.
@@ -4034,13 +4153,13 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
     try:
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
             cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
             article = cur.fetchone()
-            # Convertir le tuple MySQL en objet avec attributs nommés
+            # Convertir le tuple MySQL en objet avec attributs nommÃ©s
             if article:
                 article = convert_mysql_result(article, column_names)
         else:
@@ -4054,10 +4173,10 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
             
         user = get_current_user(request)
         # Construire une URL absolue pour le partage sur Facebook. Si l'application est
-        # hébergée derrière un proxy, request.url donnera l'URL complète.
+        # hÃ©bergÃ©e derriÃ¨re un proxy, request.url donnera l'URL complÃ¨te.
         article_url = str(request.url)
             
-        # Récupérer les articles récents pour la sidebar (avant de fermer la connexion)
+        # RÃ©cupÃ©rer les articles rÃ©cents pour la sidebar (avant de fermer la connexion)
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
@@ -4066,7 +4185,7 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
                 (article_id,)
             )
             recent_articles = cur.fetchall()
-            # Convertir les tuples MySQL en objets avec attributs nommés
+            # Convertir les tuples MySQL en objets avec attributs nommÃ©s
             recent_articles = [convert_mysql_result(article, column_names) for article in recent_articles]
         else:
             cur = conn.cursor()
@@ -4076,7 +4195,7 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
             )
             recent_articles = cur.fetchall()
         
-        # Fermer la connexion après avoir récupéré tous les données
+        # Fermer la connexion aprÃ¨s avoir rÃ©cupÃ©rÃ© tous les donnÃ©es
         conn.close()
         
         return templates.TemplateResponse(
@@ -4090,7 +4209,7 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
             },
         )
     except Exception as e:
-        print(f"❌ Erreur dans article_detail: {e}")
+        print(f"âŒ Erreur dans article_detail: {e}")
         # En cas d'erreur, retourner une page d'erreur
         user = get_current_user(request)
         return templates.TemplateResponse(
@@ -4108,7 +4227,7 @@ async def article_detail(request: Request, article_id: int) -> HTMLResponse:
 async def admin_articles(request: Request) -> HTMLResponse:
     """Interface d'administration des articles.
 
-    Permet aux administrateurs de voir la liste des articles et de créer de
+    Permet aux administrateurs de voir la liste des articles et de crÃ©er de
     nouveaux articles. Les administrateurs peuvent supprimer les articles
     existants via cette interface.
     """
@@ -4118,13 +4237,13 @@ async def admin_articles(request: Request) -> HTMLResponse:
     check_admin(user)
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
         cur, column_names = execute_with_names("SELECT id, title, created_at FROM articles ORDER BY created_at DESC")
         articles = cur.fetchall()
-        # Convertir les tuples MySQL en objets avec attributs nommés
+        # Convertir les tuples MySQL en objets avec attributs nommÃ©s
         articles = [convert_mysql_result(article, column_names) for article in articles]
     else:
         cur = conn.cursor()
@@ -4143,7 +4262,7 @@ async def admin_articles(request: Request) -> HTMLResponse:
 
 @app.get("/admin/articles/nouveau", response_class=HTMLResponse)
 async def admin_new_article_form(request: Request) -> HTMLResponse:
-    """Affiche le formulaire de création d'un nouvel article pour les administrateurs."""
+    """Affiche le formulaire de crÃ©ation d'un nouvel article pour les administrateurs."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -4156,24 +4275,24 @@ async def admin_new_article_form(request: Request) -> HTMLResponse:
 
 @app.post("/admin/articles/nouveau", response_class=HTMLResponse)
 async def admin_new_article(request: Request) -> HTMLResponse:
-    """Traite la soumission du formulaire de création d'article.
+    """Traite la soumission du formulaire de crÃ©ation d'article.
 
     Ce gestionnaire prend en charge deux types de formulaires :
-    - `multipart/form-data` : permet de télécharger un fichier image depuis le
-      navigateur grâce à un champ `<input type="file" name="image_file">`. Le
-      fichier est enregistré dans `static/article_images/` avec un nom unique.
-    - `application/x-www-form-urlencoded` : permet de spécifier un champ
+    - `multipart/form-data` : permet de tÃ©lÃ©charger un fichier image depuis le
+      navigateur grÃ¢ce Ã  un champ `<input type="file" name="image_file">`. Le
+      fichier est enregistrÃ© dans `static/article_images/` avec un nom unique.
+    - `application/x-www-form-urlencoded` : permet de spÃ©cifier un champ
       `image_url` contenant l'adresse de l'image.
 
     Dans tous les cas, le titre et le contenu sont requis. Si un champ est
-    manquant, une erreur est renvoyée et le formulaire est réaffiché.
+    manquant, une erreur est renvoyÃ©e et le formulaire est rÃ©affichÃ©.
     """
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
     check_admin(user)
     
-    # Déterminer le type de contenu
+    # DÃ©terminer le type de contenu
     content_type = request.headers.get("content-type", "")
     errors: List[str] = []
     title = ""
@@ -4195,7 +4314,7 @@ async def admin_new_article(request: Request) -> HTMLResponse:
             filename = file_field.get("filename")
             file_content = file_field.get("content", b"")
             if filename and file_content:
-                # Générer un nom unique pour éviter les collisions
+                # GÃ©nÃ©rer un nom unique pour Ã©viter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
                 
@@ -4203,17 +4322,17 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 try:
                     result = upload_photo_to_imgbb(file_content, unique_name)
                     if result.get('success'):
-                        # Utiliser l'URL complète ImgBB pour la base de données
+                        # Utiliser l'URL complÃ¨te ImgBB pour la base de donnÃ©es
                         image_path = result.get('url')
-                        print(f"✅ Image uploadée vers ImgBB: {image_path}")
+                        print(f"âœ… Image uploadÃ©e vers ImgBB: {image_path}")
                     else:
-                        # En cas d'échec, utiliser l'image par défaut ImgBB
+                        # En cas d'Ã©chec, utiliser l'image par dÃ©faut ImgBB
                         image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                        print(f"⚠️ Échec upload ImgBB, utilisation image par défaut: {result.get('error')}")
+                        print(f"âš ï¸ Ã‰chec upload ImgBB, utilisation image par dÃ©faut: {result.get('error')}")
                 except Exception as e:
-                    # En cas d'erreur, utiliser l'image par défaut ImgBB
+                    # En cas d'erreur, utiliser l'image par dÃ©faut ImgBB
                     image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                    print(f"❌ Erreur HostGator, utilisation image par défaut: {e}")
+                    print(f"âŒ Erreur HostGator, utilisation image par dÃ©faut: {e}")
     else:
         # Analyse du corps form-urlencoded
         form = urllib.parse.parse_qs(body.decode(), keep_blank_values=True)
@@ -4221,7 +4340,7 @@ async def admin_new_article(request: Request) -> HTMLResponse:
         content_text = form.get("content", [""])[0].strip()
         image_path = form.get("image_url", [""])[0].strip()
     
-    # Vérifications
+    # VÃ©rifications
     if not title:
         errors.append("Le titre est obligatoire.")
     if not content_text:
@@ -4237,15 +4356,15 @@ async def admin_new_article(request: Request) -> HTMLResponse:
                 "errors": errors,
                 "title": title,
                 "content": content_text,
-                # Si le formulaire multipart a été utilisé, l'URL n'est pas disponible
+                # Si le formulaire multipart a Ã©tÃ© utilisÃ©, l'URL n'est pas disponible
                 "image_url": image_path if "multipart/form-data" not in content_type else "",
             },
         )
     
-    # Insérer dans la base de données
+    # InsÃ©rer dans la base de donnÃ©es
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
         now_str = datetime.utcnow().isoformat()
@@ -4282,7 +4401,7 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
     
     conn = get_db_connection()
     
-    # Récupérer le chemin de l'image avant de supprimer l'article
+    # RÃ©cupÃ©rer le chemin de l'image avant de supprimer l'article
     image_path = None
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
@@ -4297,7 +4416,7 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
         if result:
             image_path = result[0]
     
-    # Supprimer l'article de la base de données
+    # Supprimer l'article de la base de donnÃ©es
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur.execute("DELETE FROM articles WHERE id = %s", (article_id,))
     else:
@@ -4313,10 +4432,10 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
             filename = os.path.basename(image_path)
             file_path = os.path.join(BASE_DIR, "static", "article_images", filename)
             
-            # Vérifier que le fichier existe et le supprimer
+            # VÃ©rifier que le fichier existe et le supprimer
             if os.path.exists(file_path):
                 os.remove(file_path)
-                print(f"Fichier image supprimé : {file_path}")
+                print(f"Fichier image supprimÃ© : {file_path}")
         except Exception as e:
             print(f"Erreur lors de la suppression du fichier image : {e}")
     
@@ -4325,7 +4444,7 @@ async def admin_delete_article(request: Request) -> HTMLResponse:
 
 @app.post("/admin/articles/nettoyer-images", response_class=HTMLResponse)
 async def admin_cleanup_orphaned_images(request: Request) -> HTMLResponse:
-    """Nettoie les images orphelines (images sans article associé)."""
+    """Nettoie les images orphelines (images sans article associÃ©)."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/connexion", status_code=303)
@@ -4333,7 +4452,7 @@ async def admin_cleanup_orphaned_images(request: Request) -> HTMLResponse:
     
     conn = get_db_connection()
     
-    # Récupérer tous les chemins d'images utilisés dans la base
+    # RÃ©cupÃ©rer tous les chemins d'images utilisÃ©s dans la base
     used_images = set()
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
@@ -4365,11 +4484,11 @@ async def admin_cleanup_orphaned_images(request: Request) -> HTMLResponse:
                         file_path = os.path.join(images_dir, filename)
                         os.remove(file_path)
                         cleaned_count += 1
-                        print(f"Image orpheline supprimée : {filename}")
+                        print(f"Image orpheline supprimÃ©e : {filename}")
                     except Exception as e:
                         print(f"Erreur lors de la suppression de {filename}: {e}")
     
-    # Rediriger avec un message de succès
+    # Rediriger avec un message de succÃ¨s
     return RedirectResponse(
         url=f"/admin/articles?cleaned={cleaned_count}", 
         status_code=303
@@ -4386,13 +4505,13 @@ async def admin_edit_article_form(request: Request, article_id: int) -> HTMLResp
     
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
         cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
         article = cur.fetchone()
-        # Convertir le tuple MySQL en objet avec attributs nommés
+        # Convertir le tuple MySQL en objet avec attributs nommÃ©s
         article = convert_mysql_result(article, column_names) if article else None
     else:
         cur = conn.cursor()
@@ -4421,7 +4540,7 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
         return RedirectResponse(url="/connexion", status_code=303)
     check_admin(user)
     
-    # Déterminer le type de contenu
+    # DÃ©terminer le type de contenu
     content_type = request.headers.get("content-type", "")
     errors: List[str] = []
     title = ""
@@ -4440,10 +4559,10 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
             filename = file_field.get("filename")
             file_content = file_field.get("content", b"")
             if filename and file_content:
-                # Créer un dossier pour les images si nécessaire
+                # CrÃ©er un dossier pour les images si nÃ©cessaire
                 images_dir = os.path.join(BASE_DIR, "static", "article_images")
                 os.makedirs(images_dir, exist_ok=True)
-                # Générer un nom unique pour éviter les collisions
+                # GÃ©nÃ©rer un nom unique pour Ã©viter les collisions
                 ext = os.path.splitext(filename)[1] or ".bin"
                 unique_name = f"{uuid.uuid4().hex}{ext}"
                 # Upload vers ImgBB exclusivement
@@ -4451,15 +4570,15 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                     result = upload_photo_to_imgbb(file_content, unique_name)
                     if result.get('success'):
                         image_path = result.get('url')
-                        print(f"✅ Image uploadée vers ImgBB: {image_path}")
+                        print(f"âœ… Image uploadÃ©e vers ImgBB: {image_path}")
                     else:
-                        # En cas d'échec, utiliser l'image par défaut ImgBB
+                        # En cas d'Ã©chec, utiliser l'image par dÃ©faut ImgBB
                         image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                        print(f"⚠️ Échec upload ImgBB, utilisation image par défaut: {result.get('error')}")
+                        print(f"âš ï¸ Ã‰chec upload ImgBB, utilisation image par dÃ©faut: {result.get('error')}")
                 except Exception as e:
-                    # En cas d'erreur, utiliser l'image par défaut ImgBB
+                    # En cas d'erreur, utiliser l'image par dÃ©faut ImgBB
                     image_path = "https://i.ibb.co/8nBCWmhf/test-image-png.png"
-                    print(f"❌ Erreur HostGator, utilisation image par défaut: {e}")
+                    print(f"âŒ Erreur HostGator, utilisation image par dÃ©faut: {e}")
     else:
         # Formulaire standard urlencoded (image_url fourni par l'utilisateur)
         raw_body = await request.body()
@@ -4468,23 +4587,23 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
         content_text = form.get("content", [""])[0].strip()
         image_path = form.get("image_url", [""])[0].strip()
     
-    # Vérifications
+    # VÃ©rifications
     if not title:
         errors.append("Le titre est obligatoire.")
     if not content_text:
         errors.append("Le contenu est obligatoire.")
     
-    # Si erreurs, récupérer l'article et renvoyer le formulaire avec les champs saisis
+    # Si erreurs, rÃ©cupÃ©rer l'article et renvoyer le formulaire avec les champs saisis
     if errors:
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
             cur, column_names = execute_with_names("SELECT id, title, content, image_path, created_at FROM articles WHERE id = %s", (article_id,))
             article = cur.fetchone()
-            # Convertir le tuple MySQL en objet avec attributs nommés
+            # Convertir le tuple MySQL en objet avec attributs nommÃ©s
             article = convert_mysql_result(article, column_names) if article else None
         else:
             cur = conn.cursor()
@@ -4499,7 +4618,7 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
                 {"request": request, "message": "Article introuvable."},
             )
         
-        # Mettre à jour les valeurs avec celles saisies par l'utilisateur
+        # Mettre Ã  jour les valeurs avec celles saisies par l'utilisateur
         article.title = title
         article.content = content_text
         if image_path:
@@ -4515,14 +4634,14 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
             },
         )
     
-    # Mettre à jour dans la base de données
+    # Mettre Ã  jour dans la base de donnÃ©es
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         cur = conn.cursor()
         if image_path:
-            # Si une nouvelle image est fournie, mettre à jour l'image aussi
+            # Si une nouvelle image est fournie, mettre Ã  jour l'image aussi
             cur.execute(
                 "UPDATE articles SET title = %s, content = %s, image_path = %s WHERE id = %s",
                 (title, content_text, image_path, article_id),
@@ -4536,7 +4655,7 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
     else:
         cur = conn.cursor()
         if image_path:
-            # Si une nouvelle image est fournie, mettre à jour l'image aussi
+            # Si une nouvelle image est fournie, mettre Ã  jour l'image aussi
             cur.execute(
                 "UPDATE articles SET title = ?, content = ?, image_path = ? WHERE id = ?",
                 (title, content_text, image_path, article_id),
@@ -4554,29 +4673,29 @@ async def admin_edit_article(request: Request, article_id: int) -> HTMLResponse:
 
 
 # -----------------------------------------------------------------------------
-#  Espace utilisateur : statistiques de séances
+#  Espace utilisateur : statistiques de sÃ©ances
 # -----------------------------------------------------------------------------
 
 @app.get("/test-espace-simple")
 async def test_espace_simple(request: Request) -> JSONResponse:
-    """Test simple pour diagnostiquer le problème de /espace."""
+    """Test simple pour diagnostiquer le problÃ¨me de /espace."""
     try:
-        # Test 1: Récupération du cookie
+        # Test 1: RÃ©cupÃ©ration du cookie
         token = request.cookies.get("session_token")
         if not token:
-            return JSONResponse({"error": "Aucun token de session trouvé"})
+            return JSONResponse({"error": "Aucun token de session trouvÃ©"})
         
         # Test 2: Parsing du token
         user_id = parse_session_token(token)
         if not user_id:
-            return JSONResponse({"error": "Token de session invalide", "token": token})
+            return JSONResponse({"error": "Token de session invalide"})
         
-        # Test 3: Récupération de l'utilisateur
+        # Test 3: RÃ©cupÃ©ration de l'utilisateur
         user = get_current_user(request)
         if not user:
             return JSONResponse({"error": "get_current_user retourne None", "user_id": user_id})
         
-        # Test 4: Vérification des attributs
+        # Test 4: VÃ©rification des attributs
         user_attrs = {}
         try:
             user_attrs["id"] = user.id
@@ -4598,17 +4717,15 @@ async def test_espace_simple(request: Request) -> JSONResponse:
         except Exception as e:
             user_attrs["is_admin_error"] = str(e)
         
-        # Test 5: Vérification du type d'objet
+        # Test 5: VÃ©rification du type d'objet
         user_type = type(user).__name__
         user_dir = dir(user)
         
         return JSONResponse({
             "success": True,
-            "token": token,
             "user_id": user_id,
             "user_type": user_type,
             "user_attributes": user_attrs,
-            "user_dir": user_dir,
             "has_id": hasattr(user, 'id'),
             "has_validated": hasattr(user, 'validated'),
             "has_is_admin": hasattr(user, 'is_admin')
@@ -4621,13 +4738,15 @@ async def test_espace_simple(request: Request) -> JSONResponse:
             "traceback": traceback.format_exc()
         })
 
+
+
 @app.get("/test-db-espace")
 async def test_db_espace(request: Request) -> JSONResponse:
-    """Test de la base de données pour /espace."""
+    """Test de la base de donnÃ©es pour /espace."""
     try:
         user = get_current_user(request)
         if not user:
-            return JSONResponse({"error": "Utilisateur non connecté"})
+            return JSONResponse({"error": "Utilisateur non connectÃ©"})
         
         conn = get_db_connection()
         
@@ -4665,11 +4784,11 @@ async def test_db_espace(request: Request) -> JSONResponse:
 
 @app.get("/espace", response_class=HTMLResponse)
 async def user_dashboard(request: Request) -> HTMLResponse:
-    """Page personnelle affichant les statistiques de réservation par mois.
+    """Page personnelle affichant les statistiques de rÃ©servation par mois.
 
-    Cette page est accessible aux utilisateurs inscrits (membres et entraîneurs)
-    et affiche le nombre de séances réservées pour chaque mois. Les données sont
-    extraites de la table des réservations en regroupant par année/mois.
+    Cette page est accessible aux utilisateurs inscrits (membres et entraÃ®neurs)
+    et affiche le nombre de sÃ©ances rÃ©servÃ©es pour chaque mois. Les donnÃ©es sont
+    extraites de la table des rÃ©servations en regroupant par annÃ©e/mois.
     """
     user = get_current_user(request)
     if not user:
@@ -4677,62 +4796,62 @@ async def user_dashboard(request: Request) -> HTMLResponse:
     if not user.validated:
         return templates.TemplateResponse(
             "not_validated.html",
-            {"request": request, "message": "Votre inscription doit être validée pour accéder à cet espace."},
+            {"request": request, "message": "Votre inscription doit Ãªtre validÃ©e pour accÃ©der Ã  cet espace."},
         )
     conn = get_db_connection()
     
-    # Vérifier si c'est une connexion MySQL
+    # VÃ©rifier si c'est une connexion MySQL
     if hasattr(conn, '_is_mysql') and conn._is_mysql:
         from database import get_mysql_cursor_with_names, convert_mysql_result
         execute_with_names = get_mysql_cursor_with_names(conn)
         try:
-            # Regrouper par année-mois et compter
+            # Regrouper par annÃ©e-mois et compter
             cur, column_names = execute_with_names(
                 "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month",
                 (user.id,),
             )
             rows = cur.fetchall()
-            # Convertir les tuples MySQL en objets avec attributs nommés
+            # Convertir les tuples MySQL en objets avec attributs nommÃ©s
             rows = [convert_mysql_result(row, column_names) for row in rows]
         except Exception as e:
-            print(f"❌ Erreur dans la requête SQL de /espace: {e}")
-            # En cas d'erreur, retourner des données vides
+            print(f"âŒ Erreur dans la requÃªte SQL de /espace: {e}")
+            # En cas d'erreur, retourner des donnÃ©es vides
             rows = []
         finally:
             conn.close()
     else:
         cur = conn.cursor()
         try:
-            # Regrouper par année-mois et compter
+            # Regrouper par annÃ©e-mois et compter
             cur.execute(
                 "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = ? GROUP BY month ORDER BY month",
                 (user.id,),
             )
             rows = cur.fetchall()
         except Exception as e:
-            print(f"❌ Erreur dans la requête SQL de /espace: {e}")
-            # En cas d'erreur, retourner des données vides
+            print(f"âŒ Erreur dans la requÃªte SQL de /espace: {e}")
+            # En cas d'erreur, retourner des donnÃ©es vides
             rows = []
         finally:
             conn.close()
-    # Transformer les résultats en listes pour Chart.js
+    # Transformer les rÃ©sultats en listes pour Chart.js
     months: List[str] = []
     counts: List[int] = []
     try:
         for row in rows:
             months.append(row.month)
             counts.append(row.count)
-        # Préparer les versions JSON des listes pour Chart.js
+        # PrÃ©parer les versions JSON des listes pour Chart.js
         months_js = json.dumps(months)
         counts_js = json.dumps(counts)
-        # Préparer les paires pour itération dans le template (mois, count)
+        # PrÃ©parer les paires pour itÃ©ration dans le template (mois, count)
         data_pairs = list(zip(months, counts))
         
-        # Calculer les statistiques supplémentaires
+        # Calculer les statistiques supplÃ©mentaires
         total_reservations = sum(counts)
-        total_hours = total_reservations  # Chaque réservation = 1 heure
+        total_hours = total_reservations  # Chaque rÃ©servation = 1 heure
     except Exception as e:
-        print(f"❌ Erreur dans la transformation des données de /espace: {e}")
+        print(f"âŒ Erreur dans la transformation des donnÃ©es de /espace: {e}")
         # En cas d'erreur, utiliser des listes vides
         months = []
         counts = []
@@ -4758,17 +4877,17 @@ async def user_dashboard(request: Request) -> HTMLResponse:
     )
 
 # -----------------------------------------------------------------------------
-#  Endpoint de santé pour Render
+#  Endpoint de santÃ© pour Render
 # -----------------------------------------------------------------------------
 
 @app.get("/health")
 async def health_check():
-    """Point de terminaison de santé pour vérifier l'état de l'application et de la base de données."""
+    """Point de terminaison de santÃ© pour vÃ©rifier l'Ã©tat de l'application et de la base de donnÃ©es."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier les tables
+        # VÃ©rifier les tables
         cur.execute("SELECT COUNT(*) FROM users")
         users_count = cur.fetchone()[0]
         
@@ -4800,53 +4919,53 @@ async def health_check():
 
 @app.get("/init-articles")
 async def init_articles_endpoint():
-    """Point de terminaison pour créer des articles de test (débogage uniquement)."""
+    """Point de terminaison pour crÃ©er des articles de test (dÃ©bogage uniquement)."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier s'il y a déjà des articles
+        # VÃ©rifier s'il y a dÃ©jÃ  des articles
         cur.execute("SELECT COUNT(*) FROM articles")
         existing_articles = cur.fetchone()[0]
         
         if existing_articles > 0:
             return {
                 "status": "info", 
-                "message": f"Il y a déjà {existing_articles} article(s) dans la base de données. Utilisez /clear-articles pour les supprimer d'abord."
+                "message": f"Il y a dÃ©jÃ  {existing_articles} article(s) dans la base de donnÃ©es. Utilisez /clear-articles pour les supprimer d'abord."
             }
         
-        # Articles de test avec des dates récentes
+        # Articles de test avec des dates rÃ©centes
         test_articles = [
             {
                 "title": "Ouverture de la saison 2025",
-                "content": "Le Club Municipal de Tennis Chihia est ravi d'annoncer l'ouverture de la saison 2025. Cette année promet d'être exceptionnelle avec de nouveaux équipements et des programmes d'entraînement améliorés pour tous les niveaux.",
+                "content": "Le Club Municipal de Tennis Chihia est ravi d'annoncer l'ouverture de la saison 2025. Cette annÃ©e promet d'Ãªtre exceptionnelle avec de nouveaux Ã©quipements et des programmes d'entraÃ®nement amÃ©liorÃ©s pour tous les niveaux.",
                 "created_at": (datetime.now() - timedelta(days=2)).isoformat()
             },
             {
                 "title": "Nouveau programme pour les jeunes",
-                "content": "Nous lançons un nouveau programme spécialement conçu pour les jeunes de 8 à 16 ans. Ce programme combine technique, tactique et plaisir pour développer la passion du tennis chez nos futurs champions.",
+                "content": "Nous lanÃ§ons un nouveau programme spÃ©cialement conÃ§u pour les jeunes de 8 Ã  16 ans. Ce programme combine technique, tactique et plaisir pour dÃ©velopper la passion du tennis chez nos futurs champions.",
                 "created_at": (datetime.now() - timedelta(days=5)).isoformat()
             },
             {
                 "title": "Tournoi interne du mois",
-                "content": "Le tournoi interne du mois de janvier aura lieu le week-end prochain. Tous les membres sont invités à participer. Inscriptions ouvertes jusqu'à vendredi soir.",
+                "content": "Le tournoi interne du mois de janvier aura lieu le week-end prochain. Tous les membres sont invitÃ©s Ã  participer. Inscriptions ouvertes jusqu'Ã  vendredi soir.",
                 "created_at": (datetime.now() - timedelta(days=8)).isoformat()
             },
             {
                 "title": "Maintenance des courts",
-                "content": "Nos courts de tennis ont été entièrement rénovés pendant les vacances. Nouvelle surface, filets neufs et éclairage amélioré pour une expérience de jeu optimale.",
+                "content": "Nos courts de tennis ont Ã©tÃ© entiÃ¨rement rÃ©novÃ©s pendant les vacances. Nouvelle surface, filets neufs et Ã©clairage amÃ©liorÃ© pour une expÃ©rience de jeu optimale.",
                 "created_at": (datetime.now() - timedelta(days=12)).isoformat()
             },
             {
                 "title": "Bienvenue aux nouveaux membres",
-                "content": "Nous souhaitons la bienvenue à tous nos nouveaux membres qui ont rejoint le club ce mois-ci. N'hésitez pas à participer aux activités et à vous intégrer dans notre communauté tennis.",
+                "content": "Nous souhaitons la bienvenue Ã  tous nos nouveaux membres qui ont rejoint le club ce mois-ci. N'hÃ©sitez pas Ã  participer aux activitÃ©s et Ã  vous intÃ©grer dans notre communautÃ© tennis.",
                 "created_at": (datetime.now() - timedelta(days=15)).isoformat()
             }
         ]
         
-        # Insérer les articles
+        # InsÃ©rer les articles
         for article in test_articles:
-            # Vérifier si c'est une connexion MySQL
+            # VÃ©rifier si c'est une connexion MySQL
             if hasattr(conn, '_is_mysql') and conn._is_mysql:
                 cur.execute("""
                     INSERT INTO articles (title, content, created_at)
@@ -4863,7 +4982,7 @@ async def init_articles_endpoint():
         
         return {
             "status": "success", 
-            "message": f"{len(test_articles)} articles créés",
+            "message": f"{len(test_articles)} articles crÃ©Ã©s",
             "articles": [article["title"] for article in test_articles]
         }
         
@@ -4872,16 +4991,16 @@ async def init_articles_endpoint():
 
 @app.get("/init-database")
 async def init_database_endpoint():
-    """Point de terminaison pour initialiser manuellement la base de données."""
+    """Point de terminaison pour initialiser manuellement la base de donnÃ©es."""
     try:
         from database import init_db
         
-        print("🔄 Initialisation manuelle de la base de données...")
+        print("ðŸ”„ Initialisation manuelle de la base de donnÃ©es...")
         init_db()
         
         return {
             "status": "success",
-            "message": "Base de données initialisée avec succès"
+            "message": "Base de donnÃ©es initialisÃ©e avec succÃ¨s"
         }
         
     except Exception as e:
@@ -4891,21 +5010,16 @@ async def init_database_endpoint():
         }
 
 # -----------------------------------------------------------------------------
-#  Démarrage de l'application
+#  Endpoints ops / diagnostic (bloquÃ©s par dÃ©faut via security_middleware)
 # -----------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
 @app.get("/diagnostic-db")
 async def diagnostic_db():
-    """Point de terminaison de diagnostic pour vérifier l'état de la base de données."""
+    """Point de terminaison de diagnostic pour vÃ©rifier l'Ã©tat de la base de donnÃ©es."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier si les tables existent
+        # VÃ©rifier si les tables existent
         tables_info = {}
         
         try:
@@ -4929,7 +5043,7 @@ async def diagnostic_db():
         except Exception as e:
             tables_info["articles"] = {"exists": False, "error": str(e)}
         
-        # Vérifier l'utilisateur admin
+        # VÃ©rifier l'utilisateur admin
         admin_info = {}
         try:
             cur.execute("SELECT * FROM users WHERE username = 'admin'")
@@ -4965,7 +5079,7 @@ async def diagnostic_db():
 
 @app.get("/debug-auth")
 async def debug_auth(request: Request):
-    """Point de terminaison de débogage pour vérifier l'état de l'authentification."""
+    """Point de terminaison de dÃ©bogage pour vÃ©rifier l'Ã©tat de l'authentification."""
     try:
         user = get_current_user(request)
         
@@ -4980,12 +5094,12 @@ async def debug_auth(request: Request):
                     "validated": bool(user.validated),
                     "is_trainer": bool(user.is_trainer)
                 },
-                "message": "Utilisateur connecté"
+                "message": "Utilisateur connectÃ©"
             }
         else:
             return {
                 "status": "not_connected",
-                "message": "Aucun utilisateur connecté"
+                "message": "Aucun utilisateur connectÃ©"
             }
             
     except Exception as e:
@@ -4997,65 +5111,58 @@ async def debug_auth(request: Request):
 
 @app.get("/fix-admin")
 async def fix_admin_endpoint():
-    """Point de terminaison pour créer/corriger l'utilisateur admin UNIQUEMENT si nécessaire."""
+    """Point de terminaison pour crÃ©er/corriger l'utilisateur admin UNIQUEMENT si nÃ©cessaire."""
     try:
-        # D'abord, initialiser la base de données si nécessaire
+        # D'abord, initialiser la base de donnÃ©es si nÃ©cessaire
         from database import init_db
         init_db()
         
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier si l'utilisateur admin existe
+        # VÃ©rifier si l'utilisateur admin existe
         cur.execute("SELECT * FROM users WHERE username = 'admin'")
         admin_user = cur.fetchone()
         
         if admin_user:
-            # Corriger les permissions si nécessaire
+            # Corriger les permissions si nÃ©cessaire
             updates = []
             
-            if not admin_user[9]:  # is_admin est à l'index 9
+            if not admin_user[9]:  # is_admin est Ã  l'index 9
                 cur.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
-                updates.append("droits admin ajoutés")
+                updates.append("droits admin ajoutÃ©s")
             
-            if not admin_user[10]:  # validated est à l'index 10
+            if not admin_user[10]:  # validated est Ã  l'index 10
                 cur.execute("UPDATE users SET validated = 1 WHERE username = 'admin'")
-                updates.append("statut validé ajouté")
+                updates.append("statut validÃ© ajoutÃ©")
             
-            # Mettre à jour le mot de passe
+            # Mettre Ã  jour le mot de passe
             admin_password = "admin"
             admin_password_hash = hash_password(admin_password)
             
-            if admin_user[2] != admin_password_hash:  # password_hash est à l'index 2
+            if admin_user[2] != admin_password_hash:  # password_hash est Ã  l'index 2
                 cur.execute("UPDATE users SET password_hash = %s WHERE username = 'admin'", (admin_password_hash,))
-                updates.append("mot de passe mis à jour")
+                updates.append("mot de passe mis Ã  jour")
             
             conn.commit()
             
             if updates:
                 return {
                     "status": "success",
-                    "message": f"Utilisateur admin corrigé: {', '.join(updates)}",
-                    "credentials": {
-                        "username": "admin",
-                        "password": "admin"
-                    }
+                    "message": f"Utilisateur admin corrigÃ©: {', '.join(updates)}",
+                    "note": "Identifiants non renvoyÃ©s. Changez le mot de passe admin immÃ©diatement.",
                 }
             else:
                 return {
                     "status": "success",
-                    "message": "Utilisateur admin déjà correct",
-                    "credentials": {
-                        "username": "admin",
-                        "password": "admin"
-                    }
+                    "message": "Utilisateur admin dÃ©jÃ  correct",
                 }
         else:
-            # Créer l'utilisateur admin
+            # CrÃ©er l'utilisateur admin
             admin_password = "admin"
             admin_password_hash = hash_password(admin_password)
             
-            # Vérifier si c'est une connexion MySQL
+            # VÃ©rifier si c'est une connexion MySQL
             if hasattr(conn, '_is_mysql') and conn._is_mysql:
                 cur.execute("""
                     INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer, email_verification_token, email_verified)
@@ -5071,7 +5178,7 @@ async def fix_admin_endpoint():
             
             return {
                 "status": "success",
-                "message": "Utilisateur admin créé avec succès",
+                "message": "Utilisateur admin crÃ©Ã© avec succÃ¨s",
                 "credentials": {
                     "username": "admin",
                     "password": "admin"
@@ -5091,25 +5198,25 @@ async def fix_admin_endpoint():
 async def restore_backup_endpoint():
     """Point de terminaison pour forcer la restauration depuis une sauvegarde."""
     try:
-        # Trouver la sauvegarde la plus récente
+        # Trouver la sauvegarde la plus rÃ©cente
         latest_backup = find_latest_backup()
         
         if not latest_backup:
             return {
                 "status": "error",
-                "message": "Aucune sauvegarde trouvée"
+                "message": "Aucune sauvegarde trouvÃ©e"
             }
         
-        # Restaurer la base de données
+        # Restaurer la base de donnÃ©es
         if restore_database(latest_backup):
             return {
                 "status": "success",
-                "message": f"Base de données restaurée depuis {latest_backup}"
+                "message": f"Base de donnÃ©es restaurÃ©e depuis {latest_backup}"
             }
         else:
             return {
                 "status": "error",
-                "message": "Échec de la restauration"
+                "message": "Ã‰chec de la restauration"
             }
             
     except Exception as e:
@@ -5126,12 +5233,12 @@ async def test_espace_endpoint():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Test de la requête SQL
+        # Test de la requÃªte SQL
         cur.execute("SELECT COUNT(*) FROM users")
         users_count = cur.fetchone()[0]
         
-        # Test de la requête de réservations (pour l'utilisateur 1)
-        # Vérifier si c'est une connexion MySQL
+        # Test de la requÃªte de rÃ©servations (pour l'utilisateur 1)
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute(
                 "SELECT substr(date, 1, 7) AS month, COUNT(*) AS count FROM reservations WHERE user_id = %s GROUP BY month ORDER BY month",
@@ -5146,7 +5253,7 @@ async def test_espace_endpoint():
         
         conn.close()
         
-        # Transformer les résultats
+        # Transformer les rÃ©sultats
         months = []
         counts = []
         for row in rows:
@@ -5172,42 +5279,42 @@ async def test_espace_endpoint():
 
 @app.get("/disable-auto-backup")
 async def disable_auto_backup_endpoint():
-    """Point de terminaison pour désactiver le système de sauvegarde automatique."""
+    """Point de terminaison pour dÃ©sactiver le systÃ¨me de sauvegarde automatique."""
     try:
-        # Créer un fichier de flag pour désactiver la sauvegarde automatique
+        # CrÃ©er un fichier de flag pour dÃ©sactiver la sauvegarde automatique
         flag_file = Path("DISABLE_AUTO_BACKUP")
         flag_file.touch()
         
         return {
             "status": "success",
-            "message": "Système de sauvegarde automatique désactivé. Redémarrez l'application pour appliquer."
+            "message": "SystÃ¨me de sauvegarde automatique dÃ©sactivÃ©. RedÃ©marrez l'application pour appliquer."
         }
         
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Erreur lors de la désactivation: {str(e)}"
+            "message": f"Erreur lors de la dÃ©sactivation: {str(e)}"
         }
 
 
 @app.get("/enable-auto-backup")
 async def enable_auto_backup_endpoint():
-    """Point de terminaison pour réactiver le système de sauvegarde automatique."""
+    """Point de terminaison pour rÃ©activer le systÃ¨me de sauvegarde automatique."""
     try:
-        # Supprimer le fichier de flag pour réactiver la sauvegarde automatique
+        # Supprimer le fichier de flag pour rÃ©activer la sauvegarde automatique
         flag_file = Path("DISABLE_AUTO_BACKUP")
         if flag_file.exists():
             flag_file.unlink()
         
         return {
             "status": "success",
-            "message": "Système de sauvegarde automatique réactivé. Redémarrez l'application pour appliquer."
+            "message": "SystÃ¨me de sauvegarde automatique rÃ©activÃ©. RedÃ©marrez l'application pour appliquer."
         }
         
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Erreur lors de la réactivation: {str(e)}"
+            "message": f"Erreur lors de la rÃ©activation: {str(e)}"
         }
 
 
@@ -5222,19 +5329,19 @@ async def debug_table_structure_endpoint():
     try:
         import sqlite3
         
-        # Connexion à la base de données
+        # Connexion Ã  la base de donnÃ©es
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         
-        # Récupérer la structure de la table articles
+        # RÃ©cupÃ©rer la structure de la table articles
         cursor.execute("PRAGMA table_info(articles)")
         columns = cursor.fetchall()
         
-        # Récupérer quelques exemples d'articles
+        # RÃ©cupÃ©rer quelques exemples d'articles
         cursor.execute("SELECT * FROM articles LIMIT 3")
         sample_articles = cursor.fetchall()
         
-        # Récupérer le total d'articles
+        # RÃ©cupÃ©rer le total d'articles
         cursor.execute("SELECT COUNT(*) FROM articles")
         total_count = cursor.fetchone()[0]
         
@@ -5269,11 +5376,11 @@ async def debug_latest_articles_endpoint():
     try:
         import sqlite3
         
-        # Connexion à la base de données
+        # Connexion Ã  la base de donnÃ©es
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         
-        # Récupérer tous les articles avec leurs détails
+        # RÃ©cupÃ©rer tous les articles avec leurs dÃ©tails
         cursor.execute("""
             SELECT id, title, content, image_path, created_at 
             FROM articles 
@@ -5282,11 +5389,11 @@ async def debug_latest_articles_endpoint():
         """)
         articles = cursor.fetchall()
         
-        # Récupérer le total d'articles
+        # RÃ©cupÃ©rer le total d'articles
         cursor.execute("SELECT COUNT(*) FROM articles")
         total_count = cursor.fetchone()[0]
         
-        # Tous les articles sont considérés comme publiés (pas de colonne type)
+        # Tous les articles sont considÃ©rÃ©s comme publiÃ©s (pas de colonne type)
         published_count = total_count
         
         conn.close()
@@ -5296,7 +5403,7 @@ async def debug_latest_articles_endpoint():
         for article in articles:
             article_id, title, content, image_path, created_at = article
             
-            # Vérifier si l'image est accessible
+            # VÃ©rifier si l'image est accessible
             image_accessible = False
             if image_path:
                 if image_path.startswith('https://www.cmtch.online/image/'):
@@ -5336,12 +5443,12 @@ async def debug_latest_articles_endpoint():
 
 @app.get("/diagnose-database")
 async def diagnose_database_endpoint():
-    """Diagnostique la base de données"""
+    """Diagnostique la base de donnÃ©es"""
     try:
         import sqlite3
         import os
         
-        # Vérifier si le fichier de base existe
+        # VÃ©rifier si le fichier de base existe
         db_files = []
         for db_file in ['cmtch.db', 'database.db', 'database.sqlite']:
             if os.path.exists(db_file):
@@ -5349,11 +5456,11 @@ async def diagnose_database_endpoint():
         
         if not db_files:
             return {
-                "error": "Aucun fichier de base de données trouvé",
+                "error": "Aucun fichier de base de donnÃ©es trouvÃ©",
                 "searched_files": ['cmtch.db', 'database.db', 'database.sqlite']
             }
         
-        # Tester chaque base de données
+        # Tester chaque base de donnÃ©es
         results = {}
         for db_file in db_files:
             try:
@@ -5364,7 +5471,7 @@ async def diagnose_database_endpoint():
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
                 tables = [row[0] for row in cursor.fetchall()]
                 
-                # Vérifier si la table articles existe
+                # VÃ©rifier si la table articles existe
                 has_articles = 'articles' in tables
                 
                 if has_articles:
@@ -5372,7 +5479,7 @@ async def diagnose_database_endpoint():
                     cursor.execute("SELECT COUNT(*) FROM articles")
                     article_count = cursor.fetchone()[0]
                     
-                    # Récupérer quelques exemples
+                    # RÃ©cupÃ©rer quelques exemples
                     cursor.execute("SELECT id, title, image_path FROM articles LIMIT 3")
                     sample_articles = cursor.fetchall()
                 else:
@@ -5408,15 +5515,15 @@ async def diagnose_database_endpoint():
 async def setup_imgbb_endpoint():
     """Configuration et test d'ImgBB (service d'images gratuit)"""
     try:
-        # Instructions pour obtenir une clé API ImgBB
+        # Instructions pour obtenir une clÃ© API ImgBB
         instructions = {
             "step1": "Aller sur https://api.imgbb.com/",
             "step2": "Cliquer sur 'Get API Key'",
-            "step3": "S'inscrire gratuitement (pas de carte de crédit)",
-            "step4": "Copier la clé API",
+            "step3": "S'inscrire gratuitement (pas de carte de crÃ©dit)",
+            "step4": "Copier la clÃ© API",
             "step5": "Remplacer 'YOUR_IMGBB_API_KEY' dans photo_upload_service_imgbb.py",
             "benefits": [
-                "Gratuit et illimité",
+                "Gratuit et illimitÃ©",
                 "32MB par image",
                 "URLs permanentes",
                 "Pas de blocage serveur",
@@ -5428,7 +5535,7 @@ async def setup_imgbb_endpoint():
             "status": "success",
             "message": "Instructions pour configurer ImgBB",
             "instructions": instructions,
-            "next_step": "Obtenir une clé API ImgBB et la configurer"
+            "next_step": "Obtenir une clÃ© API ImgBB et la configurer"
         }
         
     except Exception as e:
@@ -5436,7 +5543,7 @@ async def setup_imgbb_endpoint():
 
 @app.get("/test-db-connection")
 async def test_db_connection_endpoint():
-    """Test de la connexion à la base de données"""
+    """Test de la connexion Ã  la base de donnÃ©es"""
     try:
         from database import get_db_connection
         import os
@@ -5444,7 +5551,7 @@ async def test_db_connection_endpoint():
         # Test de la connexion
         conn = get_db_connection()
         
-        # Vérifier le type de connexion
+        # VÃ©rifier le type de connexion
         connection_type = "unknown"
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             connection_type = "mysql"
@@ -5453,7 +5560,7 @@ async def test_db_connection_endpoint():
         elif hasattr(conn, 'cursor'):
             connection_type = "postgresql"
         
-        # Test d'une requête simple
+        # Test d'une requÃªte simple
         try:
             if connection_type == "mysql":
                 cur = conn.cursor()
@@ -5473,7 +5580,7 @@ async def test_db_connection_endpoint():
         return {
             "status": "success",
             "connection_type": connection_type,
-            "database_url": os.getenv('DATABASE_URL', 'Non défini'),
+            "database_url": os.getenv('DATABASE_URL', 'Non dÃ©fini'),
             "mysql_available": "mysql.connector" in str(type(conn)),
             "article_count": article_count,
             "connection_object": str(type(conn))
@@ -5484,14 +5591,14 @@ async def test_db_connection_endpoint():
 
 @app.get("/test-homepage-data")
 async def test_homepage_data_endpoint():
-    """Test des données de la page d'accueil"""
+    """Test des donnÃ©es de la page d'accueil"""
     try:
         from database import get_db_connection
         
-        # Récupérer les données comme dans la route home
+        # RÃ©cupÃ©rer les donnÃ©es comme dans la route home
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
@@ -5499,7 +5606,7 @@ async def test_homepage_data_endpoint():
                 "SELECT id, title, content, image_path, created_at FROM articles ORDER BY created_at DESC LIMIT 3"
             )
             latest_articles = cur.fetchall()
-            # Convertir les tuples MySQL en objets avec attributs nommés
+            # Convertir les tuples MySQL en objets avec attributs nommÃ©s
             latest_articles = [convert_mysql_result(article, column_names) for article in latest_articles]
         else:
             cur = conn.cursor()
@@ -5510,7 +5617,7 @@ async def test_homepage_data_endpoint():
         
         conn.close()
         
-        # Analyser les données
+        # Analyser les donnÃ©es
         analyzed_articles = []
         for article in latest_articles:
             if hasattr(article, 'id'):
@@ -5546,7 +5653,7 @@ async def test_homepage_data_endpoint():
 
 @app.get("/test-imgbb")
 async def test_imgbb_endpoint():
-    """Test du système ImgBB"""
+    """Test du systÃ¨me ImgBB"""
     try:
         return test_imgbb_system()
         
@@ -5559,15 +5666,15 @@ async def test_imgbb_endpoint():
 
 @app.get("/force-update-all-image-urls")
 async def force_update_all_image_urls_endpoint():
-    """Force la mise à jour de TOUTES les URLs d'images"""
+    """Force la mise Ã  jour de TOUTES les URLs d'images"""
     try:
         import sqlite3
         
-        # Connexion à la base de données
+        # Connexion Ã  la base de donnÃ©es
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         
-        # Récupérer tous les articles
+        # RÃ©cupÃ©rer tous les articles
         cursor.execute("SELECT id, image_path FROM articles")
         articles = cursor.fetchall()
         
@@ -5586,18 +5693,18 @@ async def force_update_all_image_urls_endpoint():
             # Nouvelle URL via notre endpoint
             new_url = f"https://www.cmtch.online/image/{filename}"
             
-            # Mettre à jour la base de données
+            # Mettre Ã  jour la base de donnÃ©es
             cursor.execute("UPDATE articles SET image_path = ? WHERE id = ?", (new_url, article_id))
             updated_count += 1
             
-            print(f"✅ Article {article_id}: {image_path} -> {new_url}")
+            print(f"âœ… Article {article_id}: {image_path} -> {new_url}")
         
         conn.commit()
         conn.close()
         
         return {
             "status": "success",
-            "message": f"{updated_count} articles mis à jour avec les URLs d'images",
+            "message": f"{updated_count} articles mis Ã  jour avec les URLs d'images",
             "updated_count": updated_count,
             "new_base_url": "https://www.cmtch.online/image"
         }
@@ -5614,7 +5721,7 @@ async def force_update_all_image_urls_endpoint():
 
 @app.get("/force-cache-refresh")
 async def force_cache_refresh_endpoint():
-    """Force le refresh du cache pour résoudre le problème d'images"""
+    """Force le refresh du cache pour rÃ©soudre le problÃ¨me d'images"""
     try:
         # Vider le cache des templates
         templates.env.cache.clear()
@@ -5624,7 +5731,7 @@ async def force_cache_refresh_endpoint():
         
         return {
             "status": "success",
-            "message": "Cache vidé et fonction re-exposée",
+            "message": "Cache vidÃ© et fonction re-exposÃ©e",
             "function_available": templates.env.globals.get('ensure_absolute_image_url') is not None
         }
         
@@ -5633,7 +5740,7 @@ async def force_cache_refresh_endpoint():
 
 @app.get("/test-template-function")
 async def test_template_function_endpoint():
-    """Test simple pour vérifier que la fonction est accessible dans les templates"""
+    """Test simple pour vÃ©rifier que la fonction est accessible dans les templates"""
     try:
         # Test simple avec un template minimal
         test_template = """
@@ -5658,11 +5765,11 @@ async def test_template_function_endpoint():
 
 @app.get("/test-html-generation")
 async def test_html_generation_endpoint():
-    """Test pour voir le HTML généré avec les URLs d'images"""
+    """Test pour voir le HTML gÃ©nÃ©rÃ© avec les URLs d'images"""
     try:
         conn = get_db_connection()
         
-        # Récupérer l'article 4
+        # RÃ©cupÃ©rer l'article 4
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
@@ -5678,18 +5785,18 @@ async def test_html_generation_endpoint():
         conn.close()
         
         if not article:
-            return {"error": "Article 4 non trouvé"}
+            return {"error": "Article 4 non trouvÃ©"}
         
         # Tester la fonction ensure_absolute_image_url
         original_url = article.image_path if hasattr(article, 'image_path') else article[3]
         absolute_url = ensure_absolute_image_url(original_url)
         
-        # Vérifier les attributs de l'article
+        # VÃ©rifier les attributs de l'article
         article_attrs = {}
         if hasattr(article, '__dict__'):
             article_attrs = article.__dict__
         elif hasattr(article, '_fields'):
-            # Pour les tuples nommés
+            # Pour les tuples nommÃ©s
             article_attrs = {field: getattr(article, field) for field in article._fields}
         else:
             # Pour les tuples simples
@@ -5701,11 +5808,11 @@ async def test_html_generation_endpoint():
                 'created_at': article[4] if len(article) > 4 else None
             }
         
-        # Générer le HTML pour voir ce qui est réellement produit
+        # GÃ©nÃ©rer le HTML pour voir ce qui est rÃ©ellement produit
         from fastapi import Request
         from fastapi.templating import Jinja2Templates
         
-        # Créer une requête factice pour le template
+        # CrÃ©er une requÃªte factice pour le template
         class MockRequest:
             def __init__(self):
                 self.url = "https://www.cmtch.online/articles/4"
@@ -5721,18 +5828,18 @@ async def test_html_generation_endpoint():
             article_url="https://www.cmtch.online/articles/4"
         )
         
-        # Extraire la balise img du HTML généré (spécifiquement l'image de l'article)
+        # Extraire la balise img du HTML gÃ©nÃ©rÃ© (spÃ©cifiquement l'image de l'article)
         import re
         # Chercher l'image avec la classe "article-featured-image"
         img_match = re.search(r'<img[^>]*class="[^"]*article-featured-image[^"]*"[^>]*src="([^"]*)"[^>]*>', rendered_html)
         if not img_match:
-            # Si pas trouvé, chercher dans la div "article-image-container"
+            # Si pas trouvÃ©, chercher dans la div "article-image-container"
             img_match = re.search(r'<div[^>]*class="[^"]*article-image-container[^"]*"[^>]*>.*?<img[^>]*src="([^"]*)"[^>]*>', rendered_html, re.DOTALL)
         if not img_match:
-            # Si toujours pas trouvé, chercher n'importe quelle image
+            # Si toujours pas trouvÃ©, chercher n'importe quelle image
             img_match = re.search(r'<img[^>]*src="([^"]*)"[^>]*>', rendered_html)
         
-        img_src_in_html = img_match.group(1) if img_match else "Non trouvé"
+        img_src_in_html = img_match.group(1) if img_match else "Non trouvÃ©"
         
         return {
             "article_id": article.id if hasattr(article, 'id') else article[0],
@@ -5752,19 +5859,19 @@ async def test_html_generation_endpoint():
 
 @app.get("/debug-article-images")
 async def debug_article_images_endpoint():
-    """Endpoint pour déboguer les images d'articles"""
+    """Endpoint pour dÃ©boguer les images d'articles"""
     try:
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
             
-            # Récupérer tous les articles
+            # RÃ©cupÃ©rer tous les articles
             cur, column_names = execute_with_names("SELECT id, title, image_path FROM articles")
             articles = cur.fetchall()
-            # Convertir les tuples MySQL en objets avec attributs nommés
+            # Convertir les tuples MySQL en objets avec attributs nommÃ©s
             articles = [convert_mysql_result(article, column_names) for article in articles]
         else:
             cur = conn.cursor()
@@ -5811,15 +5918,15 @@ async def fix_production_images_endpoint():
     try:
         conn = get_db_connection()
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             from database import get_mysql_cursor_with_names, convert_mysql_result
             execute_with_names = get_mysql_cursor_with_names(conn)
             
-            # Récupérer tous les articles
+            # RÃ©cupÃ©rer tous les articles
             cur, column_names = execute_with_names("SELECT id, title, image_path FROM articles")
             articles = cur.fetchall()
-            # Convertir les tuples MySQL en objets avec attributs nommés
+            # Convertir les tuples MySQL en objets avec attributs nommÃ©s
             articles = [convert_mysql_result(article, column_names) for article in articles]
             
             fixed_count = 0
@@ -5829,7 +5936,7 @@ async def fix_production_images_endpoint():
                 title = article.title
                 image_path = article.image_path
                 
-                # Vérifier si l'image est manquante ou invalide
+                # VÃ©rifier si l'image est manquante ou invalide
                 needs_fix = False
                 
                 if not image_path or image_path == '':
@@ -5840,7 +5947,7 @@ async def fix_production_images_endpoint():
                     needs_fix = True
                 
                 if needs_fix:
-                    # Utiliser l'image par défaut HostGator
+                    # Utiliser l'image par dÃ©faut HostGator
                     default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
                     
                     cur.execute("UPDATE articles SET image_path = %s WHERE id = %s", (default_url, article_id))
@@ -5850,14 +5957,14 @@ async def fix_production_images_endpoint():
             # SQLite
             cur = conn.cursor()
             
-            # Récupérer tous les articles
+            # RÃ©cupÃ©rer tous les articles
             cur.execute("SELECT id, title, image_path FROM articles")
             articles = cur.fetchall()
             
             fixed_count = 0
             
             for article_id, title, image_path in articles:
-                # Vérifier si l'image est manquante ou invalide
+                # VÃ©rifier si l'image est manquante ou invalide
                 needs_fix = False
                 
                 if not image_path or image_path == '':
@@ -5868,7 +5975,7 @@ async def fix_production_images_endpoint():
                     needs_fix = True
                 
                 if needs_fix:
-                    # Utiliser l'image par défaut HostGator
+                    # Utiliser l'image par dÃ©faut HostGator
                     default_url = "https://www.cmtch.online/static/article_images/default_article.jpg"
                     
                     cur.execute("UPDATE articles SET image_path = ? WHERE id = ?", (default_url, article_id))
@@ -5879,7 +5986,7 @@ async def fix_production_images_endpoint():
         
         return {
             "status": "success",
-            "message": f"Correction terminée: {fixed_count} articles corrigés sur {len(articles)}",
+            "message": f"Correction terminÃ©e: {fixed_count} articles corrigÃ©s sur {len(articles)}",
             "fixed_count": fixed_count,
             "total_articles": len(articles)
         }
@@ -5892,13 +5999,13 @@ async def fix_production_images_endpoint():
 
 @app.get("/force-disable-backup")
 async def force_disable_backup_endpoint():
-    """Point de terminaison pour forcer la désactivation du système de sauvegarde."""
+    """Point de terminaison pour forcer la dÃ©sactivation du systÃ¨me de sauvegarde."""
     try:
-        # Créer le fichier de flag
+        # CrÃ©er le fichier de flag
         flag_file = Path("DISABLE_AUTO_BACKUP")
         flag_file.touch()
         
-        # Vérifier l'état actuel de la base
+        # VÃ©rifier l'Ã©tat actuel de la base
         conn = get_db_connection()
         cur = conn.cursor()
         
@@ -5915,30 +6022,30 @@ async def force_disable_backup_endpoint():
         
         return {
             "status": "success",
-            "message": "Système de sauvegarde FORCÉMENT désactivé",
+            "message": "SystÃ¨me de sauvegarde FORCÃ‰MENT dÃ©sactivÃ©",
             "current_data": {
                 "users": users_count,
                 "articles": articles_count,
                 "reservations": reservations_count
             },
-            "note": "Vos données actuelles sont préservées. Le système ne touchera plus à votre base."
+            "note": "Vos donnÃ©es actuelles sont prÃ©servÃ©es. Le systÃ¨me ne touchera plus Ã  votre base."
         }
         
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Erreur lors de la désactivation forcée: {str(e)}"
+            "message": f"Erreur lors de la dÃ©sactivation forcÃ©e: {str(e)}"
         }
 
 
 @app.get("/check-backup-status")
 async def check_backup_status_endpoint():
-    """Point de terminaison pour vérifier l'état du système de sauvegarde."""
+    """Point de terminaison pour vÃ©rifier l'Ã©tat du systÃ¨me de sauvegarde."""
     try:
         flag_file = Path("DISABLE_AUTO_BACKUP")
         is_disabled = flag_file.exists()
         
-        # Vérifier l'état de la base
+        # VÃ©rifier l'Ã©tat de la base
         conn = get_db_connection()
         cur = conn.cursor()
         
@@ -5957,7 +6064,7 @@ async def check_backup_status_endpoint():
             "status": "success",
             "backup_system": {
                 "disabled": is_disabled,
-                "auto_backup_disabled": True,  # Désactivé par défaut maintenant
+                "auto_backup_disabled": True,  # DÃ©sactivÃ© par dÃ©faut maintenant
                 "manual_control": True
             },
             "database": {
@@ -5966,40 +6073,40 @@ async def check_backup_status_endpoint():
                 "reservations": reservations_count,
                 "has_data": users_count > 0 or articles_count > 0 or reservations_count > 0
             },
-            "recommendation": "Système désactivé - vos données sont protégées"
+            "recommendation": "SystÃ¨me dÃ©sactivÃ© - vos donnÃ©es sont protÃ©gÃ©es"
         }
         
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Erreur lors de la vérification: {str(e)}"
+            "message": f"Erreur lors de la vÃ©rification: {str(e)}"
         }
 
 
 
 @app.get("/create-admin")
 async def create_admin_endpoint():
-    """Point de terminaison pour créer l'utilisateur admin si la base est vide."""
+    """Point de terminaison pour crÃ©er l'utilisateur admin si la base est vide."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Vérifier si la base contient des données
+        # VÃ©rifier si la base contient des donnÃ©es
         cur.execute("SELECT COUNT(*) FROM users")
         users_count = cur.fetchone()[0]
         
         if users_count > 0:
             return {
                 "status": "info",
-                "message": f"La base contient déjà {users_count} utilisateur(s). Utilisez /fix-admin pour corriger l'admin.",
+                "message": f"La base contient dÃ©jÃ  {users_count} utilisateur(s). Utilisez /fix-admin pour corriger l'admin.",
                 "users_count": users_count
             }
         
-        # Créer l'utilisateur admin si la base est vide
+        # CrÃ©er l'utilisateur admin si la base est vide
         admin_password = "admin"
         admin_password_hash = hash_password(admin_password)
         
-        # Vérifier si c'est une connexion MySQL
+        # VÃ©rifier si c'est une connexion MySQL
         if hasattr(conn, '_is_mysql') and conn._is_mysql:
             cur.execute("""
                 INSERT INTO users (username, password_hash, full_name, email, phone, ijin_number, birth_date, is_admin, validated, is_trainer, email_verification_token, email_verified)
@@ -6016,29 +6123,26 @@ async def create_admin_endpoint():
         
         return {
             "status": "success",
-            "message": "Base de données vide - Utilisateur admin créé avec succès",
-            "credentials": {
-                "username": "admin",
-                "password": "admin"
-            }
+            "message": "Base de donnÃ©es vide - Utilisateur admin crÃ©Ã© avec succÃ¨s",
+            "note": "Connectez-vous avec le compte admin puis changez immÃ©diatement le mot de passe.",
         }
         
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Erreur lors de la création: {str(e)}"
+            "message": f"Erreur lors de la crÃ©ation: {str(e)}"
         }
 
 @app.get("/backup-database")
 async def backup_database_endpoint(request: Request):
-    """Endpoint pour créer une sauvegarde de la base de données."""
+    """Endpoint pour crÃ©er une sauvegarde de la base de donnÃ©es."""
     try:
         user = get_current_user(request)
         
         if not user or not user.is_admin:
             return {
                 "status": "error",
-                "message": "Accès refusé - droits administrateur requis"
+                "message": "AccÃ¨s refusÃ© - droits administrateur requis"
             }
         
         # Utiliser la fonction de sauvegarde existante
@@ -6061,7 +6165,7 @@ async def list_backups_endpoint(request: Request):
         if not user or not user.is_admin:
             return {
                 "status": "error",
-                "message": "Accès refusé - droits administrateur requis"
+                "message": "AccÃ¨s refusÃ© - droits administrateur requis"
             }
         
         # Lister les sauvegardes disponibles
@@ -6069,7 +6173,7 @@ async def list_backups_endpoint(request: Request):
         if not backup_dir.exists():
             return {
                 "status": "success",
-                "message": "Aucune sauvegarde trouvée",
+                "message": "Aucune sauvegarde trouvÃ©e",
                 "backups": []
             }
         
@@ -6084,7 +6188,7 @@ async def list_backups_endpoint(request: Request):
         
         result = {
             "status": "success",
-            "message": f"{len(backup_files)} sauvegarde(s) trouvée(s)",
+            "message": f"{len(backup_files)} sauvegarde(s) trouvÃ©e(s)",
             "backups": backup_files
         }
         
@@ -6098,14 +6202,14 @@ async def list_backups_endpoint(request: Request):
 
 @app.get("/test-admin-reservations")
 async def test_admin_reservations(request: Request):
-    """Endpoint de test pour diagnostiquer le problème des réservations admin"""
+    """Endpoint de test pour diagnostiquer le problÃ¨me des rÃ©servations admin"""
     try:
         user = get_current_user(request)
         
         if not user:
             return {
                 "status": "error",
-                "message": "Utilisateur non connecté",
+                "message": "Utilisateur non connectÃ©",
                 "step": "authentication"
             }
         
@@ -6121,7 +6225,7 @@ async def test_admin_reservations(request: Request):
                 }
             }
         
-        # Test de connexion à la base de données
+        # Test de connexion Ã  la base de donnÃ©es
         try:
             conn = get_db_connection()
             cur = conn.cursor()
@@ -6153,7 +6257,7 @@ async def test_admin_reservations(request: Request):
         except Exception as db_error:
             return {
                 "status": "error",
-                "message": f"Erreur de base de données: {str(db_error)}",
+                "message": f"Erreur de base de donnÃ©es: {str(db_error)}",
                 "step": "database_connection",
                 "user_info": {
                     "username": user.username,
@@ -6164,30 +6268,30 @@ async def test_admin_reservations(request: Request):
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Erreur générale: {str(e)}",
+            "message": f"Erreur gÃ©nÃ©rale: {str(e)}",
             "step": "general"
         }
 
 @app.get("/test-espace-simple")
 async def test_espace_simple(request: Request) -> JSONResponse:
-    """Test simple pour diagnostiquer le problème de /espace."""
+    """Test simple pour diagnostiquer le problÃ¨me de /espace."""
     try:
-        # Test 1: Récupération du cookie
+        # Test 1: RÃ©cupÃ©ration du cookie
         token = request.cookies.get("session_token")
         if not token:
-            return JSONResponse({"error": "Aucun token de session trouvé"})
+            return JSONResponse({"error": "Aucun token de session trouvÃ©"})
         
         # Test 2: Parsing du token
         user_id = parse_session_token(token)
         if not user_id:
-            return JSONResponse({"error": "Token de session invalide", "token": token})
+            return JSONResponse({"error": "Token de session invalide"})
         
-        # Test 3: Récupération de l'utilisateur
+        # Test 3: RÃ©cupÃ©ration de l'utilisateur
         user = get_current_user(request)
         if not user:
             return JSONResponse({"error": "get_current_user retourne None", "user_id": user_id})
         
-        # Test 4: Vérification des attributs
+        # Test 4: VÃ©rification des attributs
         user_attrs = {}
         try:
             user_attrs["id"] = user.id
@@ -6209,17 +6313,15 @@ async def test_espace_simple(request: Request) -> JSONResponse:
         except Exception as e:
             user_attrs["is_admin_error"] = str(e)
         
-        # Test 5: Vérification du type d'objet
+        # Test 5: VÃ©rification du type d'objet
         user_type = type(user).__name__
         user_dir = dir(user)
         
         return JSONResponse({
             "success": True,
-            "token": token,
             "user_id": user_id,
             "user_type": user_type,
             "user_attributes": user_attrs,
-            "user_dir": user_dir,
             "has_id": hasattr(user, 'id'),
             "has_validated": hasattr(user, 'validated'),
             "has_is_admin": hasattr(user, 'is_admin')
@@ -6231,3 +6333,12 @@ async def test_espace_simple(request: Request) -> JSONResponse:
             "error": str(e),
             "traceback": traceback.format_exc()
         })
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", "8000")),
+    )

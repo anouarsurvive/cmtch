@@ -27,9 +27,19 @@ except ImportError as e:
 
 from typing import Union, Dict, Any
 
-def hash_password(password: str) -> str:
-    """Retourne l'empreinte SHA‑256 d'un mot de passe en clair."""
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+try:
+    from security_utils import hash_password, verify_password, needs_rehash
+except ImportError:
+    # Fallback si security_utils indisponible
+    def hash_password(password: str) -> str:
+        """Fallback SHA-256 (dégradé)."""
+        return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+    def verify_password(password: str, password_hash: str) -> bool:
+        return hashlib.sha256(password.encode("utf-8")).hexdigest() == password_hash
+
+    def needs_rehash(password_hash: str) -> bool:
+        return True
 
 def get_db_connection():
     """Retourne une connexion à la base de données (SQLite, PostgreSQL ou MySQL)"""

@@ -67,13 +67,20 @@ python app.py
 
 ### Variables d'environnement
 
-- `DATABASE_URL` : URL de connexion PostgreSQL (pour la production)
-- `SECRET_KEY` : Clé secrète pour les sessions (générée automatiquement sur Render)
+- `DATABASE_URL` : URL de connexion PostgreSQL/MySQL (production)
+- `SECRET_KEY` : Clé secrète pour les sessions (**obligatoire** en production ; générée sur Render)
+- `COOKIE_SECURE` : `true` en HTTPS (défaut auto si Render/DATABASE_URL)
+- `IMGBB_API_KEY` : Clé API ImgBB pour les images d'articles
+- `ENABLE_OPS_ENDPOINTS` : `true` uniquement pour maintenance temporaire (défaut `false`)
+- `SETUP_TOKEN` : Jeton requis pour les endpoints ops si activés (`?token=...` ou header `X-Setup-Token`)
+- `SMTP_*` / `EMAIL_FROM` : configuration email
+
+Voir `.env.example` pour un modèle local.
 
 ### Utilisateur administrateur par défaut
 
 - **Nom d'utilisateur** : `admin`
-- **Mot de passe** : `admin`
+- **Mot de passe** : `admin` (uniquement à la première initialisation DB)
 
 ⚠️ **Important** : Changez ces identifiants après le premier déploiement !
 
@@ -94,17 +101,20 @@ L'application se configure automatiquement avec :
 ## 📊 Endpoints utiles
 
 - `/health` - État de santé de l'application
-- `/fix-admin` - Correction/création de l'utilisateur admin
-- `/debug-auth` - Diagnostic de l'authentification
-- `/backup-database` - Sauvegarde de la base de données (admin)
-- `/list-backups` - Liste des sauvegardes (admin)
+- `/backup-database` - Sauvegarde (admin authentifié)
+- `/list-backups` - Liste des sauvegardes (admin authentifié)
+
+Les anciens endpoints de debug (`/fix-admin`, `/debug-auth`, `/restore-backup`, etc.)
+sont **désactivés par défaut**. Pour une maintenance ponctuelle uniquement :
+`ENABLE_OPS_ENDPOINTS=true` + `SETUP_TOKEN` défini, puis appeler avec `?token=...`.
 
 ## 🔒 Sécurité
 
-- Mots de passe hachés avec SHA-256
-- Sessions sécurisées avec cookies signés
-- Validation des données côté serveur
-- Protection CSRF
+- Mots de passe hachés avec **bcrypt** (migration auto depuis SHA-256 au login)
+- Sessions via cookies HttpOnly + `Secure` en production
+- Protection **CSRF** (cookie + champ formulaire / header `X-CSRF-Token`)
+- Secrets via variables d'environnement (plus de clés en dur)
+- Endpoints ops / diagnostic désactivés hors maintenance
 
 ## 📝 Licence
 

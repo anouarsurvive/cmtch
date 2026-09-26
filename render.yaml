@@ -8,6 +8,10 @@ services:
     envVars:
       - key: SECRET_KEY
         generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ENABLE_OPS_ENDPOINTS
+        value: "false"
       - key: PORT
         value: 8000
       - key: PYTHON_VERSION
