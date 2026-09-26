@@ -1,22 +1,16 @@
 /**
  * Service Worker pour le cache et les performances
- * Version: 1.0.0
+ * Version: 1.2.0 — bump pour invalider l'ancien CSS après Phase 1
  */
 
-const CACHE_NAME = 'cmtch-pwa-v1.1.0';
-const STATIC_CACHE = 'cmtch-static-pwa-v1.1.0';
-const DYNAMIC_CACHE = 'cmtch-dynamic-pwa-v1.1.0';
-const OFFLINE_CACHE = 'cmtch-offline-pwa-v1.1.0';
+const CACHE_VERSION = 'v1.2.0';
+const CACHE_NAME = `cmtch-pwa-${CACHE_VERSION}`;
+const STATIC_CACHE = `cmtch-static-pwa-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `cmtch-dynamic-pwa-${CACHE_VERSION}`;
+const OFFLINE_CACHE = `cmtch-offline-pwa-${CACHE_VERSION}`;
 
-// Ressources à mettre en cache immédiatement
+// Ressources à mettre en cache immédiatement (pas de CSS/JS : toujours réseau d'abord)
 const STATIC_ASSETS = [
-    '/',
-    '/static/css/critical.css',
-    '/static/css/style.css',
-    '/static/css/custom.css',
-    '/static/css/rtl.css',
-    '/static/js/performance.js',
-    '/static/js/config.js',
     '/static/images/hero.png',
     '/static/images/logo.jpg',
     '/static/favicon-192x192.png',
@@ -24,12 +18,12 @@ const STATIC_ASSETS = [
     '/static/manifest.json'
 ];
 
-// Ressources à mettre en cache dynamiquement
+// Pages à pré-cacher (chemins réels du site)
 const DYNAMIC_ASSETS = [
+    '/',
     '/articles',
-    '/reservations',
-    '/login',
-    '/register'
+    '/connexion',
+    '/inscription'
 ];
 
 // Installation du Service Worker
@@ -73,8 +67,13 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    // Suppression des anciens caches
-                    if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+                    // Suppression de TOUS les caches d'anciennes versions
+                    if (
+                        cacheName !== STATIC_CACHE &&
+                        cacheName !== DYNAMIC_CACHE &&
+                        cacheName !== OFFLINE_CACHE &&
+                        cacheName !== CACHE_NAME
+                    ) {
                         console.log('Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
@@ -92,21 +91,24 @@ self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
 
-    // Stratégie de cache selon le type de ressource
-    if (request.method === 'GET') {
-        // Ressources statiques (CSS, JS, images, fonts)
-        if (isStaticAsset(url.pathname)) {
-            event.respondWith(cacheFirst(request, STATIC_CACHE));
-        }
-        // Pages HTML
-        else if (isHTMLRequest(request)) {
-            event.respondWith(networkFirst(request, DYNAMIC_CACHE));
-        }
-        // API et autres ressources
-        else {
-            event.respondWith(networkFirst(request, DYNAMIC_CACHE));
-        }
+    if (request.method !== 'GET') {
+        return;
     }
+
+    // CSS / JS : réseau d'abord pour que les mises à jour Render soient visibles
+    if (isCssOrJs(url.pathname)) {
+        event.respondWith(networkFirst(request, STATIC_CACHE));
+        return;
+    }
+
+    // Images / fonts : cache first
+    if (isStaticAsset(url.pathname)) {
+        event.respondWith(cacheFirst(request, STATIC_CACHE));
+        return;
+    }
+
+    // Pages HTML et reste
+    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
 });
 
 // Stratégie Cache First pour les ressources statiques
@@ -159,10 +161,15 @@ async function networkFirst(request, cacheName) {
     }
 }
 
-// Vérification si c'est une ressource statique
+// Vérification si c'est CSS ou JS (toujours network-first)
+function isCssOrJs(pathname) {
+    return pathname.endsWith('.css') || pathname.endsWith('.js');
+}
+
+// Vérification si c'est une ressource statique (images / fonts)
 function isStaticAsset(pathname) {
-    const staticExtensions = ['.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
-    return staticExtensions.some(ext => pathname.includes(ext));
+    const staticExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.woff', '.woff2', '.ttf', '.eot', '.ico', '.webp'];
+    return staticExtensions.some(ext => pathname.toLowerCase().endsWith(ext));
 }
 
 // Vérification si c'est une requête HTML
