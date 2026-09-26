@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1e3a8a">
+    <title>Hors ligne — CMTCH</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --accent: #f59e0b;
+            --bg: #f8fafc;
+            --text: #1f2937;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Montserrat, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #e2e8f0 100%);
+            color: var(--text);
+            padding: 1.5rem;
+        }
+        .card {
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            background: #fff;
+            border-radius: 1rem;
+            padding: 2.5rem 1.75rem;
+            box-shadow: 0 10px 25px rgba(30, 58, 138, 0.12);
+            border-top: 4px solid var(--accent);
+        }
+        .brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: var(--primary);
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+        h1 {
+            font-size: 1.25rem;
+            margin: 1rem 0 0.75rem;
+            color: var(--primary);
+        }
+        p {
+            margin: 0 0 1.5rem;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        a.btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, var(--accent) 0%, #d97706 100%);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.875rem 1.75rem;
+            border-radius: 0.75rem;
+            width: 100%;
+            max-width: 280px;
+        }
+        a.btn:hover { filter: brightness(1.05); }
+        .icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 0.5rem;
+            border-radius: 50%;
+            background: rgba(30, 58, 138, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="brand">CMTCH</div>
+        <div class="icon" aria-hidden="true">📡</div>
+        <h1>Vous êtes hors ligne</h1>
+        <p>Impossible de joindre le Club Municipal de Tennis Chihia pour le moment. Vérifiez votre connexion, puis réessayez.</p>
+        <a class="btn" href="/">Accueil</a>
+    </div>
+</body>
+</html>

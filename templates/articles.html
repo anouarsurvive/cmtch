@@ -67,7 +67,7 @@
                                 
                                 <div class="article-footer">
                                     <a href="/articles/{{ article.id }}" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-arrow-right me-2"></i>Lire la suite
+                                        <i class="fas fa-arrow-right me-2"></i>{% if article_lang == 'ar' %}اقرأ المزيد{% else %}Lire la suite{% endif %}
                                     </a>
                                     <div class="article-stats">
                                         <span class="stat-item">

@@ -1,9 +1,9 @@
 /**
  * Service Worker pour le cache et les performances
- * Version: 1.2.0 — bump pour invalider l'ancien CSS après Phase 1
+ * Version: 1.3.0 — Phase 2 UX (offline page + brand colors)
  */
 
-const CACHE_VERSION = 'v1.2.0';
+const CACHE_VERSION = 'v1.3.0';
 const CACHE_NAME = `cmtch-pwa-${CACHE_VERSION}`;
 const STATIC_CACHE = `cmtch-static-pwa-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `cmtch-dynamic-pwa-${CACHE_VERSION}`;
@@ -15,7 +15,8 @@ const STATIC_ASSETS = [
     '/static/images/logo.jpg',
     '/static/favicon-192x192.png',
     '/static/favicon-512x512.png',
-    '/static/manifest.json'
+    '/static/manifest.json',
+    '/static/offline.html'
 ];
 
 // Pages à pré-cacher (chemins réels du site)
@@ -152,7 +153,7 @@ async function networkFirst(request, cacheName) {
         }
         
         // Page d'erreur offline
-        return caches.match('/offline.html').then((response) => {
+        return caches.match('/static/offline.html').then((response) => {
             return response || new Response('Offline content not available', {
                 status: 503,
                 statusText: 'Service Unavailable'

@@ -25,7 +25,7 @@
                 {% set article_lang = detect_language(article.title + ' ' + (article.content or '')) %}
                 {% set article_direction = get_text_direction(article_lang) %}
                 {% set article_align = get_text_align(article_lang) %}
-                <article class="article-detail-card article-{{ article_direction }}">
+                <article class="article-detail-card article-{{ article_direction }}" lang="{{ article_lang }}" dir="{{ article_direction }}">
                     <!-- En-tête de l'article -->
                     <header class="article-header">
                         <h1 class="article-title article-title-{{ article_direction }}">{{ article.title }}</h1>

@@ -70,7 +70,8 @@
 
         <!-- Sélecteur de date amélioré -->
         <div class="date-selector-wrapper mb-5">
-            <form method="get" class="date-selector-form">
+            <form method="get" class="date-selector-form" id="dateSelectorForm">
+                <input type="hidden" name="view" value="{{ view_type }}">
                 <div class="row justify-content-center">
                     <div class="col-md-8 col-lg-6">
                         <div class="input-group input-group-lg">
@@ -87,12 +88,12 @@
                             <button type="button" class="btn btn-outline-secondary" onclick="changeDate(1)">
                                 <i class="fas fa-chevron-right"></i>
                             </button>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="dateSubmitBtn">
                                 <i class="fas fa-search"></i>
                             </button>
                         </div>
                         <div class="text-center mt-2">
-                            <small class="text-muted">Utilisez les flèches pour naviguer entre les dates</small>
+                            <small class="text-muted" id="dateNavHint">Utilisez les flèches pour naviguer entre les dates</small>
                         </div>
                     </div>
                 </div>
@@ -352,6 +353,70 @@
                     
                     <!-- Version mobile -->
                     <div class="d-lg-none">
+                        {% if view_type == "week" %}
+                        <div class="mobile-week-list">
+                            {% for week_date in week_dates %}
+                                {% set date_str = week_date.date %}
+                                {% set free_slots = [] %}
+                                {% set busy_slots = [] %}
+                                {% if week_availability and date_str in week_availability %}
+                                    {% for court in (1, 2, 3) %}
+                                        {% if court in week_availability[date_str] %}
+                                            {% for slot in time_slots %}
+                                                {% set slot_info = week_availability[date_str][court][slot] %}
+                                                {% if slot_info.reserved %}
+                                                    {% if busy_slots.append(1) %}{% endif %}
+                                                {% else %}
+                                                    {% if free_slots.append(1) %}{% endif %}
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                <a href="?view=day&date={{ date_str }}" class="mobile-week-day-link text-decoration-none">
+                                    <div class="mobile-week-day d-flex justify-content-between align-items-center p-3 mb-2 border rounded bg-white">
+                                        <div>
+                                            <strong class="text-dark">{{ week_date.day_name|title }}</strong>
+                                            <div class="text-muted small">{{ date_str }}</div>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge bg-success me-1">{{ free_slots|length }} libres</span>
+                                            <span class="badge bg-danger">{{ busy_slots|length }} réservés</span>
+                                        </div>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                        {% elif view_type == "month" %}
+                        <div class="mobile-month-calendar">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="changeMonth(-1)">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <h5 class="mb-0 text-primary">{{ month_title }}</h5>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="changeMonth(1)">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div class="mobile-month-week-header">
+                                <span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span>
+                            </div>
+                            {% for week_start in range(0, month_dates|length, 7) %}
+                            <div class="mobile-month-week">
+                                {% for i in range(7) %}
+                                    {% set date_index = week_start + i %}
+                                    {% if date_index < month_dates|length %}
+                                        {% set date_info = month_dates[date_index] %}
+                                        <a href="?view=day&date={{ date_info.date }}"
+                                           class="mobile-month-day {% if not date_info.is_current_month %}other-month{% endif %}">
+                                            {{ date_info.day_number }}
+                                        </a>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
                         <div class="mobile-schedule">
                             {% for slot in time_slots %}
                                 <div class="mobile-time-slot">
@@ -401,6 +466,7 @@
                                 </div>
                             {% endfor %}
                         </div>
+                        {% endif %}
                     </div>
                     
                     <div class="schedule-footer">
@@ -586,11 +652,36 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function cancelReservation(reservationId) {
-    if (confirm('Êtes-vous sûr de vouloir annuler cette réservation ?')) {
-        // Ici vous pouvez ajouter la logique pour annuler la réservation
-        // Par exemple, faire une requête AJAX vers une route de suppression
-        console.log('Annulation de la réservation:', reservationId);
+    if (!confirm('Êtes-vous sûr de vouloir annuler cette réservation ?')) {
+        return;
     }
+    function getCsrfToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta && meta.content) return meta.content;
+        var match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
+    fetch('/reservations/' + reservationId, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-Token': getCsrfToken(),
+            'Accept': 'application/json'
+        }
+    })
+    .then(function (response) {
+        if (!response.ok) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+                throw new Error((data && data.detail) || (data && data.message) || 'Erreur lors de l\'annulation');
+            });
+        }
+        return response.json();
+    })
+    .then(function () {
+        window.location.reload();
+    })
+    .catch(function (err) {
+        alert(err.message || 'Erreur lors de l\'annulation de la réservation');
+    });
 }
 
 // Animation des créneaux au survol
@@ -602,54 +693,57 @@ document.querySelectorAll('.slot-available').forEach(slot => {
     slot.addEventListener('mouseleave', function() {
         this.style.transform = 'scale(1)';
     });
-    });
+});
 
-    // Fonction pour changer la date
-    function changeDate(days) {
-        const dateInput = document.getElementById('dateSelector');
-        const currentDate = new Date(dateInput.value);
-        currentDate.setDate(currentDate.getDate() + days);
-        
-        // Formater la date au format YYYY-MM-DD
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const day = String(currentDate.getDate()).padStart(2, '0');
-        const newDate = `${year}-${month}-${day}`;
-        
-        dateInput.value = newDate;
-        dateInput.form.submit();
+function showDateNavLoading() {
+    var hint = document.getElementById('dateNavHint');
+    var btn = document.getElementById('dateSubmitBtn');
+    if (hint) hint.textContent = 'Chargement…';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
     }
+}
+
+// Fonction pour changer la date
+function changeDate(days) {
+    const dateInput = document.getElementById('dateSelector');
+    const currentDate = new Date(dateInput.value);
+    currentDate.setDate(currentDate.getDate() + days);
     
-    // Fonction pour changer de mois
-    function changeMonth(months) {
-        const dateInput = document.getElementById('dateSelector');
-        const currentDate = new Date(dateInput.value);
-        currentDate.setMonth(currentDate.getMonth() + months);
-        
-        // Formater la date au format YYYY-MM-DD
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const day = String(currentDate.getDate()).padStart(2, '0');
-        const newDate = `${year}-${month}-${day}`;
-        
-        dateInput.value = newDate;
-        dateInput.form.submit();
-    }
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    dateInput.value = `${year}-${month}-${day}`;
+    showDateNavLoading();
+    dateInput.form.submit();
+}
 
+// Fonction pour changer de mois
+function changeMonth(months) {
+    const dateInput = document.getElementById('dateSelector');
+    const currentDate = new Date(dateInput.value);
+    currentDate.setMonth(currentDate.getMonth() + months);
+    
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    dateInput.value = `${year}-${month}-${day}`;
+    showDateNavLoading();
+    dateInput.form.submit();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
     // Gestion des vues (jour/semaine/mois)
     document.querySelectorAll('[data-view]').forEach(button => {
         button.addEventListener('click', function() {
-            // Retirer la classe active de tous les boutons
             document.querySelectorAll('[data-view]').forEach(btn => btn.classList.remove('active'));
-            // Ajouter la classe active au bouton cliqué
             this.classList.add('active');
             
-            // Changer la vue en mettant à jour l'URL
             const view = this.dataset.view;
             const currentUrl = new URL(window.location);
             currentUrl.searchParams.set('view', view);
             
-                         // Si on passe en vue semaine, on peut ajuster la date pour être au début de la semaine
              if (view === 'week') {
                  const currentDate = new Date(currentUrl.searchParams.get('date') || new Date());
                  const daysSinceMonday = currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1;
@@ -658,14 +752,12 @@ document.querySelectorAll('.slot-available').forEach(slot => {
                  currentUrl.searchParams.set('date', monday.toISOString().split('T')[0]);
              }
              
-             // Si on passe en vue mois, on peut ajuster la date pour être au début du mois
              if (view === 'month') {
                  const currentDate = new Date(currentUrl.searchParams.get('date') || new Date());
                  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
                  currentUrl.searchParams.set('date', firstDayOfMonth.toISOString().split('T')[0]);
              }
             
-            // Rediriger vers la nouvelle URL
             window.location.href = currentUrl.toString();
         });
     });
@@ -677,7 +769,6 @@ document.querySelectorAll('.slot-available').forEach(slot => {
             const today = new Date();
             const startDate = today.toISOString().split('T')[0];
             
-            // Date de fin = 1 mois plus tard
             const endDate = new Date();
             endDate.setMonth(endDate.getMonth() + 1);
             const endDateStr = endDate.toISOString().split('T')[0];
@@ -689,6 +780,12 @@ document.querySelectorAll('.slot-available').forEach(slot => {
             if (endDateInput) endDateInput.value = endDateStr;
         });
     }
+
+    const favoritesModal = document.getElementById('favoritesModal');
+    if (favoritesModal) {
+        favoritesModal.addEventListener('show.bs.modal', loadFavorites);
+    }
+});
 
     // Fonction pour créer une réservation récurrente
     function createRecurringReservation() {
@@ -705,7 +802,6 @@ document.querySelectorAll('.slot-available').forEach(slot => {
                 alert('Réservation récurrente créée avec succès !');
                 bootstrap.Modal.getInstance(document.getElementById('recurringModal')).hide();
                 form.reset();
-                // Recharger la page pour afficher les nouvelles réservations
                 location.reload();
             } else {
                 alert('Erreur lors de la création : ' + data.message);
@@ -752,25 +848,16 @@ document.querySelectorAll('.slot-available').forEach(slot => {
 
     // Fonction pour appliquer un créneau favori
     function applyFavorite(court, startTime, endTime) {
-        // Remplir le formulaire de réservation avec les valeurs du favori
         document.querySelector('input[name="court_number"]').value = court;
         document.querySelector('input[name="start_time"]').value = startTime;
         document.querySelector('input[name="end_time"]').value = endTime;
         
-        // Fermer le modal des favoris
         bootstrap.Modal.getInstance(document.getElementById('favoritesModal')).hide();
         
-        // Faire défiler vers le formulaire de réservation (sans effet de défilement)
         const reservationForm = document.querySelector('.reservation-form');
         if (reservationForm) {
             reservationForm.scrollIntoView();
         }
-    }
-
-    // Charger les favoris quand le modal s'ouvre
-    const favoritesModal = document.getElementById('favoritesModal');
-    if (favoritesModal) {
-        favoritesModal.addEventListener('show.bs.modal', loadFavorites);
     }
     </script>
 
@@ -1218,6 +1305,42 @@ document.querySelectorAll('.slot-available').forEach(slot => {
     .stat-label {
         font-size: 0.8rem;
     }
+}
+
+/* Vue mois / semaine mobile */
+.mobile-month-week-header,
+.mobile-month-week {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.mobile-month-week-header span {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    padding: 4px 0;
+}
+.mobile-month-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    color: #1e3a8a;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.mobile-month-day.other-month {
+    background: #f9fafb;
+    color: #9ca3af;
+}
+.mobile-week-day:active {
+    background: #f1f5f9 !important;
 }
 </style>
 {% endblock %}

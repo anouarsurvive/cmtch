@@ -12,8 +12,8 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180x180.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192x192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="/static/favicon-512x512.png">
-    <meta name="msapplication-TileColor" content="#2c5530">
-    <meta name="theme-color" content="#2c5530">
+    <meta name="msapplication-TileColor" content="#1e3a8a">
+    <meta name="theme-color" content="#1e3a8a">
     <meta name="csrf-token" content="{{ csrf_token|default('') }}">
     
     <!-- PWA Meta Tags -->
@@ -25,7 +25,7 @@
     <meta name="format-detection" content="telephone=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="msapplication-config" content="/static/browserconfig.xml">
-    <meta name="msapplication-TileColor" content="#2c5530">
+    <meta name="msapplication-TileColor" content="#1e3a8a">
     <meta name="msapplication-tap-highlight" content="no">
     
     <!-- PWA Manifest -->
@@ -89,13 +89,13 @@
     </style>
 
     <!-- Préchargement des ressources critiques -->
-    <link rel="preload" href="/static/css/style.css?v=20260926b" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="/static/css/style.css?v=20260926b"></noscript>
+    <link rel="preload" href="/static/css/style.css?v=20260926c" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="/static/css/style.css?v=20260926c"></noscript>
     
     <!-- CSS personnalisé pour CMTCH -->
-    <link rel="stylesheet" href="/static/css/custom.css?v=20260926b">
-    <link rel="stylesheet" href="/static/css/performance.css?v=20260926b">
-    <link rel="stylesheet" href="/static/css/rtl.css?v=20260926b">
+    <link rel="stylesheet" href="/static/css/custom.css?v=20260926c">
+    <link rel="stylesheet" href="/static/css/performance.css?v=20260926c">
+    <link rel="stylesheet" href="/static/css/rtl.css?v=20260926c">
     
 
 </head>
@@ -734,16 +734,11 @@
                     .then((registration) => {
                         console.log('Service Worker enregistré avec succès:', registration.scope);
                         
-                        // Vérifier les mises à jour
                         registration.addEventListener('updatefound', () => {
                             const newWorker = registration.installing;
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // Nouvelle version disponible
-                                    if (confirm('Une nouvelle version de l\'application est disponible. Voulez-vous la charger ?')) {
-                                        newWorker.postMessage({ type: 'SKIP_WAITING' });
-                                        window.location.reload();
-                                    }
+                                    showUpdateBanner(newWorker);
                                 }
                             });
                         });
@@ -753,6 +748,32 @@
                     });
             });
         }
+
+        function showUpdateBanner(newWorker) {
+            if (document.getElementById('pwa-update-banner')) return;
+            const banner = document.createElement('div');
+            banner.id = 'pwa-update-banner';
+            banner.setAttribute('role', 'status');
+            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:1100;background:#1e3a8a;color:#fff;padding:0.875rem 1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;justify-content:center;box-shadow:0 -4px 12px rgba(0,0,0,0.2);';
+            banner.innerHTML = '<span style="flex:1;min-width:200px;text-align:center;">Une nouvelle version est disponible.</span>';
+            const reloadBtn = document.createElement('button');
+            reloadBtn.type = 'button';
+            reloadBtn.className = 'btn btn-sm';
+            reloadBtn.style.cssText = 'background:#f59e0b;color:#fff;border:none;font-weight:600;';
+            reloadBtn.textContent = 'Actualiser';
+            reloadBtn.onclick = function () {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                window.location.reload();
+            };
+            const dismissBtn = document.createElement('button');
+            dismissBtn.type = 'button';
+            dismissBtn.className = 'btn btn-sm btn-outline-light';
+            dismissBtn.textContent = 'Plus tard';
+            dismissBtn.onclick = function () { banner.remove(); };
+            banner.appendChild(reloadBtn);
+            banner.appendChild(dismissBtn);
+            document.body.appendChild(banner);
+        }
         
         // Gestion de l'installation PWA
         let deferredPrompt;
@@ -760,33 +781,29 @@
         
         window.addEventListener('beforeinstallprompt', (e) => {
             console.log('beforeinstallprompt event fired');
-            // Empêcher l'affichage automatique du prompt
             e.preventDefault();
             deferredPrompt = e;
-            
-            // Afficher un bouton d'installation personnalisé
             showInstallButton();
         });
         
         function showInstallButton() {
-            // Vérifier si le bouton existe déjà
+            if (!deferredPrompt) {
+                return;
+            }
             if (installButton) {
                 return;
             }
 
-            // Ne pas afficher sur les formulaires d'auth (masque la saisie sur mobile)
             const path = window.location.pathname || '';
             if (path.indexOf('/inscription') !== -1 || path.indexOf('/connexion') !== -1) {
                 return;
             }
             
-            // Vérifier si l'app est déjà installée
             if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
                 console.log('App already installed');
                 return;
             }
             
-            // Créer un bouton d'installation (icône seule pour ne pas couvrir le contenu)
             installButton = document.createElement('button');
             installButton.innerHTML = '<i class="fas fa-download"></i>';
             installButton.title = 'Installer l\'app';
@@ -808,7 +825,6 @@
             
             document.body.appendChild(installButton);
             
-            // Masquer le bouton après 15 secondes
             setTimeout(() => {
                 if (installButton && installButton.parentNode) {
                     installButton.remove();
@@ -825,7 +841,6 @@
                     console.log('User choice:', choiceResult.outcome);
                     if (choiceResult.outcome === 'accepted') {
                         console.log('Utilisateur a accepté l\'installation PWA');
-                        // Masquer le bouton après installation
                         if (installButton) {
                             installButton.remove();
                             installButton = null;
@@ -835,54 +850,23 @@
                     }
                     deferredPrompt = null;
                 });
-            } else {
-                console.log('No deferred prompt available');
-                // Fallback pour les navigateurs qui ne supportent pas beforeinstallprompt
-                alert('Pour installer cette application, utilisez le menu de votre navigateur (⋮) et sélectionnez "Ajouter à l\'écran d\'accueil" ou "Installer l\'application".');
             }
         }
         
-        // Détecter si l'app est installée
         window.addEventListener('appinstalled', (evt) => {
             console.log('PWA installée avec succès');
-            // Masquer le bouton d'installation
             if (installButton) {
                 installButton.remove();
                 installButton = null;
             }
+            deferredPrompt = null;
         });
         
-        // Gestion du mode standalone (app installée)
         if (window.matchMedia('(display-mode: standalone)').matches) {
             console.log('Application en mode standalone');
             document.body.classList.add('pwa-standalone');
         }
         
-        // Vérification périodique de l'éligibilité à l'installation
-        function checkInstallability() {
-            // Vérifier si l'app peut être installée
-            if ('serviceWorker' in navigator && 'PushManager' in window) {
-                console.log('App is installable');
-                
-                // Vérifier si l'événement beforeinstallprompt n'a pas encore été déclenché
-                if (!deferredPrompt && !installButton) {
-                    // Attendre un peu puis afficher le bouton si possible
-                    setTimeout(() => {
-                        if (!deferredPrompt && !installButton) {
-                            showInstallButton();
-                        }
-                    }, 3000);
-                }
-            } else {
-                console.log('App is not installable - missing features');
-            }
-        }
-        
-        // Vérifier l'installabilité au chargement et périodiquement
-        window.addEventListener('load', checkInstallability);
-        setInterval(checkInstallability, 10000); // Vérifier toutes les 10 secondes
-        
-        // Gestion des erreurs de service worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('error', (event) => {
                 console.error('Service Worker error:', event);

@@ -6,21 +6,21 @@ import re
 
 def detect_language(text: str) -> str:
     """
-    DÃ©tecte la langue d'un texte (arabe ou franÃ§ais)
-    Retourne 'ar' pour l'arabe, 'fr' pour le franÃ§ais
+    Détecte la langue d'un texte (arabe ou français)
+    Retourne 'ar' pour l'arabe, 'fr' pour le français
     """
     if not text or not text.strip():
-        return 'fr'  # Par dÃ©faut franÃ§ais
+        return 'fr'  # Par défaut français
     
-    # Compter les caractÃ¨res arabes
+    # Compter les caractères arabes
     arabic_chars = re.findall(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]', text)
     arabic_count = len(arabic_chars)
     
-    # Compter les caractÃ¨res franÃ§ais/latins
-    latin_chars = re.findall(r'[a-zA-ZÃ Ã¢Ã¤Ã©Ã¨ÃªÃ«Ã¯Ã®Ã´Ã¶Ã¹Ã»Ã¼Ã¿Ã§Ã±]', text)
+    # Compter les caractères français/latins
+    latin_chars = re.findall(r'[a-zA-Zàâäéèêëïîôöùûüÿçñ]', text)
     latin_count = len(latin_chars)
     
-    # Si plus de caractÃ¨res arabes que latins, c'est de l'arabe
+    # Si plus de caractères arabes que latins, c'est de l'arabe
     if arabic_count > latin_count:
         return 'ar'
     else:
