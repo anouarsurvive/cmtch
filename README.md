@@ -123,5 +123,5 @@ Ce projet est développé pour le Club Municipal de Tennis Chihia.
 ## 👥 Contact
 
 - **Email** : club.tennis.chihia@gmail.com
-- **Téléphone** : +216 29 60 03 40
+- **Téléphone** : +21627617133
 - **Adresse** : Route Teboulbi km 6, 3041 Sfax sud

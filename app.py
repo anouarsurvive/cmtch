@@ -1482,7 +1482,7 @@ async def home(request: Request) -> HTMLResponse:
     user = get_current_user(request)
     # Informations publiques sur le club provenant de sources fiables.
     adresse = "Route Teboulbi km 6, 3041 Sfax sud"
-    telephone = "+216 29 60 03 40"
+    telephone = "+21627617133"
     email = "club.tennis.chihia@gmail.com"
     description = (
         "Club municipal de tennis Chihia est un lieu spÃ©cialement conÃ§u pour les personnes "
