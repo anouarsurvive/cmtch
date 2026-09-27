@@ -787,70 +787,51 @@
         });
         
         function showInstallButton() {
-            if (!deferredPrompt) {
-                return;
-            }
             if (installButton) {
                 return;
             }
 
-            const path = window.location.pathname || '';
-            if (path.indexOf('/inscription') !== -1 || path.indexOf('/connexion') !== -1) {
-                return;
-            }
-            
             if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
-                console.log('App already installed');
                 return;
             }
             
             installButton = document.createElement('button');
-            installButton.innerHTML = '<i class="fas fa-download"></i>';
+            installButton.innerHTML = '<i class="fas fa-download me-2"></i>Installer l\'app';
             installButton.title = 'Installer l\'app';
             installButton.setAttribute('aria-label', 'Installer l\'app');
-            installButton.className = 'btn btn-success btn-sm position-fixed pwa-install-fab';
+            installButton.className = 'btn btn-success btn-sm position-fixed';
             installButton.style.cssText = `
-                bottom: 20px; 
-                right: 20px; 
-                z-index: 900; 
+                bottom: 20px;
+                right: 20px;
+                z-index: 1050;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                border-radius: 50%;
-                width: 48px;
-                height: 48px;
-                padding: 0;
+                border-radius: 25px;
+                padding: 10px 20px;
                 font-weight: 600;
-                pointer-events: auto;
             `;
             installButton.onclick = installApp;
-            
             document.body.appendChild(installButton);
-            
-            setTimeout(() => {
-                if (installButton && installButton.parentNode) {
-                    installButton.remove();
-                    installButton = null;
-                }
-            }, 15000);
         }
         
         function installApp() {
             if (deferredPrompt) {
-                console.log('Showing install prompt');
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then((choiceResult) => {
-                    console.log('User choice:', choiceResult.outcome);
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('Utilisateur a accepté l\'installation PWA');
-                        if (installButton) {
-                            installButton.remove();
-                            installButton = null;
-                        }
-                    } else {
-                        console.log('Utilisateur a refusé l\'installation PWA');
+                    if (choiceResult.outcome === 'accepted' && installButton) {
+                        installButton.remove();
+                        installButton = null;
                     }
                     deferredPrompt = null;
                 });
+                return;
             }
+            alert('Pour installer l\'application : menu du navigateur (⋮ ou Partager) puis « Installer l\'application » ou « Sur l\'écran d\'accueil ».');
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showInstallButton);
+        } else {
+            showInstallButton();
         }
         
         window.addEventListener('appinstalled', (evt) => {
