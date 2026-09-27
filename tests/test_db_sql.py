@@ -24,6 +24,21 @@ def test_adapt_sql_sqlite_keeps_placeholders():
     assert adapt_sql(_FakeConn(False), sql) == sql
 
 
+def test_parse_mysql_url_keeps_password_colons():
+    from database import _parse_mysql_url
+
+    host, port, user, password, database = _parse_mysql_url(
+        "mysql://cmtch:p:ass@db.example.com:3306/cmtchdb"
+    )
+    assert (host, port, user, password, database) == (
+        "db.example.com",
+        3306,
+        "cmtch",
+        "p:ass",
+        "cmtchdb",
+    )
+
+
 def test_adapt_sql_mysql_replaces_placeholders():
     sql = "SELECT * FROM users WHERE id = ? AND name = ?"
     assert adapt_sql(_FakeConn(True), sql) == (

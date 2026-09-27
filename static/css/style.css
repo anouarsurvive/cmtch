@@ -295,8 +295,7 @@ h3 {
 /* Section héroïque moderne avec parallax */
 .hero {
     position: relative;
-    background: var(--gradient-hero),
-                url('../images/hero.png');
+    background: var(--gradient-hero);
     background-size: cover;
     background-position: center;
     background-attachment: fixed;

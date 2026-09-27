@@ -1,9 +1,9 @@
 /**
  * Service Worker pour le cache et les performances
- * Version: 1.3.0 — Phase 2 UX (offline page + brand colors)
+ * Version: 1.4.0 — sans hero.png (1,7 Mo) dans le précache
  */
 
-const CACHE_VERSION = 'v1.3.0';
+const CACHE_VERSION = 'v1.4.0';
 const CACHE_NAME = `cmtch-pwa-${CACHE_VERSION}`;
 const STATIC_CACHE = `cmtch-static-pwa-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `cmtch-dynamic-pwa-${CACHE_VERSION}`;
@@ -11,7 +11,6 @@ const OFFLINE_CACHE = `cmtch-offline-pwa-${CACHE_VERSION}`;
 
 // Ressources à mettre en cache immédiatement (pas de CSS/JS : toujours réseau d'abord)
 const STATIC_ASSETS = [
-    '/static/images/hero.png',
     '/static/images/logo.jpg',
     '/static/favicon-192x192.png',
     '/static/favicon-512x512.png',

@@ -31,7 +31,7 @@ const PERFORMANCE_CONFIG = {
     criticalResources: [
         '/static/css/critical.css',
         '/static/js/performance.js',
-        '/static/images/hero.png',
+        '/static/images/logo.jpg',
         'https://www.cmtch.online/photos/cfe876eaaf7a4756a2aeb32935ae9707.jpg'
     ],
     

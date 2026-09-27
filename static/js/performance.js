@@ -94,8 +94,7 @@ class PerformanceManager {
     optimizeImages() {
         // Préchargement des images critiques
         const criticalImages = [
-            '/static/images/hero.png',
-            '/static/images/logo.png'
+            '/static/images/logo.jpg'
         ];
 
         criticalImages.forEach(src => {

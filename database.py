@@ -41,6 +41,41 @@ except ImportError:
     def needs_rehash(password_hash: str) -> bool:
         return True
 
+_mysql_pool = None
+
+
+def _parse_mysql_url(database_url: str):
+    """Parse mysql://user:password@host:port/database (mot de passe peut contenir ':')."""
+    rest = database_url.replace("mysql://", "", 1)
+    user_pass, host_part = rest.rsplit("@", 1)
+    user, password = user_pass.split(":", 1)
+    host_db = host_part.split("/", 1)
+    host_port = host_db[0].split(":")
+    host = host_port[0]
+    port = int(host_port[1]) if len(host_port) > 1 else 3306
+    database = host_db[1].split("?")[0]
+    return host, port, user, password, database
+
+
+def _get_mysql_pool(host, port, user, password, database):
+    """Pool MySQL réutilisé (évite un handshake HostGator à chaque requête)."""
+    global _mysql_pool
+    if _mysql_pool is None:
+        _mysql_pool = mysql.connector.pooling.MySQLConnectionPool(
+            pool_name="cmtch",
+            pool_size=3,
+            pool_reset_session=True,
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database=database,
+            connection_timeout=8,
+        )
+        print("✅ Pool MySQL initialisé (3 connexions)")
+    return _mysql_pool
+
+
 def get_db_connection():
     """Retourne une connexion à la base de données (SQLite, PostgreSQL ou MySQL)"""
     
@@ -57,28 +92,11 @@ def get_db_connection():
         return conn
     
     if database_url and MYSQL_AVAILABLE and 'mysql://' in database_url:
-        # Connexion MySQL sur HostGator
+        # Connexion MySQL sur HostGator (via pool)
         try:
-            # Parser l'URL MySQL
-            # Format: mysql://user:password@host:port/database
-            url_parts = database_url.replace('mysql://', '').split('@')
-            user_pass = url_parts[0].split(':')
-            host_db = url_parts[1].split('/')
-            host_port = host_db[0].split(':')
-            
-            user = user_pass[0]
-            password = user_pass[1]
-            host = host_port[0]
-            port = int(host_port[1]) if len(host_port) > 1 else 3306
-            database = host_db[1]
-            
-            conn = mysql.connector.connect(
-                host=host,
-                port=port,
-                user=user,
-                password=password,
-                database=database
-            )
+            host, port, user, password, database = _parse_mysql_url(database_url)
+            pool = _get_mysql_pool(host, port, user, password, database)
+            conn = pool.get_connection()
             # Marquer la connexion comme MySQL pour le traitement des résultats
             conn._is_mysql = True
             return conn
